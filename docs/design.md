@@ -2,7 +2,7 @@
 
 Protection for tokenized stocks until the next open, sold on the chain where you hold them, hedged on Hyperliquid.
 
-Status: design. Only `research/` is built; everything else here is planned. The README keeps the built/planned split current.
+Status: `research/`, `pricing/`, the EVM vault and the Solana vault are built and tested; neither vault is deployed yet. The hedger, app and MCP tool are planned. The README keeps the built/planned split current.
 
 ## Problem
 
@@ -23,7 +23,7 @@ Customers, in order:
 | Component | Where | Role |
 |---|---|---|
 | Pricing engine | TypeScript | Prices the put spread from the stock's history of openings (Weekend Markets' kernel model, backtested), signs quotes |
-| EVM vault | Robinhood Chain, Solidity | Sells protection against a signed quote (EIP-712), locks the maximum payout, settles on Chainlink's first round at or after the open, pays claims |
+| EVM vault | Robinhood Chain, Solidity | Sells protection against a signed quote (EIP-712), locks the maximum payout, settles on Chainlink's round in force at the open, pays claims |
 | Solana vault | Solana, Anchor | The same against an ed25519-signed quote, settled on the first Pyth print at or after the open |
 | Hedger | TypeScript, Hyperliquid | Sums open protection across vaults, shorts the matching `xyz:` perp at the close, closes the hedge at the open |
 | App | Next.js | Protect (holdings across chains, one ticket), Vault (collateral per chain, live hedge), Track record |
@@ -74,12 +74,10 @@ Colosseum's form asks for every chain integrated. We select only chains that are
 
 | Dates | Work |
 |---|---|
-| Sep 26 | Repo, research proof, checks: Chainlink stock feeds on Robinhood Chain testnet, Hyperliquid testnet order |
-| Sep 27 | Pricing engine: put-spread pricing from the openings model, quote format and signing (EIP-712 and ed25519), tests |
-| Sep 28 to Oct 1 | EVM vault on Robinhood Chain: buy, settle on the first Chainlink round, claim, void; Foundry tests; testnet deploy |
-| Oct 2 to 5 | Solana vault inside the Perps hackathon window: buy against an ed25519 quote, Pyth settlement, claim, void; LiteSVM tests; devnet deploy |
-| Oct 4 to 6 | Hedger on Hyperliquid testnet; exposure across vaults; tests |
-| Oct 6 to 8 | App (Protect, Vault, Track record), MCP `protect_portfolio`, Solana Action; Perps submission Oct 8 |
+| Sep 26 (done) | Repo, research proof, infrastructure checks; pricing engine and quote signing (EIP-712, ed25519); EVM vault (Foundry and fork tests); Solana vault (LiteSVM tests) |
+| Sep 27 to Oct 1 | Deploys: Robinhood Chain mainnet with test collateral (waits on the deploy wallet), Solana devnet. App: Protect, Vault, Track record |
+| Oct 2 to 6 | Hedger on Hyperliquid, inside the Perps hackathon window; exposure across vaults; tests |
+| Oct 6 to 8 | MCP `protect_portfolio`, Solana Action; Perps submission Oct 8 |
 | Oct 9 | Buffer, traction push |
 | **cut line** | Below: Arbitrum, vault shares for outside depositors, stocks beyond TSLA (Pyth entitlement), Solami side track |
 | Oct 10 to 11 | Video, deck, README, form, submit |
@@ -89,6 +87,6 @@ Running alongside: weekly update videos (Sep 28, Oct 5), Superteam Nigeria sessi
 ## Open questions
 
 - Can one project win more than one chain-track prize? (Decides Arbitrum.)
-- Robinhood Chain vault on mainnet with test collateral (needs the user's go-ahead and a funded deploy wallet).
+- Robinhood Chain vault on mainnet with test collateral: decided (yes); waiting on a funded deploy wallet.
 - Hyperliquid testnet access: the hedger's address needs a mainnet deposit first (the user's call).
 - Perps hackathon rules: start date, eligibility of work that is also entered at Colosseum.

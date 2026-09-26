@@ -30,3 +30,15 @@ jobs:
       - uses: foundry-rs/foundry-toolchain@v1
       - run: forge build
       - run: forge test
+
+  solana:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: solana
+    steps:
+      - uses: actions/checkout@v4
+      # rust-toolchain.toml pins the toolchain; rustup installs it on first use.
+      # The LiteSVM tests load the compiled program, so they run locally after `anchor build`.
+      - run: cargo test -p afterbell-vault --lib
