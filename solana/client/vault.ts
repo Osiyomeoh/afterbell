@@ -5,7 +5,17 @@
  */
 import anchor from "@anchor-lang/core";
 import type { AnchorProvider, Program } from "@anchor-lang/core";
-import { Connection, PublicKey } from "@solana/web3.js";
+import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
+import {
+  Connection,
+  Ed25519Program,
+  PublicKey,
+  SystemProgram,
+  SYSVAR_INSTRUCTIONS_PUBKEY,
+  TransactionInstruction,
+} from "@solana/web3.js";
+
+import type { SolanaQuote } from "../../pricing/solanaQuote";
 
 import idl from "./idl/afterbell_vault.json" with { type: "json" };
 import type { AfterbellVault } from "./idl/afterbell_vault";
@@ -56,4 +66,53 @@ export const positionAddress = (vault: PublicKey, nonce: Uint8Array) => pda([see
 export function getProgram(connection: Connection, wallet: AnchorProvider["wallet"]): Program<AfterbellVault> {
   const provider = new anchor.AnchorProvider(connection, wallet, { commitment: "confirmed" });
   return new anchor.Program<AfterbellVault>(idl as AfterbellVault, provider);
+}
+
+const bn = (v: bigint) => new anchor.BN(v.toString());
+
+/**
+ * The two instructions that buy protection, in order: the Ed25519 program
+ * verifying the quoter's signature, then `buy`, which checks that verification
+ * covered this exact quote.
+ */
+export async function buyInstructions(
+  program: Program<AfterbellVault>,
+  args: {
+    buyer: PublicKey;
+    vault: PublicKey;
+    collateralMint: PublicKey;
+    buyerToken: PublicKey;
+    quote: SolanaQuote;
+    /** From the quote service: the Ed25519 instruction's data. */
+    ed25519Data: Uint8Array;
+  },
+): Promise<TransactionInstruction[]> {
+  const q = args.quote;
+  const verify = new TransactionInstruction({ programId: Ed25519Program.programId, keys: [], data: Buffer.from(args.ed25519Data) });
+  const buy = await program.methods
+    .buy({
+      feedId: Array.from(q.feedId),
+      openTs: bn(q.openTs),
+      shares: bn(q.shares),
+      upper: bn(q.upper),
+      lower: bn(q.lower),
+      premium: bn(q.premium),
+      expiry: bn(q.expiry),
+      nonce: Array.from(q.nonce),
+    })
+    .accountsPartial({
+      buyer: args.buyer,
+      vault: args.vault,
+      feedConfig: feedConfigAddress(args.vault, q.feedId),
+      series: seriesAddress(args.vault, q.feedId, q.openTs),
+      position: positionAddress(args.vault, q.nonce),
+      collateralMint: args.collateralMint,
+      buyerToken: args.buyerToken,
+      vaultToken: vaultTokenAddress(args.vault),
+      instructions: SYSVAR_INSTRUCTIONS_PUBKEY,
+      tokenProgram: TOKEN_PROGRAM_ID,
+      systemProgram: SystemProgram.programId,
+    })
+    .instruction();
+  return [verify, buy];
 }

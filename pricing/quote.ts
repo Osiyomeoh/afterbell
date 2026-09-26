@@ -58,6 +58,20 @@ export function maxPayoutUnits(q: Pick<EvmQuote, "shares" | "upper" | "lower">):
   return (q.shares * (q.upper - q.lower) * COLLATERAL_UNIT) / (SHARE_SCALE * PRICE_SCALE);
 }
 
+/**
+ * Protection and premium in on-chain units, the same on both vaults: shares
+ * round down, the strikes to the nearest unit, the premium up.
+ */
+export function toUnits(protection: Protection, premium: number): { shares: bigint; upper: bigint; lower: bigint; premium: bigint } {
+  return {
+    shares: BigInt(Math.floor(protection.shares * Number(SHARE_SCALE))),
+    upper: BigInt(Math.round(protection.upper * Number(PRICE_SCALE))),
+    lower: BigInt(Math.round(protection.lower * Number(PRICE_SCALE))),
+    // toFixed(3) first, so floating-point noise (20.000000000001) doesn't round up a whole unit.
+    premium: BigInt(Math.ceil(Number((premium * Number(COLLATERAL_UNIT)).toFixed(3)))),
+  };
+}
+
 /** Converts priced protection (dollars and shares) into a quote in the contract's units. */
 export function toEvmQuote(args: {
   buyer: Address;
@@ -75,11 +89,7 @@ export function toEvmQuote(args: {
     buyer: args.buyer,
     feed: args.feed,
     openTs: BigInt(args.openTs),
-    shares: BigInt(Math.floor(args.protection.shares * Number(SHARE_SCALE))),
-    upper: BigInt(Math.round(args.protection.upper * Number(PRICE_SCALE))),
-    lower: BigInt(Math.round(args.protection.lower * Number(PRICE_SCALE))),
-    // toFixed(3) first, so floating-point noise (20.000000000001) doesn't round up a whole unit.
-    premium: BigInt(Math.ceil(Number((args.premium * Number(COLLATERAL_UNIT)).toFixed(3)))),
+    ...toUnits(args.protection, args.premium),
     expiry: BigInt(args.expiry),
     nonce: args.nonce ?? newNonce(),
   };

@@ -10,5 +10,5 @@
     "resolveJsonModule": true,
     "types": ["node"]
   },
-  "include": ["research/**/*.ts", "pricing/**/*.ts", "solana/client/**/*.ts", "solana/scripts/**/*.ts"]
+  "include": ["research/**/*.ts", "pricing/**/*.ts", "solana/client/**/*.ts", "solana/scripts/**/*.ts", "quoter/**/*.ts"]
 }
