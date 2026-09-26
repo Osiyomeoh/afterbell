@@ -45,11 +45,37 @@ export type PositionRow = {
   /** What a claim pays now (settled: the payout; voided: the premium back); null while open. */
   claimable: number | null;
   settlementPrice: number | null;
+  /** EVM positions only: the position's NFT image, drawn on-chain. */
+  art?: string;
+};
+
+/** An EVM vault's underwriters' pool, in TestUSD and shares (6 decimals both). */
+export type PoolState = {
+  round: number;
+  /** The opening the current round sells, once its first sale fixes it. */
+  roundOpenTs: number | null;
+  /** What the pool is worth now, and what it was worth at the roll (its risk limits' base). */
+  nav: number;
+  roundNav: number;
+  shares: number;
+  sharePrice: number;
+  pendingDeposits: number;
+  pendingRedeemShares: number;
+  /** Set aside for redemptions already filled. */
+  reserved: number;
+  tipsOwed: number;
+  /** How much more maximum payout the round can sell, across stocks, and at most per stock. */
+  room: number;
+  perStock: number;
+  maxUtilizationBps: number;
+  maxFeedBps: number;
+  keeperTipBps: number;
 };
 
 export type VaultState = {
   /** EVM vaults only. */
   chainId?: number;
+  pool?: PoolState;
   vault: string;
   collateralMint: string;
   collateral: number;

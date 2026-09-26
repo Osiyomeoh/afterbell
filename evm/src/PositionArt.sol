@@ -69,7 +69,7 @@ library PositionArt {
             "</text>"
         );
         string memory foot = string.concat(
-            _text(28, 338, 14, TEXT, string.concat(_shares(c.shares), " shares  |  paid $", _money(c.premium))),
+            _text(28, 338, 14, TEXT, string.concat(_shares(c.shares), c.shares == 1e6 ? " share" : " shares", "  |  cost $", _money(c.premium))),
             _text(28, 364, 14, _statusColor(c), _status(c)),
             "</svg>"
         );
@@ -186,14 +186,14 @@ library PositionArt {
 
     // --------------------------------------------------------- number formats
 
-    /// @dev A price with 8 decimals as dollars and cents, rounded down: 38382840000 is "383.82".
+    /// @dev A price with 8 decimals as dollars and cents, rounded to the nearest cent: 38382840000 is "383.83".
     function _price(uint256 p) private pure returns (string memory) {
-        return _fixed(p / 1e6, 2);
+        return _fixed((p + 5e5) / 1e6, 2);
     }
 
-    /// @dev Money with 6 decimals as dollars and cents, rounded down.
+    /// @dev Money with 6 decimals as dollars and cents, rounded to the nearest cent as the app shows it.
     function _money(uint256 m) private pure returns (string memory) {
-        return _fixed(m / 1e4, 2);
+        return _fixed((m + 5e3) / 1e4, 2);
     }
 
     /// @dev Shares with 6 decimals, without trailing zeros: 10000000 is "10", 2500000 is "2.5".

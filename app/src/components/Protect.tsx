@@ -26,7 +26,7 @@ const BASIS: Record<string, string> = {
 type Status =
   | { kind: "idle" }
   | { kind: "busy"; step: string }
-  | { kind: "done"; premium: number; openTs: number; url: string | null }
+  | { kind: "done"; premium: number; openTs: number; url: string | null; nft?: string }
   | { kind: "error"; message: string; needsFunds?: boolean };
 
 const CHAINS: { id: Chain; label: string }[] = [
@@ -170,8 +170,8 @@ export function Protect() {
       const buyer = evm.address ?? (await evm.connect());
       setStatus({ kind: "busy", step: "Getting a signed quote" });
       const q = await requestEvmQuote({ symbol, buyer, ...protection });
-      const { hash } = await buyOnRobinhood(buyer, d, q, (step) => setStatus({ kind: "busy", step }));
-      setStatus({ kind: "done", premium: q.priced.premium, openTs: q.priced.openTs, url: evmTxUrl(d, hash) });
+      const { id, hash } = await buyOnRobinhood(buyer, d, q, (step) => setStatus({ kind: "busy", step }));
+      setStatus({ kind: "done", premium: q.priced.premium, openTs: q.priced.openTs, url: evmTxUrl(d, hash), nft: id.toString() });
     } catch (e) {
       const err = e as Error & { shortMessage?: string };
       setStatus({ kind: "error", message: err.shortMessage ?? err.message, needsFunds: e instanceof NeedsGas });
@@ -302,6 +302,12 @@ export function Protect() {
                 </a>
               )}
             </p>
+          )}
+          {status.kind === "done" && status.nft && (
+            <a className="mt-3 block w-40" href={`/api/position-art/${status.nft}`} target="_blank" rel="noreferrer">
+              <img src={`/api/position-art/${status.nft}`} alt={`Your protection, NFT #${status.nft}`} className="rounded-lg border border-line" />
+              <span className="mt-1 block text-xs text-muted">NFT #{status.nft}: whoever holds it is paid</span>
+            </a>
           )}
         </div>
 

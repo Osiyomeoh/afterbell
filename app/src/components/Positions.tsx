@@ -126,7 +126,7 @@ function PositionsTable(props: { rows: PositionRow[] | null; error: string | nul
             <th className="px-4 py-3 font-normal">Settles</th>
             <th className="px-4 py-3 font-normal">Shares</th>
             <th className="px-4 py-3 font-normal">Protected</th>
-            <th className="px-4 py-3 text-right font-normal">Paid</th>
+            <th className="px-4 py-3 text-right font-normal">Cost</th>
             <th className="px-4 py-3 text-right font-normal">Pays up to</th>
             <th className="px-4 py-3 font-normal">Status</th>
           </tr>
@@ -134,7 +134,16 @@ function PositionsTable(props: { rows: PositionRow[] | null; error: string | nul
         <tbody>
           {rows.map((p) => (
             <tr key={p.address} className="border-b border-line last:border-0">
-              <td className="px-4 py-3">{p.symbol}</td>
+              <td className="px-4 py-3">
+                {p.art ? (
+                  <a className="flex items-center gap-3 hover:underline" href={p.art} target="_blank" rel="noreferrer" title={`NFT #${p.address}: whoever holds it is paid`}>
+                    <img src={p.art} alt={`NFT #${p.address}`} className="h-12 w-auto rounded border border-line" />
+                    {p.symbol}
+                  </a>
+                ) : (
+                  p.symbol
+                )}
+              </td>
               <td className="px-4 py-3">{nyTime(p.openTs)}</td>
               <td className="num px-4 py-3">{p.shares}</td>
               <td className="num px-4 py-3">

@@ -25,7 +25,7 @@ contract PositionsTest is VaultTest {
         assertTrue(vm.contains(art, "pays up to $200.00"));
         assertTrue(vm.contains(art, "$360.00"));
         assertTrue(vm.contains(art, "$340.00"));
-        assertTrue(vm.contains(art, "10 shares  |  paid $20.00"));
+        assertTrue(vm.contains(art, "10 shares  |  cost $20.00"));
         assertTrue(vm.contains(art, "Open until the bell"));
 
         _settleAt(355.5e8);
