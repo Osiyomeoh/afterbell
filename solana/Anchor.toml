@@ -9,6 +9,9 @@ skip-lint = false
 [programs.localnet]
 afterbell_vault = "6J5BHSf1yWup7SXae5xS2nzNUbtz7Bq3VpfJTtxr7Dsc"
 
+[programs.devnet]
+afterbell_vault = "6J5BHSf1yWup7SXae5xS2nzNUbtz7Bq3VpfJTtxr7Dsc"
+
 [provider]
 cluster = "localnet"
 wallet = "~/.config/solana/id.json"

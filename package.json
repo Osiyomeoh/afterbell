@@ -5,7 +5,9 @@
   "scripts": {
     "test": "vitest run",
     "proof": "tsx research/proof.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "solana:idl": "cp solana/target/idl/afterbell_vault.json solana/target/types/afterbell_vault.ts solana/client/idl/",
+    "solana:setup": "tsx solana/scripts/setup.ts"
   },
   "devDependencies": {
     "@types/node": "^26.6.3",
@@ -14,7 +16,10 @@
     "vitest": "^5.0.2"
   },
   "dependencies": {
+    "@anchor-lang/core": "^1.2.0",
     "@noble/curves": "^1.9.7",
+    "@solana/spl-token": "^0.4.15",
+    "@solana/web3.js": "^1.99.0",
     "bs58": "^6.0.0",
     "viem": "^2.56.9"
   }

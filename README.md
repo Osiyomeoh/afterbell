@@ -10,8 +10,8 @@ Built for Colosseum's Crypto World's Fair (September to October 2026). Design: [
 
 | | |
 |---|---|
-| **Built** | `research/`: the evidence the design rests on (below). `pricing/`: put-spread pricing from the history of openings (exact under the model), an out-of-sample backtest, and signed quotes for both vaults (EIP-712 and ed25519). `evm/`: the Robinhood Chain vault (buy against a signed quote, settle on Chainlink's round in force at the open, claim, void). `solana/`: the Solana vault (the same against an ed25519-signed quote, settled on the first Pyth print at or after the open). 40 TypeScript tests, 35 Foundry tests (2 fuzz), 4 fork tests against Chainlink's live TSLA feed, 15 Rust unit tests and 24 LiteSVM tests of the compiled program |
-| **Next** | Deploy the EVM vault to Robinhood Chain mainnet with test collateral (waiting on the deploy wallet); deploy the Solana vault to devnet |
+| **Built** | `research/`: the evidence the design rests on (below). `pricing/`: put-spread pricing from the history of openings (exact under the model), an out-of-sample backtest, and signed quotes for both vaults (EIP-712 and ed25519). `evm/`: the Robinhood Chain vault (buy against a signed quote, settle on Chainlink's round in force at the open, claim, void). `solana/`: the Solana vault (the same against an ed25519-signed quote, settled on the first Pyth print at or after the open). A TypeScript client and setup script for the Solana vault. 43 TypeScript tests, 35 Foundry tests (2 fuzz), 4 fork tests against Chainlink's live TSLA feed, 16 Rust unit tests and 24 LiteSVM tests of the compiled program |
+| **Next** | Deploy the Solana vault to devnet and set it up with test collateral; deploy the EVM vault to Robinhood Chain mainnet with test collateral (waiting on the deploy wallet) |
 | **Planned** | Hyperliquid hedger, app, MCP tool. Dates and cut line in the design doc |
 
 This table changes as parts ship. Nothing is listed as built until it runs and is tested.
@@ -57,7 +57,14 @@ anchor build --arch v0              # SBPF v0, which every cluster and LiteSVM r
 cargo test -p afterbell-vault       # unit tests, then LiteSVM tests of the compiled program
 ```
 
-The LiteSVM tests run the real Ed25519 program and settle on Pyth price accounts owned by the receiver program, plus forged ones that must be rejected. The TypeScript signer ([`pricing/solanaQuote.ts`](pricing/solanaQuote.ts)) and the program are checked against the same message and instruction bytes. CI runs the unit tests; the LiteSVM tests need the compiled program, so they run locally.
+After deploying, [`solana/scripts/setup.ts`](solana/scripts/setup.ts) creates a TestUSD mint with no value, initializes the vault, allows the TSLA feed and deposits 100,000 TestUSD, then records the addresses in `solana/deployments/`. It skips any step already done, so it's safe to re-run:
+
+```bash
+cd solana && solana program deploy target/deploy/afterbell_vault.so --program-id target/deploy/afterbell_vault-keypair.json --url devnet
+cd .. && QUOTER=<quoter pubkey> npm run solana:setup
+```
+
+The LiteSVM tests run the real Ed25519 program and settle on Pyth price accounts owned by the receiver program, plus forged ones that must be rejected. The TypeScript signer ([`pricing/solanaQuote.ts`](pricing/solanaQuote.ts)) and client ([`solana/client/vault.ts`](solana/client/vault.ts)) are checked against the program with shared vectors: the same quote message, Ed25519 instruction and account addresses. CI runs the unit tests; the LiteSVM tests need the compiled program, so they run locally.
 
 ## How we got here
 
