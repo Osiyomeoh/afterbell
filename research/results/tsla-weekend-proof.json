@@ -1,0 +1,1542 @@
+{
+ "generatedAt": "2026-09-26T00:18:53.690Z",
+ "results": [
+  {
+   "label": "Saturday 09:30 ET (weekends only)",
+   "hoursBefore": 48,
+   "series": "1h",
+   "all": {
+    "n": 9,
+    "candidateMae": 76.91477546757018,
+    "closeMae": 72.46472694002311,
+    "candidateCloser": 0.4444444444444444,
+    "errorRemoved": -0.0614098571189019
+   },
+   "weekends": {
+    "n": 9,
+    "candidateMae": 76.91477546757018,
+    "closeMae": 72.46472694002311,
+    "candidateCloser": 0.4444444444444444,
+    "errorRemoved": -0.0614098571189019
+   },
+   "weeknights": {
+    "n": 0,
+    "candidateMae": null,
+    "closeMae": null,
+    "candidateCloser": null,
+    "errorRemoved": null
+   },
+   "medianErrBps": 53.02562425151258,
+   "bigGaps": 7,
+   "directionRightOnBigGaps": 0.5714285714285714,
+   "rows": [
+    {
+     "to": "2026-07-27",
+     "weekend": true,
+     "candidate": 311.52,
+     "close": 313.01099000000005,
+     "open": 313.18066000000005
+    },
+    {
+     "to": "2026-08-03",
+     "weekend": true,
+     "candidate": 309.13,
+     "close": 311.192,
+     "open": 310.71503
+    },
+    {
+     "to": "2026-08-10",
+     "weekend": true,
+     "candidate": 329.66,
+     "close": 328.56,
+     "open": 326.49499000000003
+    },
+    {
+     "to": "2026-08-17",
+     "weekend": true,
+     "candidate": 342.06,
+     "close": 342.32534000000004,
+     "open": 340.57532000000003
+    },
+    {
+     "to": "2026-08-24",
+     "weekend": true,
+     "candidate": 361.92,
+     "close": 362.81427,
+     "open": 361.62626
+    },
+    {
+     "to": "2026-08-31",
+     "weekend": true,
+     "candidate": 349.85,
+     "close": 348.74011,
+     "open": 347.21141
+    },
+    {
+     "to": "2026-09-08",
+     "weekend": true,
+     "candidate": 356.63,
+     "close": 353.915,
+     "open": 357.02982000000003
+    },
+    {
+     "to": "2026-09-14",
+     "weekend": true,
+     "candidate": 365.61,
+     "close": 365.47600000000006,
+     "open": 359.81147000000004
+    },
+    {
+     "to": "2026-09-21",
+     "weekend": true,
+     "candidate": 364.53,
+     "close": 364.38000000000005,
+     "open": 371.63541000000004
+    }
+   ]
+  },
+  {
+   "label": "24h before the open",
+   "hoursBefore": 24,
+   "series": "1h",
+   "all": {
+    "n": 9,
+    "candidateMae": 95.67230308076563,
+    "closeMae": 72.46472694002311,
+    "candidateCloser": 0.2222222222222222,
+    "errorRemoved": -0.3202603131307007
+   },
+   "weekends": {
+    "n": 9,
+    "candidateMae": 95.67230308076563,
+    "closeMae": 72.46472694002311,
+    "candidateCloser": 0.2222222222222222,
+    "errorRemoved": -0.3202603131307007
+   },
+   "weeknights": {
+    "n": 0,
+    "candidateMae": null,
+    "closeMae": null,
+    "candidateCloser": null,
+    "errorRemoved": null
+   },
+   "medianErrBps": 74.05757430870574,
+   "bigGaps": 7,
+   "directionRightOnBigGaps": 0.2857142857142857,
+   "rows": [
+    {
+     "to": "2026-07-27",
+     "weekend": true,
+     "candidate": 315.5,
+     "close": 313.01099000000005,
+     "open": 313.18066000000005
+    },
+    {
+     "to": "2026-08-03",
+     "weekend": true,
+     "candidate": 312.19,
+     "close": 311.192,
+     "open": 310.71503
+    },
+    {
+     "to": "2026-08-10",
+     "weekend": true,
+     "candidate": 330.02,
+     "close": 328.56,
+     "open": 326.49499000000003
+    },
+    {
+     "to": "2026-08-17",
+     "weekend": true,
+     "candidate": 342.63,
+     "close": 342.32534000000004,
+     "open": 340.57532000000003
+    },
+    {
+     "to": "2026-08-24",
+     "weekend": true,
+     "candidate": 362.91,
+     "close": 362.81427,
+     "open": 361.62626
+    },
+    {
+     "to": "2026-08-31",
+     "weekend": true,
+     "candidate": 351.9,
+     "close": 348.74011,
+     "open": 347.21141
+    },
+    {
+     "to": "2026-09-08",
+     "weekend": true,
+     "candidate": 354.71,
+     "close": 353.915,
+     "open": 357.02982000000003
+    },
+    {
+     "to": "2026-09-14",
+     "weekend": true,
+     "candidate": 363.54,
+     "close": 365.47600000000006,
+     "open": 359.81147000000004
+    },
+    {
+     "to": "2026-09-21",
+     "weekend": true,
+     "candidate": 363.01,
+     "close": 364.38000000000005,
+     "open": 371.63541000000004
+    }
+   ]
+  },
+  {
+   "label": "12h before the open (21:30 ET)",
+   "hoursBefore": 12,
+   "series": "1h",
+   "all": {
+    "n": 46,
+    "candidateMae": 96.55363768281434,
+    "closeMae": 113.80442637495177,
+    "candidateCloser": 0.5652173913043478,
+    "errorRemoved": 0.15158275685430034
+   },
+   "weekends": {
+    "n": 9,
+    "candidateMae": 73.62442290119793,
+    "closeMae": 72.46472694002311,
+    "candidateCloser": 0.4444444444444444,
+    "errorRemoved": -0.016003592508320175
+   },
+   "weeknights": {
+    "n": 37,
+    "candidateMae": 102.13101425131565,
+    "closeMae": 123.86002894020469,
+    "candidateCloser": 0.5945945945945946,
+    "errorRemoved": 0.1754320168888306
+   },
+   "medianErrBps": 68.06398139741266,
+   "bigGaps": 37,
+   "directionRightOnBigGaps": 0.7027027027027027,
+   "rows": [
+    {
+     "to": "2026-07-23",
+     "weekend": false,
+     "candidate": 359.42,
+     "close": 374.06604000000004,
+     "open": 341.12505000000004
+    },
+    {
+     "to": "2026-07-24",
+     "weekend": false,
+     "candidate": 324.38,
+     "close": 319.72025,
+     "open": 320.85
+    },
+    {
+     "to": "2026-07-27",
+     "weekend": true,
+     "candidate": 315.19,
+     "close": 313.01099000000005,
+     "open": 313.18066000000005
+    },
+    {
+     "to": "2026-07-28",
+     "weekend": false,
+     "candidate": 306.29,
+     "close": 309.14050000000003,
+     "open": 305.91999000000004
+    },
+    {
+     "to": "2026-07-29",
+     "weekend": false,
+     "candidate": 306.72,
+     "close": 307.38219000000004,
+     "open": 307.14000000000004
+    },
+    {
+     "to": "2026-07-30",
+     "weekend": false,
+     "candidate": 298.3,
+     "close": 298.35472000000004,
+     "open": 302.88536000000005
+    },
+    {
+     "to": "2026-07-31",
+     "weekend": false,
+     "candidate": 311.8,
+     "close": 308.77200000000005,
+     "open": 309.68
+    },
+    {
+     "to": "2026-08-03",
+     "weekend": true,
+     "candidate": 313.59,
+     "close": 311.192,
+     "open": 310.71503
+    },
+    {
+     "to": "2026-08-04",
+     "weekend": false,
+     "candidate": 321.34,
+     "close": 322.09495000000004,
+     "open": 323.90000000000003
+    },
+    {
+     "to": "2026-08-05",
+     "weekend": false,
+     "candidate": 325.75,
+     "close": 327.42149,
+     "open": 323.65000000000003
+    },
+    {
+     "to": "2026-08-06",
+     "weekend": false,
+     "candidate": 321.29,
+     "close": 321.40751,
+     "open": 317.08999
+    },
+    {
+     "to": "2026-08-07",
+     "weekend": false,
+     "candidate": 320.94,
+     "close": 319.56497,
+     "open": 322.25032000000004
+    },
+    {
+     "to": "2026-08-10",
+     "weekend": true,
+     "candidate": 329.43,
+     "close": 328.56,
+     "open": 326.49499000000003
+    },
+    {
+     "to": "2026-08-11",
+     "weekend": false,
+     "candidate": 331.19,
+     "close": 330.81999,
+     "open": 332.97
+    },
+    {
+     "to": "2026-08-12",
+     "weekend": false,
+     "candidate": 333.07,
+     "close": 332.77499,
+     "open": 334.985
+    },
+    {
+     "to": "2026-08-13",
+     "weekend": false,
+     "candidate": 327.79,
+     "close": 327.50494000000003,
+     "open": 327.18498000000005
+    },
+    {
+     "to": "2026-08-14",
+     "weekend": false,
+     "candidate": 340.27,
+     "close": 340.00966000000005,
+     "open": 342.43
+    },
+    {
+     "to": "2026-08-17",
+     "weekend": true,
+     "candidate": 342.88,
+     "close": 342.32534000000004,
+     "open": 340.57532000000003
+    },
+    {
+     "to": "2026-08-18",
+     "weekend": false,
+     "candidate": 339.9,
+     "close": 339.32836000000003,
+     "open": 333.31758
+    },
+    {
+     "to": "2026-08-19",
+     "weekend": false,
+     "candidate": 336.31,
+     "close": 336.85817000000003,
+     "open": 338.77006
+    },
+    {
+     "to": "2026-08-20",
+     "weekend": false,
+     "candidate": 350.74,
+     "close": 351.1725,
+     "open": 346.27004000000005
+    },
+    {
+     "to": "2026-08-21",
+     "weekend": false,
+     "candidate": 346.87,
+     "close": 345.13331000000005,
+     "open": 350.05
+    },
+    {
+     "to": "2026-08-24",
+     "weekend": true,
+     "candidate": 366.92,
+     "close": 362.81427,
+     "open": 361.62626
+    },
+    {
+     "to": "2026-08-25",
+     "weekend": false,
+     "candidate": 349.95,
+     "close": 349.06,
+     "open": 349.65512
+    },
+    {
+     "to": "2026-08-26",
+     "weekend": false,
+     "candidate": 348.93,
+     "close": 350.23105000000004,
+     "open": 345.2807
+    },
+    {
+     "to": "2026-08-27",
+     "weekend": false,
+     "candidate": 345.72,
+     "close": 345.77000000000004,
+     "open": 346.15502000000004
+    },
+    {
+     "to": "2026-08-28",
+     "weekend": false,
+     "candidate": 354.77,
+     "close": 354.66494,
+     "open": 357.09009000000003
+    },
+    {
+     "to": "2026-08-31",
+     "weekend": true,
+     "candidate": 347.67,
+     "close": 348.74011,
+     "open": 347.21141
+    },
+    {
+     "to": "2026-09-01",
+     "weekend": false,
+     "candidate": 366.66,
+     "close": 368.04353000000003,
+     "open": 360.9698
+    },
+    {
+     "to": "2026-09-02",
+     "weekend": false,
+     "candidate": 355.85,
+     "close": 356.05536,
+     "open": 360.65485
+    },
+    {
+     "to": "2026-09-03",
+     "weekend": false,
+     "candidate": 356.65,
+     "close": 356.973,
+     "open": 365.82000000000005
+    },
+    {
+     "to": "2026-09-04",
+     "weekend": false,
+     "candidate": 372.6,
+     "close": 376.34705,
+     "open": 362.09000000000003
+    },
+    {
+     "to": "2026-09-08",
+     "weekend": true,
+     "candidate": 355.36,
+     "close": 353.915,
+     "open": 357.02982000000003
+    },
+    {
+     "to": "2026-09-09",
+     "weekend": false,
+     "candidate": 366.94,
+     "close": 368.20500000000004,
+     "open": 368.05496000000005
+    },
+    {
+     "to": "2026-09-10",
+     "weekend": false,
+     "candidate": 366.37,
+     "close": 367.8725,
+     "open": 360.57000000000005
+    },
+    {
+     "to": "2026-09-11",
+     "weekend": false,
+     "candidate": 363.64,
+     "close": 363.61428,
+     "open": 364.06500000000005
+    },
+    {
+     "to": "2026-09-14",
+     "weekend": true,
+     "candidate": 360.22,
+     "close": 365.47600000000006,
+     "open": 359.81147000000004
+    },
+    {
+     "to": "2026-09-15",
+     "weekend": false,
+     "candidate": 360.07,
+     "close": 358.98253000000005,
+     "open": 358.74997
+    },
+    {
+     "to": "2026-09-16",
+     "weekend": false,
+     "candidate": 356.49,
+     "close": 356.648,
+     "open": 357.91006000000004
+    },
+    {
+     "to": "2026-09-17",
+     "weekend": false,
+     "candidate": 360.88,
+     "close": 358.17442000000005,
+     "open": 367.48
+    },
+    {
+     "to": "2026-09-18",
+     "weekend": false,
+     "candidate": 365.38,
+     "close": 366.09543,
+     "open": 369.09000000000003
+    },
+    {
+     "to": "2026-09-21",
+     "weekend": true,
+     "candidate": 366.78,
+     "close": 364.38000000000005,
+     "open": 371.63541000000004
+    },
+    {
+     "to": "2026-09-22",
+     "weekend": false,
+     "candidate": 376.68,
+     "close": 375.26825,
+     "open": 379.03502000000003
+    },
+    {
+     "to": "2026-09-23",
+     "weekend": false,
+     "candidate": 378.93,
+     "close": 378.85600000000005,
+     "open": 380.05016
+    },
+    {
+     "to": "2026-09-24",
+     "weekend": false,
+     "candidate": 379.31,
+     "close": 380.18231000000003,
+     "open": 377.59240000000005
+    },
+    {
+     "to": "2026-09-25",
+     "weekend": false,
+     "candidate": 378.17,
+     "close": 377.87476000000004,
+     "open": 384.61889
+    }
+   ]
+  },
+  {
+   "label": "04:00 ET, pre-market starts",
+   "hoursBefore": 5.5,
+   "series": "1h",
+   "all": {
+    "n": 46,
+    "candidateMae": 86.30647333287978,
+    "closeMae": 113.80442637495177,
+    "candidateCloser": 0.6304347826086957,
+    "errorRemoved": 0.24162463550823943
+   },
+   "weekends": {
+    "n": 9,
+    "candidateMae": 78.40342564038032,
+    "closeMae": 72.46472694002311,
+    "candidateCloser": 0.4444444444444444,
+    "errorRemoved": -0.08195295768205257
+   },
+   "weeknights": {
+    "n": 37,
+    "candidateMae": 88.22883628510935,
+    "closeMae": 123.86002894020469,
+    "candidateCloser": 0.6756756756756757,
+    "errorRemoved": 0.2876730528804965
+   },
+   "medianErrBps": 71.55802766878995,
+   "bigGaps": 37,
+   "directionRightOnBigGaps": 0.8378378378378378,
+   "rows": [
+    {
+     "to": "2026-07-23",
+     "weekend": false,
+     "candidate": 357.15,
+     "close": 374.06604000000004,
+     "open": 341.12505000000004
+    },
+    {
+     "to": "2026-07-24",
+     "weekend": false,
+     "candidate": 324.69,
+     "close": 319.72025,
+     "open": 320.85
+    },
+    {
+     "to": "2026-07-27",
+     "weekend": true,
+     "candidate": 317.01,
+     "close": 313.01099000000005,
+     "open": 313.18066000000005
+    },
+    {
+     "to": "2026-07-28",
+     "weekend": false,
+     "candidate": 304.84,
+     "close": 309.14050000000003,
+     "open": 305.91999000000004
+    },
+    {
+     "to": "2026-07-29",
+     "weekend": false,
+     "candidate": 306.57,
+     "close": 307.38219000000004,
+     "open": 307.14000000000004
+    },
+    {
+     "to": "2026-07-30",
+     "weekend": false,
+     "candidate": 298.9,
+     "close": 298.35472000000004,
+     "open": 302.88536000000005
+    },
+    {
+     "to": "2026-07-31",
+     "weekend": false,
+     "candidate": 316.23,
+     "close": 308.77200000000005,
+     "open": 309.68
+    },
+    {
+     "to": "2026-08-03",
+     "weekend": true,
+     "candidate": 313.67,
+     "close": 311.192,
+     "open": 310.71503
+    },
+    {
+     "to": "2026-08-04",
+     "weekend": false,
+     "candidate": 325.06,
+     "close": 322.09495000000004,
+     "open": 323.90000000000003
+    },
+    {
+     "to": "2026-08-05",
+     "weekend": false,
+     "candidate": 327.5,
+     "close": 327.42149,
+     "open": 323.65000000000003
+    },
+    {
+     "to": "2026-08-06",
+     "weekend": false,
+     "candidate": 321.37,
+     "close": 321.40751,
+     "open": 317.08999
+    },
+    {
+     "to": "2026-08-07",
+     "weekend": false,
+     "candidate": 321.65,
+     "close": 319.56497,
+     "open": 322.25032000000004
+    },
+    {
+     "to": "2026-08-10",
+     "weekend": true,
+     "candidate": 331.51,
+     "close": 328.56,
+     "open": 326.49499000000003
+    },
+    {
+     "to": "2026-08-11",
+     "weekend": false,
+     "candidate": 331.12,
+     "close": 330.81999,
+     "open": 332.97
+    },
+    {
+     "to": "2026-08-12",
+     "weekend": false,
+     "candidate": 333.37,
+     "close": 332.77499,
+     "open": 334.985
+    },
+    {
+     "to": "2026-08-13",
+     "weekend": false,
+     "candidate": 327.84,
+     "close": 327.50494000000003,
+     "open": 327.18498000000005
+    },
+    {
+     "to": "2026-08-14",
+     "weekend": false,
+     "candidate": 341.23,
+     "close": 340.00966000000005,
+     "open": 342.43
+    },
+    {
+     "to": "2026-08-17",
+     "weekend": true,
+     "candidate": 344.69,
+     "close": 342.32534000000004,
+     "open": 340.57532000000003
+    },
+    {
+     "to": "2026-08-18",
+     "weekend": false,
+     "candidate": 336.32,
+     "close": 339.32836000000003,
+     "open": 333.31758
+    },
+    {
+     "to": "2026-08-19",
+     "weekend": false,
+     "candidate": 336.2,
+     "close": 336.85817000000003,
+     "open": 338.77006
+    },
+    {
+     "to": "2026-08-20",
+     "weekend": false,
+     "candidate": 350.83,
+     "close": 351.1725,
+     "open": 346.27004000000005
+    },
+    {
+     "to": "2026-08-21",
+     "weekend": false,
+     "candidate": 349.29,
+     "close": 345.13331000000005,
+     "open": 350.05
+    },
+    {
+     "to": "2026-08-24",
+     "weekend": true,
+     "candidate": 361.55,
+     "close": 362.81427,
+     "open": 361.62626
+    },
+    {
+     "to": "2026-08-25",
+     "weekend": false,
+     "candidate": 350.97,
+     "close": 349.06,
+     "open": 349.65512
+    },
+    {
+     "to": "2026-08-26",
+     "weekend": false,
+     "candidate": 350.5,
+     "close": 350.23105000000004,
+     "open": 345.2807
+    },
+    {
+     "to": "2026-08-27",
+     "weekend": false,
+     "candidate": 347.04,
+     "close": 345.77000000000004,
+     "open": 346.15502000000004
+    },
+    {
+     "to": "2026-08-28",
+     "weekend": false,
+     "candidate": 355.39,
+     "close": 354.66494,
+     "open": 357.09009000000003
+    },
+    {
+     "to": "2026-08-31",
+     "weekend": true,
+     "candidate": 348.99,
+     "close": 348.74011,
+     "open": 347.21141
+    },
+    {
+     "to": "2026-09-01",
+     "weekend": false,
+     "candidate": 366.06,
+     "close": 368.04353000000003,
+     "open": 360.9698
+    },
+    {
+     "to": "2026-09-02",
+     "weekend": false,
+     "candidate": 357.49,
+     "close": 356.05536,
+     "open": 360.65485
+    },
+    {
+     "to": "2026-09-03",
+     "weekend": false,
+     "candidate": 359.56,
+     "close": 356.973,
+     "open": 365.82000000000005
+    },
+    {
+     "to": "2026-09-04",
+     "weekend": false,
+     "candidate": 370.82,
+     "close": 376.34705,
+     "open": 362.09000000000003
+    },
+    {
+     "to": "2026-09-08",
+     "weekend": true,
+     "candidate": 354.6,
+     "close": 353.915,
+     "open": 357.02982000000003
+    },
+    {
+     "to": "2026-09-09",
+     "weekend": false,
+     "candidate": 368.37,
+     "close": 368.20500000000004,
+     "open": 368.05496000000005
+    },
+    {
+     "to": "2026-09-10",
+     "weekend": false,
+     "candidate": 366.54,
+     "close": 367.8725,
+     "open": 360.57000000000005
+    },
+    {
+     "to": "2026-09-11",
+     "weekend": false,
+     "candidate": 364.82,
+     "close": 363.61428,
+     "open": 364.06500000000005
+    },
+    {
+     "to": "2026-09-14",
+     "weekend": true,
+     "candidate": 360.17,
+     "close": 365.47600000000006,
+     "open": 359.81147000000004
+    },
+    {
+     "to": "2026-09-15",
+     "weekend": false,
+     "candidate": 358.05,
+     "close": 358.98253000000005,
+     "open": 358.74997
+    },
+    {
+     "to": "2026-09-16",
+     "weekend": false,
+     "candidate": 358.13,
+     "close": 356.648,
+     "open": 357.91006000000004
+    },
+    {
+     "to": "2026-09-17",
+     "weekend": false,
+     "candidate": 362.59,
+     "close": 358.17442000000005,
+     "open": 367.48
+    },
+    {
+     "to": "2026-09-18",
+     "weekend": false,
+     "candidate": 369.25,
+     "close": 366.09543,
+     "open": 369.09000000000003
+    },
+    {
+     "to": "2026-09-21",
+     "weekend": true,
+     "candidate": 368.57,
+     "close": 364.38000000000005,
+     "open": 371.63541000000004
+    },
+    {
+     "to": "2026-09-22",
+     "weekend": false,
+     "candidate": 376.19,
+     "close": 375.26825,
+     "open": 379.03502000000003
+    },
+    {
+     "to": "2026-09-23",
+     "weekend": false,
+     "candidate": 379.56,
+     "close": 378.85600000000005,
+     "open": 380.05016
+    },
+    {
+     "to": "2026-09-24",
+     "weekend": false,
+     "candidate": 379.31,
+     "close": 380.18231000000003,
+     "open": 377.59240000000005
+    },
+    {
+     "to": "2026-09-25",
+     "weekend": false,
+     "candidate": 380.88,
+     "close": 377.87476000000004,
+     "open": 384.61889
+    }
+   ]
+  },
+  {
+   "label": "09:00 ET",
+   "hoursBefore": 0.5,
+   "series": "1h",
+   "all": {
+    "n": 46,
+    "candidateMae": 43.271033930692134,
+    "closeMae": 113.80442637495177,
+    "candidateCloser": 0.782608695652174,
+    "errorRemoved": 0.6197772326699584
+   },
+   "weekends": {
+    "n": 9,
+    "candidateMae": 45.639893518233386,
+    "closeMae": 72.46472694002311,
+    "candidateCloser": 0.6666666666666666,
+    "errorRemoved": 0.37017780311228987
+   },
+   "weeknights": {
+    "n": 37,
+    "candidateMae": 42.694824841830744,
+    "closeMae": 123.86002894020469,
+    "candidateCloser": 0.8108108108108109,
+    "errorRemoved": 0.6552977969798286
+   },
+   "medianErrBps": 33.3472154012604,
+   "bigGaps": 37,
+   "directionRightOnBigGaps": 0.972972972972973,
+   "rows": [
+    {
+     "to": "2026-07-23",
+     "weekend": false,
+     "candidate": 345.78,
+     "close": 374.06604000000004,
+     "open": 341.12505000000004
+    },
+    {
+     "to": "2026-07-24",
+     "weekend": false,
+     "candidate": 321.88,
+     "close": 319.72025,
+     "open": 320.85
+    },
+    {
+     "to": "2026-07-27",
+     "weekend": true,
+     "candidate": 316.88,
+     "close": 313.01099000000005,
+     "open": 313.18066000000005
+    },
+    {
+     "to": "2026-07-28",
+     "weekend": false,
+     "candidate": 307.66,
+     "close": 309.14050000000003,
+     "open": 305.91999000000004
+    },
+    {
+     "to": "2026-07-29",
+     "weekend": false,
+     "candidate": 307.42,
+     "close": 307.38219000000004,
+     "open": 307.14000000000004
+    },
+    {
+     "to": "2026-07-30",
+     "weekend": false,
+     "candidate": 304.14,
+     "close": 298.35472000000004,
+     "open": 302.88536000000005
+    },
+    {
+     "to": "2026-07-31",
+     "weekend": false,
+     "candidate": 310.41,
+     "close": 308.77200000000005,
+     "open": 309.68
+    },
+    {
+     "to": "2026-08-03",
+     "weekend": true,
+     "candidate": 312.68,
+     "close": 311.192,
+     "open": 310.71503
+    },
+    {
+     "to": "2026-08-04",
+     "weekend": false,
+     "candidate": 324.4,
+     "close": 322.09495000000004,
+     "open": 323.90000000000003
+    },
+    {
+     "to": "2026-08-05",
+     "weekend": false,
+     "candidate": 323.89,
+     "close": 327.42149,
+     "open": 323.65000000000003
+    },
+    {
+     "to": "2026-08-06",
+     "weekend": false,
+     "candidate": 321.08,
+     "close": 321.40751,
+     "open": 317.08999
+    },
+    {
+     "to": "2026-08-07",
+     "weekend": false,
+     "candidate": 323.19,
+     "close": 319.56497,
+     "open": 322.25032000000004
+    },
+    {
+     "to": "2026-08-10",
+     "weekend": true,
+     "candidate": 328.46,
+     "close": 328.56,
+     "open": 326.49499000000003
+    },
+    {
+     "to": "2026-08-11",
+     "weekend": false,
+     "candidate": 331.57,
+     "close": 330.81999,
+     "open": 332.97
+    },
+    {
+     "to": "2026-08-12",
+     "weekend": false,
+     "candidate": 334.22,
+     "close": 332.77499,
+     "open": 334.985
+    },
+    {
+     "to": "2026-08-13",
+     "weekend": false,
+     "candidate": 325.38,
+     "close": 327.50494000000003,
+     "open": 327.18498000000005
+    },
+    {
+     "to": "2026-08-14",
+     "weekend": false,
+     "candidate": 341.28,
+     "close": 340.00966000000005,
+     "open": 342.43
+    },
+    {
+     "to": "2026-08-17",
+     "weekend": true,
+     "candidate": 340.5,
+     "close": 342.32534000000004,
+     "open": 340.57532000000003
+    },
+    {
+     "to": "2026-08-18",
+     "weekend": false,
+     "candidate": 334.21,
+     "close": 339.32836000000003,
+     "open": 333.31758
+    },
+    {
+     "to": "2026-08-19",
+     "weekend": false,
+     "candidate": 337.9,
+     "close": 336.85817000000003,
+     "open": 338.77006
+    },
+    {
+     "to": "2026-08-20",
+     "weekend": false,
+     "candidate": 345.32,
+     "close": 351.1725,
+     "open": 346.27004000000005
+    },
+    {
+     "to": "2026-08-21",
+     "weekend": false,
+     "candidate": 349.86,
+     "close": 345.13331000000005,
+     "open": 350.05
+    },
+    {
+     "to": "2026-08-24",
+     "weekend": true,
+     "candidate": 362.11,
+     "close": 362.81427,
+     "open": 361.62626
+    },
+    {
+     "to": "2026-08-25",
+     "weekend": false,
+     "candidate": 351.43,
+     "close": 349.06,
+     "open": 349.65512
+    },
+    {
+     "to": "2026-08-26",
+     "weekend": false,
+     "candidate": 347.13,
+     "close": 350.23105000000004,
+     "open": 345.2807
+    },
+    {
+     "to": "2026-08-27",
+     "weekend": false,
+     "candidate": 345.74,
+     "close": 345.77000000000004,
+     "open": 346.15502000000004
+    },
+    {
+     "to": "2026-08-28",
+     "weekend": false,
+     "candidate": 355.72,
+     "close": 354.66494,
+     "open": 357.09009000000003
+    },
+    {
+     "to": "2026-08-31",
+     "weekend": true,
+     "candidate": 345.54,
+     "close": 348.74011,
+     "open": 347.21141
+    },
+    {
+     "to": "2026-09-01",
+     "weekend": false,
+     "candidate": 361.34,
+     "close": 368.04353000000003,
+     "open": 360.9698
+    },
+    {
+     "to": "2026-09-02",
+     "weekend": false,
+     "candidate": 356.97,
+     "close": 356.05536,
+     "open": 360.65485
+    },
+    {
+     "to": "2026-09-03",
+     "weekend": false,
+     "candidate": 363.31,
+     "close": 356.973,
+     "open": 365.82000000000005
+    },
+    {
+     "to": "2026-09-04",
+     "weekend": false,
+     "candidate": 364.53,
+     "close": 376.34705,
+     "open": 362.09000000000003
+    },
+    {
+     "to": "2026-09-08",
+     "weekend": true,
+     "candidate": 355.92,
+     "close": 353.915,
+     "open": 357.02982000000003
+    },
+    {
+     "to": "2026-09-09",
+     "weekend": false,
+     "candidate": 364.35,
+     "close": 368.20500000000004,
+     "open": 368.05496000000005
+    },
+    {
+     "to": "2026-09-10",
+     "weekend": false,
+     "candidate": 360.09,
+     "close": 367.8725,
+     "open": 360.57000000000005
+    },
+    {
+     "to": "2026-09-11",
+     "weekend": false,
+     "candidate": 364.79,
+     "close": 363.61428,
+     "open": 364.06500000000005
+    },
+    {
+     "to": "2026-09-14",
+     "weekend": true,
+     "candidate": 359.26,
+     "close": 365.47600000000006,
+     "open": 359.81147000000004
+    },
+    {
+     "to": "2026-09-15",
+     "weekend": false,
+     "candidate": 358.76,
+     "close": 358.98253000000005,
+     "open": 358.74997
+    },
+    {
+     "to": "2026-09-16",
+     "weekend": false,
+     "candidate": 357.55,
+     "close": 356.648,
+     "open": 357.91006000000004
+    },
+    {
+     "to": "2026-09-17",
+     "weekend": false,
+     "candidate": 364.75,
+     "close": 358.17442000000005,
+     "open": 367.48
+    },
+    {
+     "to": "2026-09-18",
+     "weekend": false,
+     "candidate": 367.61,
+     "close": 366.09543,
+     "open": 369.09000000000003
+    },
+    {
+     "to": "2026-09-21",
+     "weekend": true,
+     "candidate": 369.44,
+     "close": 364.38000000000005,
+     "open": 371.63541000000004
+    },
+    {
+     "to": "2026-09-22",
+     "weekend": false,
+     "candidate": 377.78,
+     "close": 375.26825,
+     "open": 379.03502000000003
+    },
+    {
+     "to": "2026-09-23",
+     "weekend": false,
+     "candidate": 378.04,
+     "close": 378.85600000000005,
+     "open": 380.05016
+    },
+    {
+     "to": "2026-09-24",
+     "weekend": false,
+     "candidate": 376.72,
+     "close": 380.18231000000003,
+     "open": 377.59240000000005
+    },
+    {
+     "to": "2026-09-25",
+     "weekend": false,
+     "candidate": 381.06,
+     "close": 377.87476000000004,
+     "open": 384.61889
+    }
+   ]
+  },
+  {
+   "label": "09:30 ET, at the open",
+   "hoursBefore": 0,
+   "series": "15m",
+   "all": {
+    "n": 37,
+    "candidateMae": 3.5334070997264306,
+    "closeMae": 104.47504385004548,
+    "candidateCloser": 1,
+    "errorRemoved": 0.966179415011321
+   },
+   "weekends": {
+    "n": 7,
+    "candidateMae": 4.034292452694028,
+    "closeMae": 90.20202583383954,
+    "candidateCloser": 1,
+    "errorRemoved": 0.955274924089559
+   },
+   "weeknights": {
+    "n": 30,
+    "candidateMae": 3.4165338507006577,
+    "closeMae": 107.80541472049353,
+    "candidateCloser": 1,
+    "errorRemoved": 0.9683083279299218
+   },
+   "medianErrBps": 3.421764780024983,
+   "bigGaps": 31,
+   "directionRightOnBigGaps": 1,
+   "rows": [
+    {
+     "to": "2026-08-05",
+     "weekend": false,
+     "candidate": 323.8,
+     "close": 327.42149,
+     "open": 323.65000000000003
+    },
+    {
+     "to": "2026-08-06",
+     "weekend": false,
+     "candidate": 316.97,
+     "close": 321.40751,
+     "open": 317.08999
+    },
+    {
+     "to": "2026-08-07",
+     "weekend": false,
+     "candidate": 322.34,
+     "close": 319.56497,
+     "open": 322.25032000000004
+    },
+    {
+     "to": "2026-08-10",
+     "weekend": true,
+     "candidate": 326.58,
+     "close": 328.56,
+     "open": 326.49499000000003
+    },
+    {
+     "to": "2026-08-11",
+     "weekend": false,
+     "candidate": 333.14,
+     "close": 330.81999,
+     "open": 332.97
+    },
+    {
+     "to": "2026-08-12",
+     "weekend": false,
+     "candidate": 335.19,
+     "close": 332.77499,
+     "open": 334.985
+    },
+    {
+     "to": "2026-08-13",
+     "weekend": false,
+     "candidate": 327.36,
+     "close": 327.50494000000003,
+     "open": 327.18498000000005
+    },
+    {
+     "to": "2026-08-14",
+     "weekend": false,
+     "candidate": 342.76,
+     "close": 340.00966000000005,
+     "open": 342.43
+    },
+    {
+     "to": "2026-08-17",
+     "weekend": true,
+     "candidate": 340.73,
+     "close": 342.32534000000004,
+     "open": 340.57532000000003
+    },
+    {
+     "to": "2026-08-18",
+     "weekend": false,
+     "candidate": 333.43,
+     "close": 339.32836000000003,
+     "open": 333.31758
+    },
+    {
+     "to": "2026-08-19",
+     "weekend": false,
+     "candidate": 338.92,
+     "close": 336.85817000000003,
+     "open": 338.77006
+    },
+    {
+     "to": "2026-08-20",
+     "weekend": false,
+     "candidate": 346.36,
+     "close": 351.1725,
+     "open": 346.27004000000005
+    },
+    {
+     "to": "2026-08-21",
+     "weekend": false,
+     "candidate": 350.18,
+     "close": 345.13331000000005,
+     "open": 350.05
+    },
+    {
+     "to": "2026-08-24",
+     "weekend": true,
+     "candidate": 361.75,
+     "close": 362.81427,
+     "open": 361.62626
+    },
+    {
+     "to": "2026-08-25",
+     "weekend": false,
+     "candidate": 349.82,
+     "close": 349.06,
+     "open": 349.65512
+    },
+    {
+     "to": "2026-08-26",
+     "weekend": false,
+     "candidate": 345.45,
+     "close": 350.23105000000004,
+     "open": 345.2807
+    },
+    {
+     "to": "2026-08-27",
+     "weekend": false,
+     "candidate": 346.37,
+     "close": 345.77000000000004,
+     "open": 346.15502000000004
+    },
+    {
+     "to": "2026-08-28",
+     "weekend": false,
+     "candidate": 357.1,
+     "close": 354.66494,
+     "open": 357.09009000000003
+    },
+    {
+     "to": "2026-08-31",
+     "weekend": true,
+     "candidate": 347.2,
+     "close": 348.74011,
+     "open": 347.21141
+    },
+    {
+     "to": "2026-09-01",
+     "weekend": false,
+     "candidate": 360.95,
+     "close": 368.04353000000003,
+     "open": 360.9698
+    },
+    {
+     "to": "2026-09-02",
+     "weekend": false,
+     "candidate": 360.71,
+     "close": 356.05536,
+     "open": 360.65485
+    },
+    {
+     "to": "2026-09-03",
+     "weekend": false,
+     "candidate": 365.65,
+     "close": 356.973,
+     "open": 365.82000000000005
+    },
+    {
+     "to": "2026-09-04",
+     "weekend": false,
+     "candidate": 362.17,
+     "close": 376.34705,
+     "open": 362.09000000000003
+    },
+    {
+     "to": "2026-09-08",
+     "weekend": true,
+     "candidate": 357.17,
+     "close": 353.915,
+     "open": 357.02982000000003
+    },
+    {
+     "to": "2026-09-09",
+     "weekend": false,
+     "candidate": 368.15,
+     "close": 368.20500000000004,
+     "open": 368.05496000000005
+    },
+    {
+     "to": "2026-09-10",
+     "weekend": false,
+     "candidate": 360.5,
+     "close": 367.8725,
+     "open": 360.57000000000005
+    },
+    {
+     "to": "2026-09-11",
+     "weekend": false,
+     "candidate": 364.05,
+     "close": 363.61428,
+     "open": 364.06500000000005
+    },
+    {
+     "to": "2026-09-14",
+     "weekend": true,
+     "candidate": 359.98,
+     "close": 365.47600000000006,
+     "open": 359.81147000000004
+    },
+    {
+     "to": "2026-09-15",
+     "weekend": false,
+     "candidate": 358.83,
+     "close": 358.98253000000005,
+     "open": 358.74997
+    },
+    {
+     "to": "2026-09-16",
+     "weekend": false,
+     "candidate": 357.91,
+     "close": 356.648,
+     "open": 357.91006000000004
+    },
+    {
+     "to": "2026-09-17",
+     "weekend": false,
+     "candidate": 367.64,
+     "close": 358.17442000000005,
+     "open": 367.48
+    },
+    {
+     "to": "2026-09-18",
+     "weekend": false,
+     "candidate": 368.68,
+     "close": 366.09543,
+     "open": 369.09000000000003
+    },
+    {
+     "to": "2026-09-21",
+     "weekend": true,
+     "candidate": 371.96,
+     "close": 364.38000000000005,
+     "open": 371.63541000000004
+    },
+    {
+     "to": "2026-09-22",
+     "weekend": false,
+     "candidate": 379.04,
+     "close": 375.26825,
+     "open": 379.03502000000003
+    },
+    {
+     "to": "2026-09-23",
+     "weekend": false,
+     "candidate": 380.08,
+     "close": 378.85600000000005,
+     "open": 380.05016
+    },
+    {
+     "to": "2026-09-24",
+     "weekend": false,
+     "candidate": 377.57,
+     "close": 380.18231000000003,
+     "open": 377.59240000000005
+    },
+    {
+     "to": "2026-09-25",
+     "weekend": false,
+     "candidate": 384.55,
+     "close": 377.87476000000004,
+     "open": 384.61889
+    }
+   ]
+  }
+ ]
+}
