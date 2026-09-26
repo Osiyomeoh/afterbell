@@ -10,8 +10,8 @@ Built for Colosseum's Crypto World's Fair (September to October 2026). Design: [
 
 | | |
 |---|---|
-| **Built** | `research/`: the evidence the design rests on (below). `pricing/`: put-spread pricing from the history of openings (exact under the model), an out-of-sample backtest, and signed quotes for both vaults (EIP-712 and ed25519). `evm/`: the Robinhood Chain vault (buy against a signed quote, settle on Chainlink's round in force at the open, claim, void). `solana/`: the Solana vault (the same against an ed25519-signed quote, settled on the first Pyth print at or after the open). `quoter/`: the quote service's core, which prices protection until the next open and signs it for either vault. A TypeScript client, setup script and purchase smoke test for the Solana vault. **The Solana vault is live on devnet** (addresses below), and a purchase priced and signed by the quote service has gone through. 54 TypeScript tests, 35 Foundry tests (2 fuzz), 4 fork tests against Chainlink's live TSLA feed, 16 Rust unit tests and 24 LiteSVM tests of the compiled program |
-| **Next** | Settle the first devnet series on Pyth's print at Monday's open, then claim; the app with a live quote endpoint; deploy the EVM vault to Robinhood Chain mainnet with test collateral (waiting on the deploy wallet) |
+| **Built** | `research/`: the evidence the design rests on (below). `pricing/`: put-spread pricing from the history of openings (exact under the model), an out-of-sample backtest, and signed quotes for both vaults (EIP-712 and ed25519). `evm/`: the Robinhood Chain vault (buy against a signed quote, settle on Chainlink's round in force at the open, claim, void). `solana/`: the Solana vault (the same against an ed25519-signed quote, settled on the first Pyth print at or after the open). `quoter/`: the quote service's core, which prices protection until the next open and signs it for either vault. A TypeScript client, setup script, purchase smoke test and keeper (settle on Pyth's first print after the open, void, claim) for the Solana vault; a full cycle (sell, open, settle, claim) passes on a local validator. **The Solana vault is live on devnet** (addresses below), and a purchase priced and signed by the quote service has gone through. 62 TypeScript tests, 35 Foundry tests (2 fuzz), 4 fork tests against Chainlink's live TSLA feed, 16 Rust unit tests and 24 LiteSVM tests of the compiled program |
+| **Next** | Run the keeper on devnet after Monday 28 September's open to settle and claim the first series; the app with a live quote endpoint; deploy the EVM vault to Robinhood Chain mainnet with test collateral (waiting on the deploy wallet) |
 | **Planned** | Hyperliquid hedger, app, MCP tool. Dates and cut line in the design doc |
 
 This table changes as parts ship. Nothing is listed as built until it runs and is tested.
@@ -63,7 +63,11 @@ After deploying, [`solana/scripts/setup.ts`](solana/scripts/setup.ts) creates a 
 cd solana && solana program deploy target/deploy/afterbell_vault.so --program-id target/deploy/afterbell_vault-keypair.json --url devnet
 cd .. && QUOTER=<quoter pubkey> npm run solana:setup
 QUOTER_KEYPAIR=<quoter keypair file> npm run solana:smoke   # buy protection end to end
+PYTH_API_KEY=<key> npm run solana:keeper                     # settle due series, void stale ones, claim
 ```
+
+The keeper ([`solana/keeper`](solana/keeper)) is permissionless. For each series past its open, it fetches the first print at or after the open from Pyth's Hermes. It checks that print with the same rule the program applies, posts it through Pyth's receiver and settles. It voids series nobody could settle within the void delay. Then it claims every finished position into the buyer's own token account, creating that account if the buyer closed it. `npm run solana:cycle` runs a whole cycle on a local validator and checks every payout against the program's math. A local validator has no Pyth receiver, so that run settles on a preloaded price account; posting from Hermes runs on devnet.
+
 
 **On devnet** (recorded in [`solana/deployments/devnet.json`](solana/deployments/devnet.json)):
 

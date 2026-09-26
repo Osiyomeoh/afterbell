@@ -116,3 +116,27 @@ export async function buyInstructions(
     .instruction();
   return [verify, buy];
 }
+
+/** `settle`: anyone may call it with the Pyth update that is the first print at or after the open. */
+export function settleInstruction(
+  program: Program<AfterbellVault>,
+  args: { vault: PublicKey; series: PublicKey; priceUpdate: PublicKey },
+): Promise<TransactionInstruction> {
+  return program.methods.settle().accountsPartial(args).instruction();
+}
+
+/** `void_series`: anyone may call it once the void delay after the open has passed unsettled. */
+export function voidSeriesInstruction(program: Program<AfterbellVault>, args: { vault: PublicKey; series: PublicKey }): Promise<TransactionInstruction> {
+  return program.methods.voidSeries().accountsPartial(args).instruction();
+}
+
+/** `claim`: anyone may call it; the payout (or refund) goes to the buyer's own token account. */
+export function claimInstruction(
+  program: Program<AfterbellVault>,
+  args: { vault: PublicKey; series: PublicKey; position: PublicKey; buyer: PublicKey; collateralMint: PublicKey; buyerToken: PublicKey },
+): Promise<TransactionInstruction> {
+  return program.methods
+    .claim()
+    .accountsPartial({ ...args, vaultToken: vaultTokenAddress(args.vault), tokenProgram: TOKEN_PROGRAM_ID })
+    .instruction();
+}

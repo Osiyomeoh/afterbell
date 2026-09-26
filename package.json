@@ -8,7 +8,9 @@
     "typecheck": "tsc --noEmit",
     "solana:idl": "cp solana/target/idl/afterbell_vault.json solana/target/types/afterbell_vault.ts solana/client/idl/",
     "solana:setup": "tsx solana/scripts/setup.ts",
-    "solana:smoke": "tsx solana/scripts/smoke-buy.ts"
+    "solana:smoke": "tsx solana/scripts/smoke-buy.ts",
+    "solana:keeper": "tsx solana/scripts/keeper.ts",
+    "solana:cycle": "tsx solana/scripts/localnet-cycle.ts"
   },
   "devDependencies": {
     "@types/node": "^26.6.3",
@@ -19,9 +21,14 @@
   "dependencies": {
     "@anchor-lang/core": "^1.2.0",
     "@noble/curves": "^1.9.7",
+    "@pythnetwork/hermes-client": "^3.1.0",
+    "@pythnetwork/pyth-solana-receiver": "^0.16.0",
     "@solana/spl-token": "^0.4.15",
     "@solana/web3.js": "^1.99.0",
     "bs58": "^6.0.0",
     "viem": "^2.56.9"
+  },
+  "overrides": {
+    "@solana/web3.js": "$@solana/web3.js"
   }
 }
