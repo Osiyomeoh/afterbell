@@ -27,8 +27,8 @@ export type MarketResponse = {
   annualVol: number;
   config: QuoterConfig;
   hyperliquid: { coin: string | null; tracks: "stock" | "index"; ratio: number | null };
-  /** `selling`: the Solana vault sells this stock. */
-  solana: { cluster: string; programId: string; vault: string; vaultToken: string; collateralMint: string; quoter: string; selling: boolean };
+  /** The Solana vault v2, once deployed; `selling`: it sells this stock. */
+  solana: { cluster: string; programId: string; vault: string; vaultToken: string; collateralMint: string; quoter: string; shareMint: string; selling: boolean } | null;
   /** The Robinhood Chain vault, once deployed; `selling` once the server can sign its quotes for this stock. */
   robinhood: (EvmDeployment & { selling: boolean }) | null;
 };
@@ -105,8 +105,11 @@ export type PositionRow = {
   maxPayout: number;
   claimable: number | null;
   settlementPrice: number | null;
-  /** Robinhood Chain positions: the NFT's image, drawn on-chain. */
+  /** The position's NFT image. */
   art?: string;
+  /** Solana: the NFT's mint, and the holder's account holding it. */
+  mint?: string;
+  nftAccount?: string;
 };
 
 export type PoolState = {

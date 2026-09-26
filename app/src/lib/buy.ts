@@ -3,7 +3,7 @@ import { getAccount, getAssociatedTokenAddressSync } from "@solana/spl-token";
 import { Connection, PublicKey, Transaction } from "@solana/web3.js";
 
 import type { SolanaQuote } from "@root/pricing/solanaQuote";
-import { buyInstructions, getProgram, positionAddress } from "@root/solana/client/v1";
+import { buyInstructions, getProgram, positionAddress } from "@root/solana/client/vault";
 
 import type { QuoteResponse } from "./api";
 
@@ -27,15 +27,16 @@ export class NotEnoughTestUsd extends Error {}
 
 /**
  * Buys the quoted protection: the Ed25519 check of the quoter's signature,
- * then `buy`, in one transaction the wallet signs. Returns the signature and
- * the new position's address.
+ * then `buy`, in one transaction the wallet signs. The position arrives in
+ * the wallet as an NFT. Returns the signature, the position's address and
+ * its number (the NFT's name).
  */
 export async function buyProtection(
   connection: Connection,
   wallet: AnchorWallet,
   sendTransaction: (tx: Transaction, connection: Connection) => Promise<string>,
   q: QuoteResponse["solana"],
-): Promise<{ signature: string; position: string }> {
+): Promise<{ signature: string; position: string; number: number }> {
   const quote = toSolanaQuote(q.quote);
   const mint = new PublicKey(q.collateralMint);
   const buyerToken = getAssociatedTokenAddressSync(mint, wallet.publicKey);
@@ -56,5 +57,7 @@ export async function buyProtection(
   const signature = await sendTransaction(tx, connection);
   const result = await connection.confirmTransaction({ signature, blockhash, lastValidBlockHeight }, "confirmed");
   if (result.value.err) throw new Error(`the purchase failed on-chain: ${JSON.stringify(result.value.err)}`);
-  return { signature, position: positionAddress(new PublicKey(q.vault), quote.nonce).toBase58() };
+  const position = positionAddress(new PublicKey(q.vault), quote.nonce);
+  const { number } = await program.account.position.fetch(position, "confirmed");
+  return { signature, position: position.toBase58(), number: number.toNumber() };
 }

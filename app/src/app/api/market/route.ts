@@ -55,7 +55,8 @@ export async function GET(req: Request) {
       annualVol: m.annualVol,
       config: cfg,
       hyperliquid: { coin: stock.hyperliquid ?? null, tracks: stock.hyperliquidTracks, ratio: snap.hyperliquidRatio ?? null },
-      solana: { cluster: "devnet", ...SOLANA_DEPLOYMENT, selling: onSolanaVault(stock) },
+      // Null until the Solana vault v2 is deployed.
+      solana: SOLANA_DEPLOYMENT && { cluster: "devnet", ...SOLANA_DEPLOYMENT, selling: onSolanaVault(stock) },
       // Null until the Robinhood Chain vault is deployed. Buying there also needs a Chainlink feed for the stock and the quoter's key on the server.
       robinhood: evm && { ...evm, selling: !!process.env.QUOTER_EVM_KEY && !!robinhoodFeed },
     });

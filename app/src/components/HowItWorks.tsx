@@ -1,5 +1,5 @@
 import { DEFAULT_QUOTER_CONFIG } from "@root/quoter/quoter";
-import { DEFAULT_CONFIG } from "@root/solana/client/v1";
+import { DEFAULT_PARAMS } from "@root/solana/client/vault";
 
 import { SOLANA_DEPLOYMENT } from "@/server/deployment";
 import { evmDeployment } from "@/server/evmDeployment";
@@ -13,21 +13,21 @@ const STEPS = [
   },
   {
     title: "Pay once",
-    body: `The quote service signs the price for ${DEFAULT_QUOTER_CONFIG.ttlSecs} seconds. Your wallet sends one transaction: Solana's Ed25519 program checks the signature, and the vault takes the premium and locks the most it could pay. Every position is fully backed from the moment it's bought.`,
+    body: `The quote service signs the price for ${DEFAULT_QUOTER_CONFIG.ttlSecs} seconds. Your wallet sends one transaction: Solana's Ed25519 program checks the signature, and the vault takes the premium, locks the most it could pay and mints your position to you as an NFT. Every position is fully backed from the moment it's bought.`,
   },
   {
     title: "The bell settles it",
-    body: `Every position for an open settles on the first Pyth price at or after 09:30 ET. The program accepts only a print published within ${DEFAULT_CONFIG.settleWindowSecs} seconds of the open whose previous print came before it, so nobody can choose a convenient price. Anyone may settle; our keeper does.`,
+    body: `Every position for an open settles on the first Pyth price at or after 09:30 ET. The program accepts only a print published within ${DEFAULT_PARAMS.settleWindowSecs} seconds of the open whose previous print came before it, so nobody can choose a convenient price. Anyone may settle; our keeper does.`,
   },
   {
     title: "Get paid",
-    body: `If the stock opened below where your protection starts, you're paid the difference on every share, down to where it stops. The keeper claims into your wallet, or you can claim on My protection. If no valid price arrives, as in a halt, every premium is refunded after ${DEFAULT_CONFIG.voidDelaySecs / 3600} hours.`,
+    body: `If the stock opened below where your protection starts, whoever holds the position's NFT is paid the difference on every share, down to where it stops. The keeper pays it into their wallet, or the holder can claim on My protection. If no valid price arrives, as in a halt, every premium is refunded after ${DEFAULT_PARAMS.voidDelaySecs / 3600} hours.`,
   },
 ];
 
 export function HowItWorks() {
   const robinhood = evmDeployment();
-  const onSolana = Object.keys(SOLANA_DEPLOYMENT.feeds).join(" and ");
+  const onSolana = SOLANA_DEPLOYMENT ? `Solana sells ${Object.keys(SOLANA_DEPLOYMENT.feeds).join(" and ")}` : "Solana's vault v2 isn't deployed yet";
   return (
     <section className="mt-16">
       <h2 className="text-xl font-semibold tracking-tight">How it works</h2>
@@ -43,7 +43,7 @@ export function HowItWorks() {
       <p className="mt-4 max-w-3xl text-sm leading-relaxed text-faint">
         {robinhood
           ? "On Robinhood Chain, the same vault takes an EIP-712 signed quote and settles on Chainlink's price in force at 09:30 ET, for every US stock Chainlink publishes there. Both vaults take TestUSD, a token with no value; the only real cost is gas on Robinhood Chain. "
-          : `Afterbell runs on Solana devnet with TestUSD, a token with no value, so everything here is free to try. Solana sells ${onSolana}; the other stocks here are priced for Robinhood Chain, where the vault settles on Chainlink and isn't deployed yet. `}
+          : `Afterbell runs on Solana devnet with TestUSD, a token with no value, so everything here is free to try. ${onSolana}; the other stocks here are priced for Robinhood Chain, where the vault settles on Chainlink and isn't deployed yet. `}
         The payout works like a put spread: it
         doesn&apos;t check that you hold the stock. The quote service sets prices but never holds money; the vault pays only on the oracle&apos;s price.
       </p>

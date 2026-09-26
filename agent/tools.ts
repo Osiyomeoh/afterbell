@@ -17,7 +17,7 @@ import { z } from "zod";
 import { backtest } from "../pricing/backtest";
 import type { SolanaQuote } from "../pricing/solanaQuote";
 import { priceQuote, type PricedProtection } from "../quoter/quoter";
-import { buyInstructions, getProgram } from "../solana/client/v1";
+import { buyInstructions, getProgram } from "../solana/client/vault";
 import { AfterbellApi, toMarket, type MarketInfo, type PriceSource, type SolanaQuoteResponse } from "./api";
 
 export const SOLANA_RPC = process.env.SOLANA_RPC || "https://api.devnet.solana.com";
@@ -25,8 +25,8 @@ export const SOLANA_RPC = process.env.SOLANA_RPC || "https://api.devnet.solana.c
 const ABOUT = `Afterbell sells protection for tokenized stocks until the next 09:30 ET opening bell. Tokenized stocks trade
 around the clock but the stock doesn't, so whatever happens while the exchange is shut lands on the next opening print.
 Protection is a put spread: pay a premium once; if the stock opens below where protection starts, the vault pays the
-difference per share, down to where it stops. On Solana devnet it is settled on-chain by the first Pyth price at or
-after 09:30 ET; market says which stocks are on sale there. Every stock the app covers can be priced; the rest settle
+difference per share, down to where it stops. Each position is an NFT, and whoever holds it is paid. On Solana devnet
+it is settled on-chain by the first Pyth price at or after 09:30 ET; market says which stocks are on sale there. Every stock the app covers can be priced; the rest settle
 on Robinhood Chain's Chainlink feeds, where the vault isn't deployed yet. All money is TestUSD, which has no value.`;
 
 const HOSTED = `${ABOUT}
@@ -42,7 +42,7 @@ Typical flow: wallet, then get_test_funds the first time. market shows a stock's
 quote_protection prices protection; show the user the cost and what it pays and get their agreement before
 buy_protection, which spends from the agent's wallet up to its spending cap. protect_portfolio does the same sized to
 what a mainnet wallet holds. positions follows the agent's protection; after the open settles, claim collects payouts
-(a keeper also claims for everyone).`;
+(a keeper also pays every position out).`;
 
 export const read = { readOnlyHint: true, openWorldHint: true } as const;
 
@@ -156,7 +156,7 @@ export function createServer(kind: "hosted" | "local", api: AfterbellApi, wallet
           m.live !== null ? `Now ${usd(m.live)} on ${SOURCE[m.liveSource]}; the exchange is ${m.inSession ? "open" : "closed"}.` : "",
           `The next open protection settles on: ${nyTime(m.nextOpen)}.`,
           m.paused ? `Sales are paused: ${m.paused}.` : `Protection is priced from ${usd(m.reference!.price)} (${m.reference!.basis}).`,
-          m.solana.selling ? `On sale on Solana devnet.` : `Not on sale on Solana devnet, which sells ${onSolana.join(" and ")}; it can be priced here.`,
+          !m.solana ? "Solana devnet's vault v2 isn't deployed yet; it can be priced here." : m.solana.selling ? `On sale on Solana devnet.` : `Not on sale on Solana devnet, which sells ${onSolana.join(" and ")}; it can be priced here.`,
           `Stocks covered: ${m.stocks.map((s) => s.symbol).join(", ")}.`,
         ]
           .filter(Boolean)
@@ -179,7 +179,7 @@ export function createServer(kind: "hosted" | "local", api: AfterbellApi, wallet
         const p = priceQuote(Math.floor(Date.now() / 1000), toMarket(m), protectionFor(m, await sharesFor(api, shares, holder, m.symbol), starts_below, stops_below), m.config);
         const start = (starts_below ?? 2) / 100;
         const record = backtest(m.history, { deductible: start, depth: (stops_below ?? 10) / 100 }, { shares: 1, annualVol: m.annualVol, margin: m.config.margin });
-        const toBuy = m.solana.selling ? `To buy: ${kind === "local" ? "buy_protection" : "protection_transaction"} with the same arguments.` : `Solana devnet doesn't sell ${m.symbol}; this is a price only.`;
+        const toBuy = m.solana?.selling ? `To buy: ${kind === "local" ? "buy_protection" : "protection_transaction"} with the same arguments.` : `Solana devnet doesn't sell ${m.symbol}; this is a price only.`;
         return `${describe(p)}\nReplayed on ${record.nights.length} past ${m.symbol} openings, each priced only from the ones before it, this protection paid back ${Math.round(record.paidPerDollar * 100)}¢ per $1 of premium and paid out on ${record.paidNights} of them.\n${toBuy}`;
       }),
   );
@@ -188,7 +188,7 @@ export function createServer(kind: "hosted" | "local", api: AfterbellApi, wallet
     "positions",
     {
       title: "Protection held",
-      description: "A wallet's protection that hasn't been claimed yet: what it covers, what it cost, and once the open has settled, what it pays.",
+      description: "The protection a wallet holds that hasn't been paid out yet (each position is an NFT; whoever holds it is paid): what it covers, what it cost, and once the open has settled, what it pays.",
       inputSchema: { owner: z.string().optional().describe(kind === "local" ? "A Solana wallet. Default: the agent's." : "A Solana wallet.") },
       annotations: read,
     },
@@ -197,7 +197,7 @@ export function createServer(kind: "hosted" | "local", api: AfterbellApi, wallet
         const who = owner ?? wallet?.address();
         if (!who) throw new Error("Give owner, a Solana wallet.");
         const ps = await api.positions(who);
-        if (ps.length === 0) return `${who} holds no unclaimed protection.`;
+        if (ps.length === 0) return `${who} holds no protection that hasn't been paid out.`;
         return ps
           .map((p) => {
             const status = p.state === "open" ? `open until ${nyTime(p.openTs)}` : p.state === "voided" ? `voided: claim refunds ${usd(p.claimable ?? 0)}` : `opened at ${usd(p.settlementPrice ?? 0)}: claim pays ${usd(p.claimable ?? 0)}`;
@@ -211,15 +211,16 @@ export function createServer(kind: "hosted" | "local", api: AfterbellApi, wallet
     "vault",
     {
       title: "The vault",
-      description: "The vault's collateral, what's locked for open protection, and every series with how it settled (its track record).",
+      description: "The vault's collateral, what's locked for open protection, its underwriters' pool, and every series with how it settled (its track record).",
       inputSchema: {},
       annotations: read,
     },
     () =>
       respond(async () => {
         const v = await api.vault();
-        const lines = v.series.map((s) => `${s.symbol}, ${nyTime(s.openTs)}: ${s.state === "settled" ? `settled at ${usd(s.price ?? 0)}` : s.state}, ${s.positions} unclaimed positions, ${usd(s.premiums)} in premiums`);
-        return [`Collateral ${usd(v.collateral)} TestUSD, ${usd(v.locked)} locked for open protection (every sale locks its maximum payout).`, ...lines].join("\n");
+        const lines = v.series.map((s) => `${s.symbol}, ${nyTime(s.openTs)}: ${s.state === "settled" ? `settled at ${usd(s.price ?? 0)}` : s.state}, ${s.positions} positions sold, ${usd(s.premiums)} in premiums`);
+        const pool = v.pool && `The pool is worth ${usd(v.pool.nav)} (${usd(v.pool.sharePrice)} a share), and this round can sell ${usd(v.pool.room)} more in maximum payouts.`;
+        return [`Collateral ${usd(v.collateral)} TestUSD, ${usd(v.locked)} locked for open protection (every sale locks its maximum payout).`, pool, ...lines].filter(Boolean).join("\n");
       }),
   );
 

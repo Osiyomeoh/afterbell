@@ -22,7 +22,11 @@ export function Positions() {
     <div className="space-y-10">
       <section>
         <h2 className="mb-3 text-sm font-medium text-muted">Solana devnet</h2>
-        <SolanaPositions vault={market && { vault: market.solana.vault, collateralMint: market.solana.collateralMint }} />
+        {market?.solana ? (
+          <SolanaPositions vault={{ vault: market.solana.vault, collateralMint: market.solana.collateralMint }} />
+        ) : (
+          <Panel>{market ? "The Solana vault v2 isn't deployed yet." : "Loading…"}</Panel>
+        )}
       </section>
       <section>
         <h2 className="mb-3 text-sm font-medium text-muted">Robinhood Chain</h2>
@@ -36,7 +40,7 @@ export function Positions() {
   );
 }
 
-function SolanaPositions({ vault }: { vault: { vault: string; collateralMint: string } | null }) {
+function SolanaPositions({ vault }: { vault: { vault: string; collateralMint: string } }) {
   const wallet = useAnchorWallet();
   const { sendTransaction } = useWallet();
   const { connection } = useConnection();
@@ -52,13 +56,13 @@ function SolanaPositions({ vault }: { vault: { vault: string; collateralMint: st
   }, [wallet]);
   useEffect(load, [load]);
 
-  if (!wallet) return <Connect onClick={() => setVisible(true)}>Connect the Solana wallet you bought protection with.</Connect>;
+  if (!wallet) return <Connect onClick={() => setVisible(true)}>Connect the Solana wallet holding your protection.</Connect>;
 
   async function claim(p: PositionRow) {
-    if (!wallet || !vault) return;
+    if (!wallet || !p.nftAccount) return;
     try {
       setClaiming(p.address);
-      const sig = await claimPosition(connection, wallet, sendTransaction, { ...vault, series: p.series, position: p.address });
+      const sig = await claimPosition(connection, wallet, sendTransaction, { ...vault, series: p.series, position: p.address, nftAccount: p.nftAccount });
       setClaimed((c) => [...c, { key: p.address, url: explorer("tx", sig) }]);
       load();
     } catch (e) {
@@ -115,7 +119,7 @@ function PositionsTable(props: { rows: PositionRow[] | null; error: string | nul
   if (error && !rows) return <Panel>Couldn&apos;t load your positions: {error}</Panel>;
   if (!rows) return <Panel>Loading…</Panel>;
   if (rows.length === 0 && claimed.length === 0) {
-    return <Panel>No open protection. Positions disappear here once they&apos;re claimed; the payout goes straight to your wallet.</Panel>;
+    return <Panel>No open protection. Positions disappear here once they&apos;re paid out; the payout goes straight to the wallet holding the NFT.</Panel>;
   }
   return (
     <div className="overflow-x-auto rounded-2xl border border-line bg-surface">
@@ -136,8 +140,8 @@ function PositionsTable(props: { rows: PositionRow[] | null; error: string | nul
             <tr key={p.address} className="border-b border-line last:border-0">
               <td className="px-4 py-3">
                 {p.art ? (
-                  <a className="flex items-center gap-3 hover:underline" href={p.art} target="_blank" rel="noreferrer" title={`NFT #${p.address}: whoever holds it is paid`}>
-                    <img src={p.art} alt={`NFT #${p.address}`} className="h-12 w-auto rounded border border-line" />
+                  <a className="flex items-center gap-3 hover:underline" href={p.art} target="_blank" rel="noreferrer" title="Its NFT: whoever holds it is paid">
+                    <img src={p.art} alt={`${p.symbol} protection NFT`} className="h-12 w-auto rounded border border-line" />
                     {p.symbol}
                   </a>
                 ) : (

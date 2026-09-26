@@ -58,9 +58,9 @@ export function pricedStock(symbol: string | null | undefined): Stock | undefine
   return s && pricedStocks().includes(s) ? s : undefined;
 }
 
-/** Whether the Solana vault accepts the stock's feed (solana/deployments/devnet.json, written by setup). */
+/** Whether the Solana vault v2 accepts the stock's feed (solana/deployments/devnet.json, written by setup). */
 export function onSolanaVault(stock: Stock): boolean {
-  return stock.pyth && !!(SOLANA_DEPLOYMENT.feeds as Record<string, { feedId: string } | undefined>)[stock.symbol];
+  return stock.pyth && !!SOLANA_DEPLOYMENT?.feeds[stock.symbol];
 }
 
 const HISTORY_TTL_MS = 60 * 60 * 1000;

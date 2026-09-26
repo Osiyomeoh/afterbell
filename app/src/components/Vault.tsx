@@ -68,7 +68,7 @@ function ChainVault({ chain }: { chain: Chain }) {
           <Stat label="Free to sell against" value={usd(v.collateral - v.locked)} />
         </div>
       )}
-      {v.pool && <Pool pool={v.pool} />}
+      {v.pool && <Pool pool={v.pool} chain={chain} />}
 
       <section className="rounded-2xl border border-line bg-surface">
         <h2 className="border-b border-line px-4 py-3 font-medium">Series</h2>

@@ -57,7 +57,7 @@ async function main() {
   const b64 = out.trim().split("\n").pop()!;
   const tx = Transaction.from(Buffer.from(b64, "base64"));
   tx.partialSign(buyer);
-  const connection = new Connection("https://api.devnet.solana.com", "confirmed");
+  const connection = new Connection(process.env.SOLANA_RPC || "https://api.devnet.solana.com", "confirmed");
   const sig = await connection.sendRawTransaction(tx.serialize());
   await connection.confirmTransaction(sig, "confirmed");
   console.log(`\nthe fresh wallet signed and sent it: https://explorer.solana.com/tx/${sig}?cluster=devnet err=${JSON.stringify((await connection.getSignatureStatus(sig)).value?.err)}`);

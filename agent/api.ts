@@ -27,7 +27,8 @@ export type MarketInfo = {
   history: Opening[];
   annualVol: number;
   config: QuoterConfig;
-  solana: { vault: string; collateralMint: string; programId: string; quoter: string; selling: boolean };
+  /** The Solana vault v2, null until it's deployed. */
+  solana: { vault: string; collateralMint: string; programId: string; quoter: string; shareMint: string; selling: boolean } | null;
 };
 
 export type SolanaQuoteResponse = {
@@ -55,10 +56,14 @@ export type PositionInfo = {
   maxPayout: number;
   claimable: number | null;
   settlementPrice: number | null;
+  /** The position's NFT, and the account holding it: whoever holds it is paid. */
+  mint?: string;
+  nftAccount?: string;
 };
 
 export type VaultInfo = {
   vault: string;
+  pool?: { nav: number; sharePrice: number; room: number };
   collateral: number;
   locked: number;
   openPositions: number;

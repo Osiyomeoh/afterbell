@@ -26,7 +26,7 @@ const BASIS: Record<string, string> = {
 type Status =
   | { kind: "idle" }
   | { kind: "busy"; step: string }
-  | { kind: "done"; premium: number; openTs: number; url: string | null; nft?: string }
+  | { kind: "done"; premium: number; openTs: number; url: string | null; nft?: { number: string; art: string } }
   | { kind: "error"; message: string; needsFunds?: boolean };
 
 const CHAINS: { id: Chain; label: string }[] = [
@@ -45,6 +45,7 @@ const SOURCE: Record<PriceSource, string> = { pyth: "Pyth", chainlink: "Chainlin
 function unavailableOn(chain: Chain, m: MarketResponse): string | null {
   const listing = m.stocks.find((s) => s.symbol === m.symbol);
   if (chain === "solana") {
+    if (!m.solana) return "The Solana vault v2 isn't deployed yet.";
     if (m.solana.selling) return null;
     if (listing?.settles.includes("solana")) return `The Solana vault doesn't take ${m.symbol} yet.`;
     const pyth = m.stocks.filter((s) => s.settles.includes("solana")).map((s) => s.symbol);
@@ -156,8 +157,9 @@ export function Protect() {
       setStatus({ kind: "busy", step: "Getting a signed quote" });
       const q = await requestQuote({ symbol, buyer: wallet.publicKey.toBase58(), ...protection });
       setStatus({ kind: "busy", step: "Confirm in your wallet" });
-      const { signature } = await buyProtection(connection, wallet, sendTransaction, q.solana);
-      setStatus({ kind: "done", premium: q.priced.premium, openTs: q.priced.openTs, url: explorer("tx", signature) });
+      const { signature, position, number } = await buyProtection(connection, wallet, sendTransaction, q.solana);
+      const nft = { number: number.toString(), art: `/api/position-art/solana/${position}/image` };
+      setStatus({ kind: "done", premium: q.priced.premium, openTs: q.priced.openTs, url: explorer("tx", signature), nft });
     } catch (e) {
       setStatus({ kind: "error", message: (e as Error).message, needsFunds: e instanceof NotEnoughTestUsd });
     }
@@ -171,7 +173,7 @@ export function Protect() {
       setStatus({ kind: "busy", step: "Getting a signed quote" });
       const q = await requestEvmQuote({ symbol, buyer, ...protection });
       const { id, hash } = await buyOnRobinhood(buyer, d, q, (step) => setStatus({ kind: "busy", step }));
-      setStatus({ kind: "done", premium: q.priced.premium, openTs: q.priced.openTs, url: evmTxUrl(d, hash), nft: id.toString() });
+      setStatus({ kind: "done", premium: q.priced.premium, openTs: q.priced.openTs, url: evmTxUrl(d, hash), nft: { number: id.toString(), art: `/api/position-art/${id}` } });
     } catch (e) {
       const err = e as Error & { shortMessage?: string };
       setStatus({ kind: "error", message: err.shortMessage ?? err.message, needsFunds: e instanceof NeedsGas });
@@ -304,15 +306,15 @@ export function Protect() {
             </p>
           )}
           {status.kind === "done" && status.nft && (
-            <a className="mt-3 block w-40" href={`/api/position-art/${status.nft}`} target="_blank" rel="noreferrer">
-              <img src={`/api/position-art/${status.nft}`} alt={`Your protection, NFT #${status.nft}`} className="rounded-lg border border-line" />
-              <span className="mt-1 block text-xs text-muted">NFT #{status.nft}: whoever holds it is paid</span>
+            <a className="mt-3 block w-40" href={status.nft.art} target="_blank" rel="noreferrer">
+              <img src={status.nft.art} alt={`Your protection, NFT #${status.nft.number}`} className="rounded-lg border border-line" />
+              <span className="mt-1 block text-xs text-muted">NFT #{status.nft.number}: whoever holds it is paid</span>
             </a>
           )}
         </div>
 
         {chain === "solana" ? (
-          <TestFunds mint={market.solana.collateralMint} refreshKey={status.kind} />
+          market.solana && <TestFunds mint={market.solana.collateralMint} refreshKey={status.kind} />
         ) : (
           <div className="rounded-2xl border border-line bg-surface p-5 text-sm leading-relaxed text-muted">
             <div className="text-text">Test money on Robinhood Chain</div>

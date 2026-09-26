@@ -1,6 +1,7 @@
 /**
  * The local agent's own devnet wallet: created on first use, funded from the
- * Afterbell faucet, buying protection under a spending cap and claiming it.
+ * Afterbell faucet, buying protection under a spending cap and paying out the
+ * positions whose NFTs it holds.
  * Only the local MCP server uses this; the hosted endpoint holds no keys.
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -10,10 +11,11 @@ import { dirname, join } from "node:path";
 import { createAssociatedTokenAccountIdempotentInstruction, getAssociatedTokenAddressSync } from "@solana/spl-token";
 import { Connection, Keypair, LAMPORTS_PER_SOL, PublicKey, sendAndConfirmTransaction, Transaction } from "@solana/web3.js";
 
-import { claimInstruction, getProgram } from "../solana/client/v1";
+import { getProgram, processInstruction } from "../solana/client/vault";
 import type { AfterbellApi } from "./api";
 import { describe, protectionFor, purchase, SOLANA_RPC, type AgentWalletTools } from "./tools";
 
+// Positions paid out per transaction: well inside the seven one `process` fits, next to creating the TestUSD account.
 const CLAIMS_PER_TX = 3;
 const explorer = (sig: string) => `https://explorer.solana.com/tx/${sig}?cluster=devnet`;
 
@@ -42,8 +44,14 @@ export function localWallet(api: AfterbellApi): AgentWalletTools {
   const connection = new Connection(SOLANA_RPC, "confirmed");
   const me = keypair.publicKey;
 
-  const balances = async (symbol?: string) => {
+  const solanaMarket = async (symbol?: string) => {
     const m = await api.market(symbol);
+    if (!m.solana) throw new Error("The Solana vault v2 isn't deployed yet.");
+    return { ...m, solana: m.solana };
+  };
+
+  const balances = async (symbol?: string) => {
+    const m = await solanaMarket(symbol);
     const ata = getAssociatedTokenAddressSync(new PublicKey(m.solana.collateralMint), me);
     const [testUsd, lamports] = await Promise.all([connection.getTokenAccountBalance(ata).then((b) => b.value.uiAmount ?? 0, () => 0), connection.getBalance(me)]);
     return { testUsd, sol: lamports / LAMPORTS_PER_SOL, market: m };
@@ -74,23 +82,33 @@ export function localWallet(api: AfterbellApi): AgentWalletTools {
       return `Bought.\n${describe(r.priced)}\n${explorer(sig)}`;
     },
 
+    // Pays out each finished position whose NFT the agent holds, with the agent as keeper, so it takes the tips too.
     async claim() {
-      const ps = (await api.positions(me.toBase58())).filter((p) => p.state !== "open");
+      const ps = (await api.positions(me.toBase58())).filter((p) => p.state !== "open" && p.nftAccount);
       if (ps.length === 0) return "Nothing to claim yet: protection settles after the open.";
-      const m = await api.market();
+      const m = await solanaMarket();
       const mint = new PublicKey(m.solana.collateralMint);
-      const buyerToken = getAssociatedTokenAddressSync(mint, me);
+      const token = getAssociatedTokenAddressSync(mint, me);
       const program = getProgram(connection, { publicKey: me, signTransaction: async (t) => t, signAllTransactions: async (t) => t });
       const lines: string[] = [];
-      for (let i = 0; i < ps.length; i += CLAIMS_PER_TX) {
-        const batch = ps.slice(i, i + CLAIMS_PER_TX);
-        const tx = new Transaction().add(createAssociatedTokenAccountIdempotentInstruction(me, buyerToken, me, mint));
-        for (const p of batch) {
-          tx.add(await claimInstruction(program, { vault: new PublicKey(m.solana.vault), series: new PublicKey(p.series), position: new PublicKey(p.address), buyer: me, collateralMint: mint, buyerToken }));
+      // One `process` pays positions of one series.
+      for (const series of new Set(ps.map((p) => p.series))) {
+        const mine = ps.filter((p) => p.series === series);
+        for (let i = 0; i < mine.length; i += CLAIMS_PER_TX) {
+          const batch = mine.slice(i, i + CLAIMS_PER_TX);
+          const pay = await processInstruction(program, {
+            keeper: me,
+            vault: new PublicKey(m.solana.vault),
+            series: new PublicKey(series),
+            collateralMint: mint,
+            keeperToken: token,
+            payees: batch.map((p) => ({ position: new PublicKey(p.address), nftAccount: new PublicKey(p.nftAccount!), payeeToken: token })),
+          });
+          const tx = new Transaction().add(createAssociatedTokenAccountIdempotentInstruction(me, token, me, mint), pay);
+          const sig = await sendAndConfirmTransaction(connection, tx, [keypair], { commitment: "confirmed" });
+          for (const p of batch) lines.push(`${p.shares} ${p.symbol}: ${p.state === "voided" ? "refunded" : "paid"} ${(p.claimable ?? 0).toFixed(2)} TestUSD`);
+          lines.push(explorer(sig));
         }
-        const sig = await sendAndConfirmTransaction(connection, tx, [keypair], { commitment: "confirmed" });
-        for (const p of batch) lines.push(`${p.shares} TSLA: ${p.state === "voided" ? "refunded" : "paid"} ${(p.claimable ?? 0).toFixed(2)} TestUSD`);
-        lines.push(explorer(sig));
       }
       return lines.join("\n");
     },
