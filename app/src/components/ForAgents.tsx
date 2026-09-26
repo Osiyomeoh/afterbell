@@ -10,7 +10,6 @@ export function ForAgents() {
   // Empty until mounted, so the server render shows paths rather than a guessed host.
   const [origin, setOrigin] = useState("");
   useEffect(() => setOrigin(window.location.origin), []);
-  const local = !origin || /localhost|127\.0\.0\.1/.test(origin);
   const blink = `${origin}/api/actions/protect`;
 
   return (
@@ -23,17 +22,8 @@ export function ForAgents() {
             Protection from 2% to 10% below the price, as a Solana Action. &ldquo;Protect what I hold&rdquo; sizes it to the TSLAx and TSLAon in the
             wallet. A new devnet wallet is sent test money before it signs, so one click works from nothing.
           </p>
+          {/* No "open it on dial.to" link: Dialect paused dial.to on 25 Sep (503 DEPLOYMENT_PAUSED, still on 26 Sep). */}
           <Copyable text={blink} />
-          {!local && (
-            <a
-              className="mt-3 inline-block text-sm text-brass hover:underline"
-              href={`https://dial.to/?action=${encodeURIComponent(`solana-action:${blink}`)}&cluster=devnet`}
-              target="_blank"
-              rel="noreferrer"
-            >
-              Open it on dial.to
-            </a>
-          )}
         </div>
         <div className="rounded-2xl border border-line bg-surface p-5">
           <h3 className="font-medium">An MCP server, for AI agents</h3>
