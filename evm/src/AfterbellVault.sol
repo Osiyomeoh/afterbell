@@ -280,6 +280,8 @@ contract AfterbellVault is
     }
 
     /// @notice buy, with an EIP-2612 permit for the premium instead of an approval beforehand.
+    /// @dev The permit goes to the collateral token, inside nonReentrant, before any state changes.
+    // slither-disable-next-line reentrancy-benign
     function buyWithPermit(Quote calldata q, bytes calldata signature, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
         external
         nonReentrant
@@ -339,6 +341,7 @@ contract AfterbellVault is
         if (nextFound) {
             if (nextUpdatedAt <= openTs) revert NotRoundInForce();
         } else {
+            // slither-disable-next-line unused-return (only the latest round's id matters here)
             (uint80 latest,,,,) = agg.latestRoundData();
             if (latest != roundId) revert NotRoundInForce();
         }
@@ -367,7 +370,7 @@ contract AfterbellVault is
         uint256[] storage ids = _seriesPositions[key];
         uint256 start = s.processed;
         uint256 end = Math.min(ids.length, start + max);
-        uint256 tips;
+        uint256 tips = 0;
         for (uint256 i = start; i < end; ++i) {
             // Skip any its holder already claimed.
             if (!_positions[ids[i]].closed) tips += _close(ids[i], s);
@@ -432,7 +435,8 @@ contract AfterbellVault is
     function roll() external nonReentrant {
         if (roundOpenTs != 0) {
             if (block.timestamp <= roundOpenTs) revert RoundNotOver();
-            for (uint256 i; i < _roundSeries.length; ++i) {
+            uint256 n = _roundSeries.length;
+            for (uint256 i; i < n; ++i) {
                 bytes32 key = _roundSeries[i];
                 Series storage s = _series[key];
                 if (s.state == SeriesState.Open || s.processed < _seriesPositions[key].length) revert RoundNotOver();
@@ -502,6 +506,7 @@ contract AfterbellVault is
     }
 
     /// @notice requestDeposit from the caller, with an EIP-2612 permit instead of an approval beforehand.
+    // slither-disable-next-line reentrancy-benign
     function requestDepositWithPermit(uint256 assets, address controller, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
         external
         nonReentrant
@@ -747,6 +752,8 @@ contract AfterbellVault is
         uint256 amount = refund ? p.premium : payoutAt(p.shares, p.upper, p.lower, s.price);
         tip = refund ? 0 : p.tip;
         p.paid = uint128(amount);
+        // In process's loop, but the call is to the vault's own NFT contract, for a token it minted.
+        // slither-disable-next-line calls-loop
         address holder = positionToken.ownerOf(id);
         if (amount > 0) collateral.safeTransfer(holder, amount);
         emit Claimed(id, holder, amount, refund);
@@ -847,6 +854,7 @@ contract AfterbellVault is
         view
         returns (bool found, int256 answer, uint256 updatedAt)
     {
+        // slither-disable-next-line unused-return (a round's id, start and answeredInRound aren't used)
         try agg.getRoundData(roundId) returns (uint80, int256 a, uint256, uint256 u, uint80) {
             return (u != 0, a, u);
         } catch {

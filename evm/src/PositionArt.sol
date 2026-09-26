@@ -220,7 +220,8 @@ library PositionArt {
     }
 
     /// @dev The UTC date of a timestamp, as "28 Sep 2026". Every US opening falls on the same date in
-    /// UTC as in New York. Civil-from-days, after Howard Hinnant.
+    /// UTC as in New York. Civil-from-days, after Howard Hinnant: its integer divisions are the algorithm.
+    // slither-disable-next-line divide-before-multiply
     function _date(uint256 ts) private pure returns (string memory) {
         uint256 z = ts / 86_400 + 719_468;
         uint256 era = z / 146_097;
