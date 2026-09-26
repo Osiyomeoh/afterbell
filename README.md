@@ -10,8 +10,8 @@ Built for Colosseum's Crypto World's Fair (September to October 2026). Design: [
 
 | | |
 |---|---|
-| **Built** | `research/`: the evidence the design rests on (below), with 15 unit tests |
-| **Planned** | Pricing engine, EVM vault on Robinhood Chain, Solana vault, Hyperliquid hedger, app, MCP tool. Dates and cut line in the design doc |
+| **Built** | `research/`: the evidence the design rests on (below). `pricing/`: put-spread pricing from the history of openings, exact under the model, and an out-of-sample backtest. 29 unit tests |
+| **Planned** | Signed quotes, EVM vault on Robinhood Chain, Solana vault, Hyperliquid hedger, app, MCP tool. Dates and cut line in the design doc |
 
 This table changes as parts ship. Nothing is listed as built until it runs and is tested.
 
@@ -31,6 +31,7 @@ npm test                          # unit tests
 npm run proof                     # Hyperliquid vs Pyth on every TSLA opening
 npx tsx research/proof-multi.ts   # six markets, Hyperliquid prices only
 npx tsx research/chainlink.ts     # Chainlink's TSLA feed on Robinhood Chain vs Pyth's open
+npx tsx pricing/report.ts         # protection backtest on every TSLA opening
 ```
 
 ## How we got here

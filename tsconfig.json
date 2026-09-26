@@ -10,5 +10,5 @@
     "resolveJsonModule": true,
     "types": ["node"]
   },
-  "include": ["research/**/*.ts"]
+  "include": ["research/**/*.ts", "pricing/**/*.ts"]
 }
