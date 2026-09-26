@@ -58,3 +58,33 @@ export function toMarket(m: MarketResponse): Market {
     earlyCloses: new Map(m.earlyCloses),
   };
 }
+
+export type SeriesState = "open" | "settled" | "voided";
+
+export type PositionRow = {
+  address: string;
+  series: string;
+  buyer: string;
+  openTs: number;
+  state: SeriesState;
+  shares: number;
+  upper: number;
+  lower: number;
+  premium: number;
+  maxPayout: number;
+  claimable: number | null;
+  settlementPrice: number | null;
+};
+
+export type VaultResponse = {
+  vault: string;
+  collateralMint: string;
+  collateral: number;
+  locked: number;
+  openPositions: number;
+  series: { address: string; openTs: number; state: SeriesState; price: number | null; publishTime: number | null; positions: number; premiums: number; maxPayouts: number }[];
+};
+
+export const fetchVault = () => fetch("/api/vault", { cache: "no-store" }).then((r) => json<VaultResponse>(r));
+export const fetchPositions = (owner: string) =>
+  fetch(`/api/positions?owner=${owner}`, { cache: "no-store" }).then((r) => json<{ positions: PositionRow[] }>(r));

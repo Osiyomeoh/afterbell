@@ -7,7 +7,11 @@ import dynamic from "next/dynamic";
 // The wallet button reads browser state, so it renders on the client only.
 const WalletButton = dynamic(() => import("@solana/wallet-adapter-react-ui").then((m) => m.WalletMultiButton), { ssr: false });
 
-const NAV = [{ href: "/", label: "Protect" }];
+const NAV = [
+  { href: "/", label: "Protect" },
+  { href: "/positions", label: "My protection" },
+  { href: "/vault", label: "Vault" },
+];
 
 export function Header() {
   const path = usePathname();
