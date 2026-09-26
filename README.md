@@ -12,7 +12,7 @@ Built for Colosseum's Crypto World's Fair (September to October 2026). Design: [
 |---|---|
 | **Built** | `research/`: the evidence the design rests on (below). `pricing/`: put-spread pricing from the history of openings (exact under the model), an out-of-sample backtest, and signed quotes for both vaults (EIP-712 and ed25519). `evm/`: the Robinhood Chain vault (buy against a signed quote, settle on Chainlink's round in force at the open, claim, void). `solana/`: the Solana vault (the same against an ed25519-signed quote, settled on the first Pyth print at or after the open). `quoter/`: the quote service's core, which prices protection until the next open and signs it for either vault. `app/`: the web app. Protect prices live in the browser with the quoter's own code; My protection lists a wallet's positions and claims them; Vault shows collateral, locked payouts and every series. It has market, quote, vault and positions endpoints, and a devnet purchase has gone through with a quote the endpoint signed. A TypeScript client, setup script, purchase smoke test and keeper (settle on Pyth's first print after the open, void, claim) for the Solana vault; a full cycle (sell, open, settle, claim) passes on a local validator. **The Solana vault is live on devnet** (addresses below), and a purchase priced and signed by the quote service has gone through. 62 TypeScript tests, 35 Foundry tests (2 fuzz), 4 fork tests against Chainlink's live TSLA feed, 16 Rust unit tests and 24 LiteSVM tests of the compiled program |
 | **Next** | Deploy the EVM vault to Robinhood Chain mainnet (the client, quoting and purchase are verified on a fork; waiting on the deploy wallet), then its buy flow in the app; run the keeper on devnet after Monday 28 September's open to settle and claim the first series; hosting the app |
-| **Planned** | Hyperliquid hedger, app, MCP tool. Dates and cut line in the design doc |
+| **Planned** | Hyperliquid hedger. Dates and cut line in the design doc |
 
 This table changes as parts ship. Nothing is listed as built until it runs and is tested.
 
@@ -112,6 +112,21 @@ cp app/.env.example app/.env.local   # then fill in PYTH_API_KEY and the quoter 
 npm run dev --workspace app
 QUOTE_URL=http://localhost:3000/api/quote npm run solana:smoke   # buy through the endpoint, as the browser does
 ```
+
+## For agents
+
+Afterbell is also an MCP server, so an AI agent can protect a portfolio the way a person does on the site. Both servers price and sign through the app's own routes.
+
+- **Hosted, `/mcp`** (Streamable HTTP, stateless, no keys). Its tools are `market`, `quote_protection`, `protect_portfolio`, `protection_transaction`, `positions` and `vault`. Buying returns an unsigned transaction for the caller's own wallet, and a fresh devnet wallet is sent test money first.
+- **Local, `agent/server.ts`** (stdio). It gives the agent its own devnet wallet, created on first use outside the repo, and a spending cap per purchase (`AGENT_MAX_SPEND`). It adds `wallet`, `get_test_funds`, `buy_protection` and `claim`, and its `protect_portfolio` sizes protection to what a mainnet wallet holds and buys it.
+
+```bash
+claude mcp add --transport http afterbell http://localhost:3000/mcp                  # hosted
+claude mcp add afterbell -e AFTERBELL_URL=http://localhost:3000 -- npx tsx agent/server.ts   # local, with its own wallet
+AFTERBELL_URL=http://localhost:3000 npm run agent:smoke                                # both, through a real MCP client
+```
+
+On devnet, the smoke run went end to end on both servers. The local agent was refused a purchase above its cap, then bought protection on 2 TSLA. The hosted server returned a transaction that a fresh wallet signed and sent.
 
 ## Quote service
 
