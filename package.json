@@ -11,7 +11,9 @@
     "solana:smoke": "tsx solana/scripts/smoke-buy.ts",
     "solana:keeper": "tsx solana/scripts/keeper.ts",
     "solana:cycle": "tsx solana/scripts/localnet-cycle.ts",
-    "evm:abi": "tsx evm/scripts/abi.ts"
+    "evm:abi": "tsx evm/scripts/abi.ts",
+    "evm:keeper": "tsx evm/scripts/keeper.ts",
+    "evm:cycle": "tsx evm/scripts/local-cycle.ts"
   },
   "devDependencies": {
     "@types/node": "^26.6.3",

@@ -49,9 +49,14 @@ The TypeScript signer ([`pricing/quote.ts`](pricing/quote.ts)) and the contract 
 
 [`evm/client/vault.ts`](evm/client/vault.ts) buys with viem (approve TestUSD, then `buy` with the signed quote), using ABIs generated from forge's build (`npm run evm:abi`). The quote endpoint signs Robinhood Chain quotes once `evm/deployments/robinhood.json` exists. On a local fork of Robinhood Chain mainnet, against the live Chainlink feed, a purchase went through both ways: with a quote signed locally, and with one the app's endpoint signed.
 
+The EVM keeper ([`evm/keeper`](evm/keeper)) settles each due series on Chainlink's round in force at the open. It finds that round by binary search over the feed's current phase, then checks it as the contract will. It voids series nobody could settle within the settle window and claims every finished position. On the live feed it picks round 1341 ($383.8284, published 09:26:48 ET) for Friday 25 September's open, the round the fork tests settle on. `npm run evm:cycle` runs a whole cycle on a local chain, with a feed that replays that morning's rounds, and checks every payout.
+
 ```bash
 anvil --fork-url https://rpc.mainnet.chain.robinhood.com                  # a local fork, then deploy with anvil's test keys
 BUYER_PRIVATE_KEY=0x… QUOTE_URL=http://localhost:3000/api/quote npx tsx evm/scripts/smoke-buy.ts
+npx tsx evm/scripts/check-round.ts [open]                                  # the round the keeper would settle on (read-only)
+npm run evm:cycle                                                         # sell, open, settle, claim on a local chain
+KEEPER_PRIVATE_KEY=0x… npm run evm:keeper                                 # settle, void and claim on the deployed vault
 ```
 
 ## Solana vault
