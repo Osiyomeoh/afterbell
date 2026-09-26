@@ -10,7 +10,7 @@ Built for Colosseum's Crypto World's Fair (September to October 2026). Design: [
 
 | | |
 |---|---|
-| **Built** | `research/`: the evidence the design rests on (below), with tests |
+| **Built** | `research/`: the evidence the design rests on (below), with 15 unit tests |
 | **Planned** | Pricing engine, EVM vault on Robinhood Chain, Solana vault, Hyperliquid hedger, app, MCP tool. Dates and cut line in the design doc |
 
 This table changes as parts ship. Nothing is listed as built until it runs and is tested.
@@ -21,14 +21,16 @@ Reproducible from the repo (Hyperliquid candles are cached in `research/data`, s
 
 - **Hyperliquid tracks the prices we settle on.** Its `xyz:TSLA` price is a median 2.7 bps from Pyth's 16:00 ET close and 4.1 bps from Pyth's 09:30 ET open, over 46 sessions. A hedge opened at the close and closed at the open follows the settlement price.
 - **Hyperliquid's weekend price does not predict Monday's open.** Across six markets (TSLA, NVDA, AAPL, COIN, MSTR, XYZ100) and 84 weekends, its Saturday and Sunday prices were further from Monday's open than Friday's close was. It starts to help from Monday pre-market. So Afterbell prices protection from the history of openings, not from the weekend tape.
+- **Chainlink on Robinhood Chain can settle the open to about 20 bps.** Its TSLA feed's round in force at 09:30 ET is a median 19.5 bps (worst 44.5) from Pyth's opening print on 46 openings. The first round after 09:30 is ~61 bps off, because the feed only publishes on a 0.5% move, so the vault settles on the round in force.
 
-Full tables: [research/results/tsla-weekend-proof.md](research/results/tsla-weekend-proof.md) (Pyth opens) and [research/results/multi-weekend-proof.md](research/results/multi-weekend-proof.md) (six markets).
+Full tables: [research/results/tsla-weekend-proof.md](research/results/tsla-weekend-proof.md) (Pyth opens), [research/results/multi-weekend-proof.md](research/results/multi-weekend-proof.md) (six markets) and [research/results/chainlink-settlement.md](research/results/chainlink-settlement.md) (Chainlink).
 
 ```bash
 npm install
 npm test                          # unit tests
 npm run proof                     # Hyperliquid vs Pyth on every TSLA opening
 npx tsx research/proof-multi.ts   # six markets, Hyperliquid prices only
+npx tsx research/chainlink.ts     # Chainlink's TSLA feed on Robinhood Chain vs Pyth's open
 ```
 
 ## How we got here

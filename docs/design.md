@@ -36,7 +36,7 @@ Weekend Markets sold cover as stakes in parimutuel YES/NO pools. The payout was 
 ### Settlement: the first print at or after the open
 
 - Solana: a Pyth `PriceUpdateV2`, Wormhole-verified by Pyth's receiver, with `prev_publish_time < open_ts <= publish_time <= open_ts + window` (Weekend Markets' rule and tests).
-- Robinhood Chain: Chainlink. The settler passes a round id; the contract checks `updatedAt(round) >= open_ts` and `updatedAt(previous round) < open_ts` within the same phase, so nobody can pick a later, friendlier round.
+- Robinhood Chain: Chainlink's 24/5 tokenized-equity feed (token price = stock price × the token's `uiMultiplier`). It pushes a round on a 0.5% move or daily, so the contract settles on **the round in force at the open**: the settler passes round `r`; the contract requires `updatedAt(r) <= open_ts`, and either `updatedAt(r+1) > open_ts` in the same phase or `r` is still the latest round. A round older than a set age at the open (a stale feed, an oracle pause for a corporate action) voids instead of settling. Measured precision: 19.5 bps median, 44.5 bps worst, against Pyth's open (research/results/chainlink-settlement.md). Settling on the first round *after* the open would be ~61 bps off, because a new round only fires once the price has moved 0.5%.
 - If no valid price arrives within the window (a halt, a missed holiday), the protection voids and the premium is refunded.
 
 ## Evidence (research/, reproducible)
@@ -47,6 +47,19 @@ Weekend Markets sold cover as stakes in parimutuel YES/NO pools. The payout was 
 2. **Hyperliquid's weekend price does not predict Monday's open.** Across six xyz markets (TSLA, NVDA, AAPL, COIN, MSTR, XYZ100) and 84 weekends, its price on Saturday and Sunday was further from Monday's open than Friday's close was (error 7% to 15% larger). It starts to help from Monday pre-market (25% of the close's error removed at 04:00 ET). Overnight on weekdays it helps earlier (19% at 21:30 ET, 34% at 04:00 ET, 342 nights).
 
 Design consequences: price protection from the history of openings, centred on the close, not from the weekend tape; hedge at the close, where Hyperliquid matches the close. A hedge put on during the weekend enters at a noisy price, which costs variance, not bias.
+
+3. **Chainlink on Robinhood Chain settles the open to about 20 bps.** `npx tsx research/chainlink.ts` reads every round of the TSLA feed (1,367 since 22 June, ~14 a day) and compares the round in force at 09:30 ET with Pyth's opening print on 46 openings: median 19.5 bps, worst 44.5 bps.
+
+## Infrastructure checks (26 Sep)
+
+| Check | Result |
+|---|---|
+| Chainlink stock feeds on Robinhood Chain | Mainnet only: TSLA, NVDA, AAPL, SPY, COIN, MSTR (8 decimals, 0.5% deviation, 24h heartbeat, 24/5). None on testnet (Chainlink's feed directory has no Robinhood testnet list) |
+| Pyth on Robinhood Chain | Not deployed (not in Pyth's EVM list; the contract at Pyth's usual address there is something else) |
+| Hyperliquid stock perps | Mainnet `xyz:TSLA` (~$48M open interest), testnet `x:TSLA` and `felix:TSLA` exist |
+| Hyperliquid testnet funds | The faucet only pays addresses that have deposited on Hyperliquid mainnet |
+
+So a Robinhood Chain vault that settles on a real oracle has to live on mainnet. Plan: deploy it there with a valueless test token as collateral, so settlement is real and no real money is at stake. This needs the user's decision and a deploy wallet the user funds with gas.
 
 ## Chains and tracks
 
@@ -76,6 +89,6 @@ Running alongside: weekly update videos (Sep 28, Oct 5), Superteam Nigeria sessi
 ## Open questions
 
 - Can one project win more than one chain-track prize? (Decides Arbitrum.)
-- Are Chainlink's stock feeds live on Robinhood Chain testnet, and at what heartbeat?
-- Hyperliquid testnet access for the hedger's wallet.
+- Robinhood Chain vault on mainnet with test collateral (needs the user's go-ahead and a funded deploy wallet).
+- Hyperliquid testnet access: the hedger's address needs a mainnet deposit first (the user's call).
 - Perps hackathon rules: start date, eligibility of work that is also entered at Colosseum.
