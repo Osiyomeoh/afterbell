@@ -5,7 +5,9 @@ libs = ["lib"]
 solc_version = "0.8.26"
 evm_version = "shanghai"
 optimizer = true
-optimizer_runs = 10_000
+optimizer_runs = 200
+# The vault is near the 24 KB contract limit; the IR pipeline builds it 3.6 KB under (20,967 bytes).
+via_ir = true
 # The deploy script reads the feeds to allow from the stock list.
 fs_permissions = [{ access = "read", path = "../research/data/robinhood-stocks.json" }]
 # Fork tests need the network; they run under FOUNDRY_PROFILE=fork.
@@ -25,3 +27,9 @@ runs = 2_000
 [rpc_endpoints]
 robinhood = "https://rpc.mainnet.chain.robinhood.com"
 robinhood_testnet = "https://rpc.testnet.chain.robinhood.com"
+
+# Every handler call is one the vault should accept, so a revert fails the run.
+[invariant]
+runs = 64
+depth = 60
+fail_on_revert = true

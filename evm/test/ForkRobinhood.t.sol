@@ -31,10 +31,13 @@ contract ForkRobinhoodTest is Test {
         vm.createSelectFork("robinhood");
         TestUSD usd = new TestUSD();
         vault = new AfterbellVault(usd, address(this), vm.addr(QUOTER_KEY), 3 days, 1 days);
-        vault.allowFeed(TSLA_FEED, true); // checks the real feed reports 8 decimals
+        vault.allowFeed(TSLA_FEED, "TSLA"); // checks the real feed reports 8 decimals
+        // Underwrite the pool with half, and keep the rest for premiums.
         usd.mint(address(this), usd.MINT_LIMIT());
         usd.approve(address(vault), type(uint256).max);
-        vault.deposit(usd.MINT_LIMIT() / 2); // the rest pays premiums
+        vault.requestDeposit(usd.MINT_LIMIT() / 2, address(this), address(this));
+        vault.roll();
+        vault.deposit(usd.MINT_LIMIT() / 2, address(this));
     }
 
     function test_refusesTheLaunchDayPriceOnTheWrongScale() public {
@@ -66,10 +69,10 @@ contract ForkRobinhoodTest is Test {
 
     function test_settlesFridaysOpenOnTheRoundInForce() public {
         vault.settle(TSLA_FEED, OPEN, IN_FORCE);
-        (AfterbellVault.SeriesState state, uint64 price, uint80 roundId,,) = vault.series(vault.seriesKey(TSLA_FEED, OPEN));
-        assertEq(uint8(state), uint8(AfterbellVault.SeriesState.Settled));
-        assertEq(price, 383_8284_0000, "$383.8284");
-        assertEq(roundId, IN_FORCE);
+        AfterbellVault.Series memory s = vault.series(vault.seriesKey(TSLA_FEED, OPEN));
+        assertEq(uint8(s.state), uint8(AfterbellVault.SeriesState.Settled));
+        assertEq(s.price, 383_8284_0000, "$383.8284");
+        assertEq(s.roundId, IN_FORCE);
     }
 
     function test_refusesTheRoundAfterTheOpen() public {

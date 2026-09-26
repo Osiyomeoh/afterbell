@@ -7,8 +7,10 @@ import {AfterbellVault} from "../src/AfterbellVault.sol";
 import {TestUSD} from "../src/TestUSD.sol";
 
 /// Deploys Afterbell on Robinhood Chain with valueless collateral (TestUSD): real Chainlink settlement,
-/// no real money. The deployer owns the vault; QUOTER is the address whose signatures price protection.
-/// It allows every Chainlink equity feed in research/data/robinhood-stocks.json (TSLA among them).
+/// no real money. The deployer owns the vault (and the positions' NFT contract it creates); QUOTER is
+/// the address whose signatures price protection. It allows every Chainlink equity feed in
+/// research/data/robinhood-stocks.json (TSLA among them), named by ticker, and underwrites the pool
+/// with SEED the way anyone would: a deposit request, a roll, and a claim of the shares.
 ///
 ///   QUOTER=0x... forge script script/Deploy.s.sol --rpc-url robinhood \
 ///     --account afterbell-deployer --sender <deployer address> --broadcast
@@ -34,15 +36,18 @@ contract Deploy is Script {
 
         usd = new TestUSD();
         vault = new AfterbellVault(usd, deployer, quoter, MAX_ROUND_AGE, SETTLE_WINDOW);
-        for (uint256 i; i < feeds.length; i++) vault.allowFeed(feeds[i], true);
+        for (uint256 i; i < feeds.length; i++) vault.allowFeed(feeds[i], symbols[i]);
 
         for (uint256 minted; minted < SEED; minted += usd.MINT_LIMIT()) usd.mint(deployer, usd.MINT_LIMIT());
         usd.approve(address(vault), SEED);
-        vault.deposit(SEED);
+        vault.requestDeposit(SEED, deployer, deployer);
+        vault.roll();
+        vault.deposit(SEED, deployer);
         vm.stopBroadcast();
 
         console.log("TestUSD", address(usd));
         console.log("AfterbellVault", address(vault));
+        console.log("AfterbellPositions", address(vault.positionToken()));
         console.log("owner", deployer);
         console.log("quoter", quoter);
         for (uint256 i; i < feeds.length; i++) console.log(symbols[i], feeds[i]);
