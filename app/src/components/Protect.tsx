@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import { backtest } from "@root/pricing/backtest";
 import { priceQuote } from "@root/quoter/quoter";
 
-import { fetchMarket, requestQuote, toMarket, type MarketResponse } from "@/lib/api";
+import { fetchHoldings, fetchMarket, requestQuote, toMarket, type MarketResponse } from "@/lib/api";
 import { buyProtection, NotEnoughTestUsd } from "@/lib/buy";
 import { countdown, explorer, nyTime, pct, usd } from "@/lib/format";
 
@@ -41,6 +41,14 @@ export function Protect() {
   const wallet = useAnchorWallet();
   const { sendTransaction } = useWallet();
   const { setVisible } = useWalletModal();
+  const [holdings, setHoldings] = useState<{ symbol: string; shares: number }[]>([]);
+
+  // Tokenized TSLA the wallet holds on mainnet, so protection can match it exactly.
+  useEffect(() => {
+    if (!wallet) return setHoldings([]);
+    fetchHoldings(wallet.publicKey.toBase58()).then((r) => setHoldings(r.holdings), () => setHoldings([]));
+  }, [wallet]);
+  const held = Math.round(holdings.reduce((a, h) => a + h.shares, 0) * 10_000) / 10_000;
 
   useEffect(() => {
     const load = () => fetchMarket().then(setMarket, (e: Error) => setLoadError(e.message));
@@ -114,6 +122,11 @@ export function Protect() {
               onChange={(e) => setShares(Math.max(0.01, Number(e.target.value) || 0.01))}
               className="num mt-1.5 w-full rounded-lg border border-line bg-ink px-3 py-2 text-lg"
             />
+            {held > 0 && (
+              <button type="button" onClick={() => setShares(held)} className="mt-1.5 text-xs text-brass hover:underline">
+                You hold {held} ({holdings.map((h) => h.symbol).join(" + ")}). Protect all
+              </button>
+            )}
           </label>
           <Slider label="Protection starts" value={start} min={0} max={0.1} step={0.005} onChange={setStart} price={protection?.upper} />
           <Slider label="Protection stops" value={Math.max(depth, start + 0.01)} min={start + 0.01} max={0.3} step={0.01} onChange={setDepth} price={protection?.lower} />

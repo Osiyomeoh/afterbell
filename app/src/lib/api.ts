@@ -93,3 +93,6 @@ export type DripResponse = { signature: string | null; testUsd: number; sol: num
 
 export const requestTestFunds = (owner: string) =>
   fetch("/api/faucet", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ owner }) }).then((r) => json<DripResponse>(r));
+
+export const fetchHoldings = (owner: string) =>
+  fetch(`/api/holdings?owner=${owner}`, { cache: "no-store" }).then((r) => json<{ holdings: { symbol: string; shares: number }[] }>(r));
