@@ -10,8 +10,9 @@ Built for Colosseum's Crypto World's Fair (September to October 2026). Design: [
 
 | | |
 |---|---|
-| **Built** | `research/`: the evidence the design rests on (below). `pricing/`: put-spread pricing from the history of openings, exact under the model, and an out-of-sample backtest. 29 unit tests |
-| **Planned** | Signed quotes, EVM vault on Robinhood Chain, Solana vault, Hyperliquid hedger, app, MCP tool. Dates and cut line in the design doc |
+| **Built** | `research/`: the evidence the design rests on (below). `pricing/`: put-spread pricing from the history of openings (exact under the model), an out-of-sample backtest, and EIP-712 quotes for the EVM vault. `evm/`: the Robinhood Chain vault (buy against a signed quote, settle on Chainlink's round in force at the open, claim, void). 36 TypeScript tests, 35 Foundry tests (2 fuzz), and 4 fork tests against Chainlink's live TSLA feed |
+| **Next** | Deploy the vault to Robinhood Chain mainnet with test collateral (waiting on the deploy wallet) |
+| **Planned** | Solana vault, Hyperliquid hedger, app, MCP tool. Dates and cut line in the design doc |
 
 This table changes as parts ship. Nothing is listed as built until it runs and is tested.
 
@@ -33,6 +34,18 @@ npx tsx research/proof-multi.ts   # six markets, Hyperliquid prices only
 npx tsx research/chainlink.ts     # Chainlink's TSLA feed on Robinhood Chain vs Pyth's open
 npx tsx pricing/report.ts         # protection backtest on every TSLA opening
 ```
+
+## EVM vault (Robinhood Chain)
+
+[`evm/src/AfterbellVault.sol`](evm/src/AfterbellVault.sol) sells protection against a quote the quoter signs (EIP-712), locks the maximum payout, and settles on the Chainlink round in force at the open: the settler passes a round id and the contract checks that the next round in the same phase came after the open, or that there is none. A series nobody can settle within a day voids and refunds every premium. Claims can be triggered by anyone and always pay the buyer. Collateral is [`TestUSD`](evm/src/TestUSD.sol), a token with no value, so the vault can run on mainnet against the real feed without real money.
+
+```bash
+cd evm
+forge test                          # unit and fuzz tests, offline
+FOUNDRY_PROFILE=fork forge test     # settlement against Chainlink's live TSLA feed on Robinhood Chain
+```
+
+The TypeScript signer ([`pricing/quote.ts`](pricing/quote.ts)) and the contract are checked against the same EIP-712 digest vector.
 
 ## How we got here
 
