@@ -45,3 +45,31 @@ export function settleError(r: Round, openTs: bigint, maxRoundAge: bigint): stri
   if (r.answer <= 0n || r.answer > (1n << 64n) - 1n) return "the round's price is out of range";
   return null;
 }
+
+/**
+ * A reader that remembers rounds (a published round never changes) and the
+ * latest for `latestTtlMs`, so finding the round in force, which reads a dozen
+ * rounds, costs one call after the first time.
+ */
+export function cachedReader(feed: FeedReader, latestTtlMs: number, clock: () => number = Date.now): FeedReader {
+  const rounds = new Map<bigint, Round>();
+  let latest: { at: number; round: Promise<Round> } | undefined;
+  return {
+    latest() {
+      if (!latest || clock() - latest.at > latestTtlMs) {
+        const round = feed.latest();
+        latest = { at: clock(), round };
+        round.catch(() => (latest = undefined));
+      }
+      return latest.round;
+    },
+    async round(roundId) {
+      const hit = rounds.get(roundId);
+      if (hit) return hit;
+      const r = await feed.round(roundId);
+      // Only a published round is final; a missing one may yet appear.
+      if (r && r.updatedAt > 0n) rounds.set(roundId, r);
+      return r;
+    },
+  };
+}

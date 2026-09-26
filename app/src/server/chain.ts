@@ -1,6 +1,7 @@
 import { getAccount } from "@solana/spl-token";
 import { Connection, PublicKey } from "@solana/web3.js";
 
+import { stockByFeedId } from "@root/quoter/stocks";
 import { getProgram } from "@root/solana/client/vault";
 import { claimUnits, type SeriesState } from "@root/solana/keeper/plan";
 
@@ -17,6 +18,8 @@ export const readOnly = {
 
 export type SeriesRow = {
   address: string;
+  /** The stock it settles on. */
+  symbol: string;
   openTs: number;
   state: SeriesState;
   /** Settlement price in dollars, once settled. */
@@ -30,6 +33,7 @@ export type SeriesRow = {
 export type PositionRow = {
   address: string;
   series: string;
+  symbol: string;
   buyer: string;
   openTs: number;
   state: SeriesState;
@@ -52,6 +56,12 @@ export type VaultState = {
   locked: number;
   series: SeriesRow[];
   positions: PositionRow[];
+};
+
+/** The stock a Pyth feed id is, or the id's start if it isn't in the registry. */
+const symbolOf = (feedId: number[]) => {
+  const hex = Buffer.from(feedId).toString("hex");
+  return stockByFeedId(hex)?.symbol ?? `0x${hex.slice(0, 8)}`;
 };
 
 const TTL_MS = 10_000;
@@ -103,6 +113,7 @@ async function load(): Promise<VaultState> {
     return {
       address: p.publicKey.toBase58(),
       series: a.series.toBase58(),
+      symbol: symbolOf(s.feedId),
       buyer: a.buyer.toBase58(),
       openTs: s.openTs.toNumber(),
       state,
@@ -122,6 +133,7 @@ async function load(): Promise<VaultState> {
       const state = stateOf(s.account.state);
       return {
         address: s.publicKey.toBase58(),
+        symbol: symbolOf(s.account.feedId),
         openTs: s.account.openTs.toNumber(),
         state,
         price: state === "settled" ? dollars8(s.account.price) : null,

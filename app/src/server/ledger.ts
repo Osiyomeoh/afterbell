@@ -10,6 +10,7 @@ import { SOLANA_DEPLOYMENT } from "./deployment";
 export type LedgerRow = {
   chain: "solana" | "robinhood";
   series: string;
+  symbol: string;
   openTs: number;
   state: SeriesState;
   /** Settlement price in dollars, and when the oracle published it. */
@@ -90,6 +91,7 @@ async function load(): Promise<LedgerRow[]> {
     return {
       chain: "solana",
       series: s.address,
+      symbol: s.symbol,
       openTs: s.openTs,
       state: s.state,
       price: s.price,

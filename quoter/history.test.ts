@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { Opening } from "../pricing/model";
 import { sessionsFrom } from "./calendar";
-import { newOpenings, type Print } from "./history";
+import { newOpenings, roundPrintAt, type Print } from "./history";
 
 const utc = (iso: string) => Date.parse(iso) / 1000;
 const LAST: Opening = { from: "2026-09-24", to: "2026-09-25", close: 377.87, open: 384.62, weekend: false };
@@ -47,5 +47,29 @@ describe("new openings", () => {
     // Monday 11:00 ET: Monday's open is in, its close isn't.
     const monday = await newOpenings([LAST], prints(), utc("2026-09-28T15:00:00Z"));
     expect(monday.map((o) => o.to)).toEqual(["2026-09-28"]);
+  });
+});
+
+describe("Chainlink rounds as prints", () => {
+  const rounds = [
+    { answer: 380, updatedAt: utc("2026-09-25T19:50:00Z") },
+    { answer: 383, updatedAt: utc("2026-09-28T06:00:00Z") },
+    { answer: 386, updatedAt: utc("2026-09-29T13:25:00Z") },
+  ];
+
+  it("reads the round in force at a time, and none older than the vault accepts", async () => {
+    const at = roundPrintAt(rounds, 3 * 86_400);
+    expect(await at(utc("2026-09-28T13:30:00Z"))).toEqual({ price: 383, publishTime: utc("2026-09-28T06:00:00Z") });
+    expect(await at(utc("2026-09-29T13:30:00Z"))).toMatchObject({ price: 386 });
+    expect(await at(utc("2026-09-25T19:00:00Z"))).toBeNull();
+    expect(await roundPrintAt(rounds, 3600)(utc("2026-09-25T20:00:00Z"))).toMatchObject({ price: 380 });
+    expect(await roundPrintAt(rounds, 3600)(utc("2026-09-26T20:00:00Z"))).toBeNull();
+  });
+
+  it("marks weekends by the bells, not by when the round in force was published", async () => {
+    // Monday's close reads a round from 02:00 ET Monday; Tuesday's open, one from 09:25.
+    // They were published 31 hours apart, but Monday night is still a weeknight.
+    const out = await newOpenings([LAST], roundPrintAt(rounds, 3 * 86_400), utc("2026-09-29T14:00:00Z"));
+    expect(out.map((o) => `${o.from}>${o.to}${o.weekend ? " weekend" : ""} ${o.close}>${o.open}`)).toEqual(["2026-09-25>2026-09-28 weekend 380>383", "2026-09-28>2026-09-29 383>386"]);
   });
 });

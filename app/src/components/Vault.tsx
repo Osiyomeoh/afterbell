@@ -65,6 +65,7 @@ function ChainVault({ chain }: { chain: Chain }) {
           <thead className="text-left text-muted">
             <tr className="border-b border-line">
               <th className="px-4 py-3 font-normal">Open</th>
+              <th className="px-4 py-3 font-normal">Stock</th>
               <th className="px-4 py-3 font-normal">State</th>
               <th className="px-4 py-3 text-right font-normal">Positions</th>
               <th className="px-4 py-3 text-right font-normal">Premiums</th>
@@ -83,6 +84,7 @@ function ChainVault({ chain }: { chain: Chain }) {
                     nyTime(s.openTs)
                   )}
                 </td>
+                <td className="px-4 py-3">{s.symbol}</td>
                 <td className="px-4 py-3">{s.state === "settled" ? `Settled at ${usd(s.price ?? 0)}` : s.state === "voided" ? "Voided, refunded" : "Open"}</td>
                 <td className="num px-4 py-3 text-right">{s.positions}</td>
                 <td className="num px-4 py-3 text-right">{usd(s.premiums)}</td>

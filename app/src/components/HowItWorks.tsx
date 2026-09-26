@@ -1,6 +1,7 @@
 import { DEFAULT_QUOTER_CONFIG } from "@root/quoter/quoter";
 import { DEFAULT_CONFIG } from "@root/solana/client/vault";
 
+import { SOLANA_DEPLOYMENT } from "@/server/deployment";
 import { evmDeployment } from "@/server/evmDeployment";
 
 const margin = `${Math.round(DEFAULT_QUOTER_CONFIG.margin * 100)}%`;
@@ -8,7 +9,7 @@ const margin = `${Math.round(DEFAULT_QUOTER_CONFIG.margin * 100)}%`;
 const STEPS = [
   {
     title: "Choose your levels",
-    body: `Pick the shares and where protection starts and stops. It's priced from how TSLA has actually opened after every recorded close, from Pyth, plus a ${margin} margin. Outside the session it's quoted from the lower of the last close and the live price, so a drop after the close can't buy cheap protection.`,
+    body: `Pick the stock, the shares and where protection starts and stops. It's priced from how that stock has actually opened after every recorded close, read from the oracle it settles on, plus a ${margin} margin. Outside the session it's quoted from the lower of the last close and the live price, so a drop after the close can't buy cheap protection.`,
   },
   {
     title: "Pay once",
@@ -20,12 +21,13 @@ const STEPS = [
   },
   {
     title: "Get paid",
-    body: `If TSLA opened below where your protection starts, you're paid the difference on every share, down to where it stops. The keeper claims into your wallet, or you can claim on My protection. If no valid price arrives, as in a halt, every premium is refunded after ${DEFAULT_CONFIG.voidDelaySecs / 3600} hours.`,
+    body: `If the stock opened below where your protection starts, you're paid the difference on every share, down to where it stops. The keeper claims into your wallet, or you can claim on My protection. If no valid price arrives, as in a halt, every premium is refunded after ${DEFAULT_CONFIG.voidDelaySecs / 3600} hours.`,
   },
 ];
 
 export function HowItWorks() {
   const robinhood = evmDeployment();
+  const onSolana = Object.keys(SOLANA_DEPLOYMENT.feeds).join(" and ");
   return (
     <section className="mt-16">
       <h2 className="text-xl font-semibold tracking-tight">How it works</h2>
@@ -40,8 +42,8 @@ export function HowItWorks() {
       </ol>
       <p className="mt-4 max-w-3xl text-sm leading-relaxed text-faint">
         {robinhood
-          ? "On Robinhood Chain, the same vault takes an EIP-712 signed quote and settles on Chainlink's TSLA price in force at 09:30 ET. Both vaults take TestUSD, a token with no value; the only real cost is gas on Robinhood Chain. "
-          : "Afterbell runs on Solana devnet with TestUSD, a token with no value, so everything here is free to try. "}
+          ? "On Robinhood Chain, the same vault takes an EIP-712 signed quote and settles on Chainlink's price in force at 09:30 ET, for every US stock Chainlink publishes there. Both vaults take TestUSD, a token with no value; the only real cost is gas on Robinhood Chain. "
+          : `Afterbell runs on Solana devnet with TestUSD, a token with no value, so everything here is free to try. Solana sells ${onSolana}; the other stocks here are priced for Robinhood Chain, where the vault settles on Chainlink and isn't deployed yet. `}
         The payout works like a put spread: it
         doesn&apos;t check that you hold the stock. The quote service sets prices but never holds money; the vault pays only on the oracle&apos;s price.
       </p>

@@ -122,6 +122,7 @@ function PositionsTable(props: { rows: PositionRow[] | null; error: string | nul
       <table className="w-full text-sm">
         <thead className="text-left text-muted">
           <tr className="border-b border-line">
+            <th className="px-4 py-3 font-normal">Stock</th>
             <th className="px-4 py-3 font-normal">Settles</th>
             <th className="px-4 py-3 font-normal">Shares</th>
             <th className="px-4 py-3 font-normal">Protected</th>
@@ -133,6 +134,7 @@ function PositionsTable(props: { rows: PositionRow[] | null; error: string | nul
         <tbody>
           {rows.map((p) => (
             <tr key={p.address} className="border-b border-line last:border-0">
+              <td className="px-4 py-3">{p.symbol}</td>
               <td className="px-4 py-3">{nyTime(p.openTs)}</td>
               <td className="num px-4 py-3">{p.shares}</td>
               <td className="num px-4 py-3">

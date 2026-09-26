@@ -42,8 +42,8 @@ export function localWallet(api: AfterbellApi): AgentWalletTools {
   const connection = new Connection(SOLANA_RPC, "confirmed");
   const me = keypair.publicKey;
 
-  const balances = async () => {
-    const m = await api.market();
+  const balances = async (symbol?: string) => {
+    const m = await api.market(symbol);
     const ata = getAssociatedTokenAddressSync(new PublicKey(m.solana.collateralMint), me);
     const [testUsd, lamports] = await Promise.all([connection.getTokenAccountBalance(ata).then((b) => b.value.uiAmount ?? 0, () => 0), connection.getBalance(me)]);
     return { testUsd, sol: lamports / LAMPORTS_PER_SOL, market: m };
@@ -63,9 +63,9 @@ export function localWallet(api: AfterbellApi): AgentWalletTools {
       return `Sent ${r.testUsd} TestUSD and ${r.sol} SOL: ${explorer(r.signature!)}`;
     },
 
-    async buy(shares, startsBelow, stopsBelow, maxCost) {
-      const b = await balances();
-      const r = await api.quote(me.toBase58(), protectionFor(b.market, shares, startsBelow, stopsBelow));
+    async buy(symbol, shares, startsBelow, stopsBelow, maxCost) {
+      const b = await balances(symbol);
+      const r = await api.quote(b.market.symbol, me.toBase58(), protectionFor(b.market, shares, startsBelow, stopsBelow));
       const limit = Math.min(cap, maxCost ?? cap);
       if (r.priced.premium > limit) throw new Error(`Not bought: it costs ${r.priced.premium.toFixed(2)} TestUSD, above the ${maxCost !== undefined && maxCost < cap ? "max_cost" : "spending cap"} of ${limit}.\n${describe(r.priced)}`);
       if (r.priced.premium > b.testUsd) throw new Error(`Not bought: it costs ${r.priced.premium.toFixed(2)} TestUSD and the wallet has ${b.testUsd}. Use get_test_funds.`);

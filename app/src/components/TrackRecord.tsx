@@ -50,6 +50,7 @@ export function TrackRecord() {
               <thead className="text-left text-muted">
                 <tr className="border-b border-line">
                   <th className="px-4 py-3 font-normal">Open</th>
+                  <th className="px-4 py-3 font-normal">Stock</th>
                   <th className="px-4 py-3 font-normal">Chain</th>
                   <th className="px-4 py-3 font-normal">Settled on</th>
                   <th className="px-4 py-3 text-right font-normal">Sales</th>
@@ -61,6 +62,7 @@ export function TrackRecord() {
                 {ledger.map((s) => (
                   <tr key={s.series} className="border-b border-line last:border-0">
                     <td className="px-4 py-3 whitespace-nowrap">{nyTime(s.openTs)}</td>
+                    <td className="px-4 py-3">{s.symbol}</td>
                     <td className="px-4 py-3 whitespace-nowrap">{CHAIN[s.chain]}</td>
                     <td className="px-4 py-3">
                       <Settlement s={s} />
@@ -74,7 +76,7 @@ export function TrackRecord() {
               {finished.length > 0 && (
                 <tfoot>
                   <tr className="border-t border-line text-muted">
-                    <td className="px-4 py-3" colSpan={4}>
+                    <td className="px-4 py-3" colSpan={5}>
                       {totals.premiums >= totals.paid
                         ? `Settled series: the vaults kept ${usd(totals.premiums - totals.paid)}`
                         : `Settled series: buyers got ${usd(totals.paid - totals.premiums)} more than they paid`}

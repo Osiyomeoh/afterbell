@@ -1,0 +1,346 @@
+{
+ "source": "https://reference-data-directory.vercel.app/feeds-robinhood-mainnet.json, Hyperliquid xyz perps, Pyth equity schedules",
+ "generatedAt": "2026-09-26T13:18:26.941Z",
+ "stocks": [
+  {
+   "symbol": "AAPL",
+   "name": "Apple",
+   "listing": "APPLE INC",
+   "feedId": "0x49f6b65cb1de6b10eaf75e7c03ca029c306d0357e91b5311b175084a5ad55688",
+   "chainlink": "0x6B22A786bAa607d76728168703a39Ea9C99f2cD0",
+   "hyperliquid": "xyz:AAPL",
+   "hyperliquidTracks": "stock",
+   "annualVol": 0.32
+  },
+  {
+   "symbol": "AMD",
+   "name": "AMD",
+   "listing": "ADVANCED MICRO DEVICES INC",
+   "feedId": "0x3622e381dbca2efd1859253763b1adc63f7f9abb8e76da1aa8e638a57ccde93e",
+   "chainlink": "0x943A29E7ae51A4798823ca9eEd2ed533B2A22C72",
+   "hyperliquid": "xyz:AMD",
+   "hyperliquidTracks": "stock",
+   "annualVol": 0.68
+  },
+  {
+   "symbol": "AMZN",
+   "name": "Amazon",
+   "listing": "AMAZON.COM, INC.",
+   "feedId": "0xb5d0e0fa58a1f8b81498ae670ce93c872d14434b72c364885d4fa1b257cbb07a",
+   "chainlink": "0xD5a1508ceD74c084eBf3cBe853e2C968fB2a651C",
+   "hyperliquid": "xyz:AMZN",
+   "hyperliquidTracks": "stock",
+   "annualVol": 0.41
+  },
+  {
+   "symbol": "ASML",
+   "name": "ASML",
+   "listing": "ASML HOLDING NV",
+   "feedId": "0x1a6e324589a0e355919fb1c0389edc3fdf4c46034626bd82aad4e47714cfa94f",
+   "chainlink": "0xB4106147E8cce40b7d46124090d373A71b70f87D",
+   "hyperliquid": "xyz:ASML",
+   "hyperliquidTracks": "stock",
+   "annualVol": 0.47
+  },
+  {
+   "symbol": "BABA",
+   "name": "Alibaba",
+   "listing": "ALIBABA GROUP LIMITED",
+   "feedId": "0x72bc23b1d0afb1f8edef20b7fb60982298993161bc0fd749587d6f60cd1ee9a3",
+   "chainlink": "0x62Cc8F9b5f56a33c9C8A60c8B92779f523c4E984",
+   "hyperliquid": "xyz:BABA",
+   "hyperliquidTracks": "stock",
+   "annualVol": 0.43
+  },
+  {
+   "symbol": "CLSK",
+   "name": "CleanSpark",
+   "listing": "CLEANSPARK INC",
+   "feedId": "0x79e935bc10c55f2c36a08df1564afc5b33425c8dc80829dd954c67e63ed3374a",
+   "chainlink": "0x810c12D3a554Bc47fd39597Fe3b3AAC4941F50eF",
+   "hyperliquid": null,
+   "hyperliquidTracks": "stock",
+   "annualVol": 0.93
+  },
+  {
+   "symbol": "COIN",
+   "name": "Coinbase",
+   "listing": "COINBASE GLOBAL INC",
+   "feedId": "0xfee33f2a978bf32dd6b662b65ba8083c6773b494f8401194ec1870c640860245",
+   "chainlink": "0xA3a468A452940B7D6b69991207B508c609a98Ef2",
+   "hyperliquid": "xyz:COIN",
+   "hyperliquidTracks": "stock",
+   "annualVol": 0.76
+  },
+  {
+   "symbol": "CRCL",
+   "name": "Circle",
+   "listing": "CIRCLE INTERNET GROUP INC",
+   "feedId": "0x92b8527aabe59ea2b12230f7b532769b133ffb118dfbd48ff676f14b273f1365",
+   "chainlink": "0x6652eDf64bA3731C4F2D3ce821A0Fb1f1f6b482a",
+   "hyperliquid": "xyz:CRCL",
+   "hyperliquidTracks": "stock",
+   "annualVol": 0.91
+  },
+  {
+   "symbol": "CRWV",
+   "name": "CoreWeave",
+   "listing": "COREWEAVE INC",
+   "feedId": "0x2a78b78189d6d6eff30a825e4698fd14a0b1ca659bb0079bb7e80521c0e8c75d",
+   "chainlink": "0xe1b3aABCAFAd1c94708dc1367dcfF8Aa4407487C",
+   "hyperliquid": "xyz:CRWV",
+   "hyperliquidTracks": "stock",
+   "annualVol": 0.99
+  },
+  {
+   "symbol": "DELL",
+   "name": "Dell",
+   "listing": "DELL TECHNOLOGIES INC",
+   "feedId": "0xa2950270a22ce39a22cb3488ba91e60474cd93c6d01da2ecc5a97c1dd40f4995",
+   "chainlink": "0x1C6c8cADBe02E19129c39dDB92281cE4c0bf206b",
+   "hyperliquid": "xyz:DELL",
+   "hyperliquidTracks": "stock",
+   "annualVol": 0.82
+  },
+  {
+   "symbol": "EWY",
+   "name": "South Korea (EWY)",
+   "listing": "ISHARES MSCI SOUTH KOREA ETF",
+   "feedId": "0x7be2b3f9f9d02b1ffcf61fc26ad5cc6aff4dd02044f9abc22ee57f37b3b5d2e5",
+   "chainlink": "0xEFdf54610B62A7753Ec30bDc380847c12D32e1D1",
+   "hyperliquid": "xyz:EWY",
+   "hyperliquidTracks": "stock",
+   "annualVol": 0.6
+  },
+  {
+   "symbol": "GME",
+   "name": "GameStop",
+   "listing": "GAMESTOP CORP.",
+   "feedId": "0x6f9cd89ef1b7fd39f667101a91ad578b6c6ace4579d5f7f285a4b06aa4504be6",
+   "chainlink": "0x27C71df6A64fB476468EdF256CF72c038baB5B67",
+   "hyperliquid": "xyz:GME",
+   "hyperliquidTracks": "stock",
+   "annualVol": 0.39
+  },
+  {
+   "symbol": "GOOGL",
+   "name": "Alphabet",
+   "listing": "ALPHABET INC CLASS A",
+   "feedId": "0x5a48c03e9b9cb337801073ed9d166817473697efff0d138874e0f6a33d6d5aa6",
+   "chainlink": "0xF6f373a037c30F0e5010d854385cA89185AE638b",
+   "hyperliquid": "xyz:GOOGL",
+   "hyperliquidTracks": "stock",
+   "annualVol": 0.35
+  },
+  {
+   "symbol": "INTC",
+   "name": "Intel",
+   "listing": "INTEL CORPORATION",
+   "feedId": "0xc1751e085ee292b8b3b9dd122a135614485a201c35dfc653553f0e28c1baf3ff",
+   "chainlink": "0x3f390C5C24628Ac7C489515402235FeAD71D1913",
+   "hyperliquid": "xyz:INTC",
+   "hyperliquidTracks": "stock",
+   "annualVol": 0.75
+  },
+  {
+   "symbol": "IONQ",
+   "name": "IonQ",
+   "listing": "IONQ INC",
+   "feedId": "0x6af68a227de372e5d19183679911e468e06d85c013f56c376a78a4d942f8f269",
+   "chainlink": "0x22EfeC4919baf55F360E0EDee4AbEB26DE4971eb",
+   "hyperliquid": null,
+   "hyperliquidTracks": "stock",
+   "annualVol": 0.79
+  },
+  {
+   "symbol": "META",
+   "name": "Meta",
+   "listing": "META PLATFORMS INC",
+   "feedId": "0x78a3e3b8e676a8f73c439f5d749737034b139bbbe899ba5775216fba596607fe",
+   "chainlink": "0x7C38C00C30BEe9378381E7B6135d7283356D71b1",
+   "hyperliquid": "xyz:META",
+   "hyperliquidTracks": "stock",
+   "annualVol": 0.49
+  },
+  {
+   "symbol": "MSFT",
+   "name": "Microsoft",
+   "listing": "MICROSOFT CORP",
+   "feedId": "0xd0ca23c1cc005e004ccf1db5bf76aeb6a49218f43dac3d4b275e92de12ded4d1",
+   "chainlink": "0x45C3C877C15E6BA2EBB19eA114Ea508d14C1Af2E",
+   "hyperliquid": "xyz:MSFT",
+   "hyperliquidTracks": "stock",
+   "annualVol": 0.41
+  },
+  {
+   "symbol": "MSTR",
+   "name": "Strategy",
+   "listing": "MICROSTRATEGY INC. - CLASS A",
+   "feedId": "0xe1e80251e5f5184f2195008382538e847fafc36f751896889dd3d1b1f6111f09",
+   "chainlink": "0x396118bdFB181e6240E74D243F266B061c0edc3D",
+   "hyperliquid": "xyz:MSTR",
+   "hyperliquidTracks": "stock",
+   "annualVol": 0.89
+  },
+  {
+   "symbol": "MU",
+   "name": "Micron",
+   "listing": "MICRON TECHNOLOGY INC",
+   "feedId": "0x152244dc24665ca7dd3f257b8f442dc449b6346f48235b7b229268cb770dda2d",
+   "chainlink": "0x425EEFdCf05ed6526C3cE61Af99429A228a6d596",
+   "hyperliquid": "xyz:MU",
+   "hyperliquidTracks": "stock",
+   "annualVol": 0.82
+  },
+  {
+   "symbol": "NBIS",
+   "name": "Nebius",
+   "listing": "NEBIUS GROUP NV",
+   "feedId": "0x691630d65fbbc8d987717df10453c01907bee8caa60a4aaba4dafca64ea16dc4",
+   "chainlink": "0xE1D87B116Ba0fe898998f1D140339D1fA1E09705",
+   "hyperliquid": "xyz:NBIS",
+   "hyperliquidTracks": "stock",
+   "annualVol": 1.3
+  },
+  {
+   "symbol": "NVDA",
+   "name": "Nvidia",
+   "listing": "NVIDIA CORP",
+   "feedId": "0xb1073854ed24cbc755dc527418f52b7d271f6cc967bbf8d8129112b18860a593",
+   "chainlink": "0x379EC4f7C378F34a1B47E4F3cbeBCbAC3E8E9F15",
+   "hyperliquid": "xyz:NVDA",
+   "hyperliquidTracks": "stock",
+   "annualVol": 0.38
+  },
+  {
+   "symbol": "ORCL",
+   "name": "Oracle",
+   "listing": "ORACLE CORPORATION",
+   "feedId": "0xe47ff732eaeb6b4163902bdee61572659ddf326511917b1423bae93fcdf3153c",
+   "chainlink": "0x0e6a64a2B58A6693a531E6c555f3A5d042eEA844",
+   "hyperliquid": "xyz:ORCL",
+   "hyperliquidTracks": "stock",
+   "annualVol": 0.54
+  },
+  {
+   "symbol": "PLTR",
+   "name": "Palantir",
+   "listing": "PALANTIR TECHNOLOGIES INC",
+   "feedId": "0x11a70634863ddffb71f2b11f2cff29f73f3db8f6d0b78c49f2b5f4ad36e885f0",
+   "chainlink": "0x820ABedFF239034956B7A9d2F0a331f9F075eB4c",
+   "hyperliquid": "xyz:PLTR",
+   "hyperliquidTracks": "stock",
+   "annualVol": 0.72
+  },
+  {
+   "symbol": "QQQ",
+   "name": "Nasdaq-100 (QQQ)",
+   "listing": "INVESCO QQQ TRUST SERIES 1",
+   "feedId": "0x9695e2b96ea7b3859da9ed25b7a46a920a776e2fdae19a7bcfdf2b219230452d",
+   "chainlink": "0x80901d846d5D7B030F26B480776EE3b29374C2ae",
+   "hyperliquid": "xyz:XYZ100",
+   "hyperliquidTracks": "index",
+   "annualVol": 0.2
+  },
+  {
+   "symbol": "RGTI",
+   "name": "Rigetti",
+   "listing": "RIGETTI COMPUTING INC",
+   "feedId": "0x20aead6dcd4da8321806ce377107952863632fb25f43ec03c36ffd575ac7e708",
+   "chainlink": "0x2A045cF1C49c61c166C036d2f06FA2D2d984f765",
+   "hyperliquid": null,
+   "hyperliquidTracks": "stock",
+   "annualVol": 0.8
+  },
+  {
+   "symbol": "RKLB",
+   "name": "Rocket Lab",
+   "listing": "ROCKET LAB USA INC",
+   "feedId": "0x40589e289317e4fbd997b1a267606e20a1cc7c3e4689f9e5a5992957917816c8",
+   "chainlink": "0x045477BF65Aef6f4F2386ad0164579e48381CC74",
+   "hyperliquid": "xyz:RKLB",
+   "hyperliquidTracks": "stock",
+   "annualVol": 0.8
+  },
+  {
+   "symbol": "SLV",
+   "name": "Silver (SLV)",
+   "listing": "ISHARES SILVER TRUST",
+   "feedId": "0x6fc08c9963d266069cbd9780d98383dabf2668322a5bef0b9491e11d67e5d7e7",
+   "chainlink": "0x209b73908e92Ae021826eD79609845451Ecba2ce",
+   "hyperliquid": "xyz:SILVER",
+   "hyperliquidTracks": "index",
+   "annualVol": 0.4
+  },
+  {
+   "symbol": "SNDK",
+   "name": "Sandisk",
+   "listing": "SANDISK CORP",
+   "feedId": "0xc86a1f20cd7d5d07932baea30bcd8e479b775c4f51f82526bf1de6dc79fa3f76",
+   "chainlink": "0xfb133Fa4B7b385802B693a293606682Df47109A3",
+   "hyperliquid": "xyz:SNDK",
+   "hyperliquidTracks": "stock",
+   "annualVol": 1.26
+  },
+  {
+   "symbol": "SPCX",
+   "name": "SpaceX",
+   "listing": "SPACE EXPLORATION TECHNOLOGY CORP",
+   "feedId": "0x8a593d6edde7a3095213c88116d8840d01e93c2ddeb800bc891772eb8b93bb94",
+   "chainlink": "0xB265810950ba6c5C0Ff821c9963014a56fD8Bffb",
+   "hyperliquid": "xyz:SPCX",
+   "hyperliquidTracks": "stock",
+   "annualVol": 0.72
+  },
+  {
+   "symbol": "SPY",
+   "name": "S&P 500 (SPY)",
+   "listing": "SPY",
+   "feedId": "0x19e09bb805456ada3979a7d1cbb4b6d63babc3a0f8e8a9509f68afa5c4c11cd5",
+   "chainlink": "0x319724394D3A0e3669269846abE664Cd621f9f6A",
+   "hyperliquid": "xyz:SP500",
+   "hyperliquidTracks": "index",
+   "annualVol": 0.12
+  },
+  {
+   "symbol": "TSLA",
+   "name": "Tesla",
+   "listing": "TESLA INC",
+   "feedId": "0x16dad506d7db8da01c87581c87ca897a012a153557d4d578c3b9c9e1bc0632f1",
+   "chainlink": "0x4A1166a659A55625345e9515b32adECea5547C38",
+   "hyperliquid": "xyz:TSLA",
+   "hyperliquidTracks": "stock",
+   "annualVol": 0.55
+  },
+  {
+   "symbol": "TSM",
+   "name": "TSMC",
+   "listing": "TAIWAN SEMICONDUCTOR MANUFACTURING CO LIMITED",
+   "feedId": "0xe722560a66e4ab00522ef20a38fa2ba5d1b41f1c5404723ed895d202a7af7cc4",
+   "chainlink": "0x874cF94aa8eC88Fd9560094dD065f2fB3E41Fc2F",
+   "hyperliquid": "xyz:TSM",
+   "hyperliquidTracks": "stock",
+   "annualVol": 0.4
+  },
+  {
+   "symbol": "USAR",
+   "name": "USA Rare Earth",
+   "listing": "USA RARE EARTH INC",
+   "feedId": "0x1bf5216f1a4ec4beb87e22110dbca2a62825bb1216d24a17e913164e4f8ec602",
+   "chainlink": "0xA994d3684e8400A6c8078226925779FdeE682DD9",
+   "hyperliquid": "xyz:USAR",
+   "hyperliquidTracks": "stock",
+   "annualVol": 0.8
+  },
+  {
+   "symbol": "USO",
+   "name": "Oil (USO)",
+   "listing": "UNITED STATES OIL FUND LP",
+   "feedId": "0xd00bd77d97dc5769de77f96d0e1a79cbf1364e14d0dbf046e221bce2e89710dd",
+   "chainlink": "0x75a9c76Ef439e2C7c2E5a34Ab105EcFe3766431c",
+   "hyperliquid": "xyz:CL",
+   "hyperliquidTracks": "index",
+   "annualVol": 0.51
+  }
+ ]
+}

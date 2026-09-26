@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { decodeRound, encodeRoundId } from "./chainlink";
+import { decodeRound, encodeRoundId, onScale } from "./chainlink";
 
 const word = (n: bigint) => (BigInt.asUintN(256, n)).toString(16).padStart(64, "0");
 
@@ -32,5 +32,12 @@ describe("Chainlink round codec", () => {
 
   it("rejects short return data", () => {
     expect(decodeRound("0x")).toBeNull();
+  });
+});
+
+describe("rounds off the feed's scale", () => {
+  it("drops the launch-day rounds published with 18 decimals, and keeps real moves", () => {
+    const rounds = [29628999999.000004, 29478435000, 280.1, 281.5, 306, 333.01, 250].map((answer, i) => ({ answer, updatedAt: i }));
+    expect(onScale(rounds).map((r) => r.answer)).toEqual([280.1, 281.5, 306, 333.01, 250]);
   });
 });

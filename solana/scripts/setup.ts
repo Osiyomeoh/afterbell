@@ -112,9 +112,9 @@ async function main() {
     log(`vault            ${vault.toBase58()} (existing)`);
   }
 
-  // 3. A feed for each stock the quote service sells.
+  // 3. A feed for each stock Solana can settle: those whose Pyth prints the keeper can fetch.
   const feeds: Deployment["feeds"] = {};
-  for (const stock of STOCKS) {
+  for (const stock of STOCKS.filter((s) => s.pyth)) {
     const feedId = feedIdBytes(stock.feedId);
     const feedConfig = feedConfigAddress(vault, feedId);
     const feed = await program.account.feedConfig.fetchNullable(feedConfig);

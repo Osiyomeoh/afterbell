@@ -41,7 +41,7 @@ Outside the session, protection is priced from the lower of the last close and H
 ### Settlement: the first print at or after the open
 
 - Solana: a Pyth `PriceUpdateV2`, Wormhole-verified by Pyth's receiver, with `prev_publish_time < open_ts <= publish_time <= open_ts + window` (Weekend Markets' rule and tests).
-- Robinhood Chain: Chainlink's 24/5 tokenized-equity feed (token price = stock price × the token's `uiMultiplier`). It pushes a round on a 0.5% move or daily, so the contract settles on **the round in force at the open**: the settler passes round `r`; the contract requires `updatedAt(r) <= open_ts`, and either `updatedAt(r+1) > open_ts` in the same phase or `r` is still the latest round. A round older than a set age at the open (a stale feed, an oracle pause for a corporate action) voids instead of settling. Measured precision: 19.5 bps median, 44.5 bps worst, against Pyth's open (research/results/chainlink-settlement.md). Settling on the first round *after* the open would be ~61 bps off, because a new round only fires once the price has moved 0.5%.
+- Robinhood Chain: Chainlink's 24/5 tokenized-equity feed (token price = stock price × the token's `uiMultiplier`). It pushes a round on a 0.5% move or daily, so the contract settles on **the round in force at the open**: the settler passes round `r`; the contract requires `updatedAt(r) <= open_ts`, and either `updatedAt(r+1) > open_ts` in the same phase or `r` is still the latest round. A round older than a set age at the open (a stale feed, an oracle pause for a corporate action) voids instead of settling. Measured precision: 19.5 bps median, 44.5 bps worst, against Pyth's open (research/results/chainlink-settlement.md). Settling on the first round *after* the open would be ~61 bps off, because a new round only fires once the price has moved 0.5%. One risk the contract doesn't catch: from their launch until 13:48 UTC on 23 June, the Robinhood feeds published answers 10^8 too large (16 decimals while reporting 8), which the vault's range check would accept. For a put spread that settles above the strikes and pays nothing. The histories leave those rounds out; a plausibility bound on the settle price (against the series' own strikes, say) would close it in the contract.
 - If no valid price arrives within the window (a halt, a missed holiday), the protection voids and the premium is refunded.
 
 ## Evidence (research/, reproducible)
@@ -59,7 +59,8 @@ Design consequences: price protection from the history of openings, centred on t
 
 | Check | Result |
 |---|---|
-| Chainlink stock feeds on Robinhood Chain | Mainnet only: TSLA, NVDA, AAPL, SPY, COIN, MSTR (8 decimals, 0.5% deviation, 24h heartbeat, 24/5). None on testnet (Chainlink's feed directory has no Robinhood testnet list) |
+| Chainlink stock feeds on Robinhood Chain | Mainnet only: 35 US equity feeds (8 decimals, 0.5% deviation, 24h heartbeat, 24/5); 34 used, SGOV left out. None on testnet (Chainlink's feed directory has no Robinhood testnet list). The list: `research/data/robinhood-stocks.json` (`research/robinhood-stocks.ts`) |
+| Pyth entitlement | The quote service's Pyth key reads TSLA and QQQ; other Equity.US feeds answer 403. So Solana sells those two; Robinhood Chain, which needs no key, covers all 34 |
 | Pyth on Robinhood Chain | Not deployed (not in Pyth's EVM list; the contract at Pyth's usual address there is something else) |
 | Hyperliquid stock perps | Mainnet `xyz:TSLA` (~$48M open interest), testnet `x:TSLA` and `felix:TSLA` exist |
 | Hyperliquid testnet funds | The faucet only pays addresses that have deposited on Hyperliquid mainnet |
@@ -85,7 +86,7 @@ Colosseum's form asks for every chain integrated. We select only chains that are
 | Oct 2 to 6 | Hedger on Hyperliquid, inside the Perps hackathon window; exposure across vaults; tests |
 | Oct 6 to 8 | Hedge shown in the app; Perps submission Oct 8 |
 | Oct 9 | Buffer, traction push |
-| **cut line** | Below: Arbitrum, vault shares for outside depositors, stocks beyond TSLA (Pyth entitlement), Solami side track |
+| **cut line** | Below: Arbitrum, vault shares for outside depositors, Solana stocks beyond TSLA and QQQ (Pyth entitlement), Solami side track |
 | Oct 10 to 11 | Video, deck, README, form, submit |
 
 Running alongside: weekly update videos (Sep 28, Oct 5), Superteam Nigeria sessions, users and letters of intent, a teammate.

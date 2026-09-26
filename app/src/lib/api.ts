@@ -2,14 +2,21 @@ import type { EvmDeployment } from "@root/evm/client/vault";
 import type { Opening } from "@root/pricing/model";
 import type { Market, PricedProtection, QuoterConfig } from "@root/quoter/quoter";
 
+export type PriceSource = "pyth" | "chainlink" | "hyperliquid";
+
+/** A stock the app prices: whether each vault sells it now, and which chains' oracles can settle it. */
+export type StockListing = { symbol: string; name: string; solana: boolean; robinhood: boolean; settles: Chain[] };
+
 export type MarketResponse = {
   symbol: string;
+  name: string;
+  stocks: StockListing[];
   now: number;
   close: number;
   closeTs: number;
-  closeSource: "pyth" | "hyperliquid";
+  closeSource: PriceSource;
   live: number | null;
-  liveSource: "pyth" | "hyperliquid";
+  liveSource: PriceSource;
   inSession: boolean;
   reference: { price: number; basis: string } | null;
   paused: string | null;
@@ -19,8 +26,10 @@ export type MarketResponse = {
   history: Opening[];
   annualVol: number;
   config: QuoterConfig;
-  solana: { cluster: string; programId: string; vault: string; vaultToken: string; collateralMint: string; quoter: string; feeds: { TSLA: { feedId: string } } };
-  /** The Robinhood Chain vault, once deployed; `selling` once the server can sign its quotes. */
+  hyperliquid: { coin: string | null; tracks: "stock" | "index"; ratio: number | null };
+  /** `selling`: the Solana vault sells this stock. */
+  solana: { cluster: string; programId: string; vault: string; vaultToken: string; collateralMint: string; quoter: string; selling: boolean };
+  /** The Robinhood Chain vault, once deployed; `selling` once the server can sign its quotes for this stock. */
   robinhood: (EvmDeployment & { selling: boolean }) | null;
 };
 
@@ -42,9 +51,9 @@ async function json<T>(res: Response): Promise<T> {
   return body;
 }
 
-export const fetchMarket = () => fetch("/api/market", { cache: "no-store" }).then((r) => json<MarketResponse>(r));
+export const fetchMarket = (symbol = "TSLA") => fetch(`/api/market?symbol=${encodeURIComponent(symbol)}`, { cache: "no-store" }).then((r) => json<MarketResponse>(r));
 
-export const requestQuote = (args: { buyer: string; shares: number; upper: number; lower: number }) =>
+export const requestQuote = (args: { symbol: string; buyer: string; shares: number; upper: number; lower: number }) =>
   fetch("/api/quote", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ chain: "solana", ...args }) }).then((r) =>
     json<QuoteResponse>(r),
   );
@@ -61,7 +70,7 @@ export type EvmQuoteResponse = {
   };
 };
 
-export const requestEvmQuote = (args: { buyer: string; shares: number; upper: number; lower: number }) =>
+export const requestEvmQuote = (args: { symbol: string; buyer: string; shares: number; upper: number; lower: number }) =>
   fetch("/api/quote", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ chain: "robinhood", ...args }) }).then((r) =>
     json<EvmQuoteResponse>(r),
   );
@@ -84,6 +93,7 @@ export type SeriesState = "open" | "settled" | "voided";
 export type PositionRow = {
   address: string;
   series: string;
+  symbol: string;
   buyer: string;
   openTs: number;
   state: SeriesState;
@@ -103,7 +113,7 @@ export type VaultResponse = {
   collateral: number;
   locked: number;
   openPositions: number;
-  series: { address: string; openTs: number; state: SeriesState; price: number | null; publishTime: number | null; positions: number; premiums: number; maxPayouts: number }[];
+  series: { address: string; symbol: string; openTs: number; state: SeriesState; price: number | null; publishTime: number | null; positions: number; premiums: number; maxPayouts: number }[];
 };
 
 export type Chain = "solana" | "robinhood";
@@ -124,6 +134,7 @@ export const fetchHoldings = (owner: string) =>
 export type LedgerRow = {
   chain: Chain;
   series: string;
+  symbol: string;
   openTs: number;
   state: SeriesState;
   price: number | null;

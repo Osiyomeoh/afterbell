@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import { backtest } from "@root/pricing/backtest";
 import { priceQuote } from "@root/quoter/quoter";
 
-import { fetchHoldings, fetchMarket, requestEvmQuote, requestQuote, toMarket, type Chain, type MarketResponse } from "@/lib/api";
+import { fetchHoldings, fetchMarket, requestEvmQuote, requestQuote, toMarket, type Chain, type MarketResponse, type PriceSource } from "@/lib/api";
 import { buyProtection, NotEnoughTestUsd } from "@/lib/buy";
 import { buyOnRobinhood, evmTxUrl, NeedsGas, useEvmWallet } from "@/lib/evm";
 import { countdown, explorer, nyTime, pct, usd } from "@/lib/format";
@@ -34,10 +34,28 @@ const CHAINS: { id: Chain; label: string }[] = [
   { id: "robinhood", label: "Robinhood Chain" },
 ];
 
-const SETTLED_BY: Record<Chain, string> = {
-  solana: "Settled by the first Pyth price at or after 09:30 ET.",
-  robinhood: "Settled by Chainlink's TSLA price in force at 09:30 ET.",
+const SETTLED_BY: Record<Chain, (symbol: string) => string> = {
+  solana: () => "Settled by the first Pyth price at or after 09:30 ET.",
+  robinhood: (symbol) => `Settled by Chainlink's ${symbol} price in force at 09:30 ET.`,
 };
+
+const SOURCE: Record<PriceSource, string> = { pyth: "Pyth", chainlink: "Chainlink", hyperliquid: "Hyperliquid" };
+
+/** Why a chain can't sell this stock right now, or null if it can. */
+function unavailableOn(chain: Chain, m: MarketResponse): string | null {
+  const listing = m.stocks.find((s) => s.symbol === m.symbol);
+  if (chain === "solana") {
+    if (m.solana.selling) return null;
+    if (listing?.settles.includes("solana")) return `The Solana vault doesn't take ${m.symbol} yet.`;
+    const pyth = m.stocks.filter((s) => s.settles.includes("solana")).map((s) => s.symbol);
+    return `Solana settles on Pyth prices, which the quote service can read for ${pyth.join(" and ") || "no stock"} only. ${m.symbol} settles on Robinhood Chain.`;
+  }
+  const rh = m.robinhood;
+  if (!rh) return "The Robinhood Chain vault isn't deployed yet.";
+  if (!rh.feeds[m.symbol]) return `The Robinhood Chain vault doesn't take ${m.symbol} yet.`;
+  if (!rh.selling) return "Robinhood Chain sales open once the quote service has its key.";
+  return null;
+}
 
 export function Protect() {
   const [market, setMarket] = useState<MarketResponse | null>(null);
@@ -48,12 +66,25 @@ export function Protect() {
   const [depth, setDepth] = useState(0.1);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const [chain, setChain] = useState<Chain>("solana");
+  const [symbol, setSymbol] = useState("TSLA");
   const evm = useEvmWallet();
 
-  // A link can open the ticket on a chain: /?chain=robinhood.
+  // A link can open the ticket on a chain and a stock: /?chain=robinhood&symbol=NVDA.
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).get("chain") === "robinhood") setChain("robinhood");
+    const q = new URLSearchParams(window.location.search);
+    if (q.get("chain") === "robinhood") setChain("robinhood");
+    const s = q.get("symbol");
+    if (s && /^[A-Za-z.]{1,10}$/.test(s)) setSymbol(s.toUpperCase());
   }, []);
+
+  function pickStock(next: string) {
+    setSymbol(next);
+    setStatus({ kind: "idle" });
+    const url = new URL(window.location.href);
+    if (next === "TSLA") url.searchParams.delete("symbol");
+    else url.searchParams.set("symbol", next);
+    window.history.replaceState(null, "", url);
+  }
 
   const { connection } = useConnection();
   const wallet = useAnchorWallet();
@@ -69,15 +100,31 @@ export function Protect() {
   const held = Math.round(holdings.reduce((a, h) => a + h.shares, 0) * 10_000) / 10_000;
 
   useEffect(() => {
-    const load = () => fetchMarket().then(setMarket, (e: Error) => setLoadError(e.message));
+    let current = true;
+    let first = true;
+    setLoadError(null);
+    const load = () =>
+      fetchMarket(symbol).then(
+        (m) => {
+          if (!current) return;
+          // A stock only one chain can settle opens on that chain, whether picked here or named in a link.
+          const settles = m.stocks.find((s) => s.symbol === m.symbol)?.settles ?? [];
+          if (first && settles.length) setChain((c) => (settles.includes(c) ? c : settles[0]!));
+          first = false;
+          setMarket(m);
+          setLoadError(null);
+        },
+        (e: Error) => current && setLoadError(e.message),
+      );
     load();
     const refresh = setInterval(load, 30_000);
     const tick = setInterval(() => setNow(Math.floor(Date.now() / 1000)), 1000);
     return () => {
+      current = false;
       clearInterval(refresh);
       clearInterval(tick);
     };
-  }, []);
+  }, [symbol]);
 
   const reference = market?.reference?.price ?? null;
   const protection = reference
@@ -107,7 +154,7 @@ export function Protect() {
     if (!wallet) return setVisible(true);
     try {
       setStatus({ kind: "busy", step: "Getting a signed quote" });
-      const q = await requestQuote({ buyer: wallet.publicKey.toBase58(), ...protection });
+      const q = await requestQuote({ symbol, buyer: wallet.publicKey.toBase58(), ...protection });
       setStatus({ kind: "busy", step: "Confirm in your wallet" });
       const { signature } = await buyProtection(connection, wallet, sendTransaction, q.solana);
       setStatus({ kind: "done", premium: q.priced.premium, openTs: q.priced.openTs, url: explorer("tx", signature) });
@@ -122,7 +169,7 @@ export function Protect() {
     try {
       const buyer = evm.address ?? (await evm.connect());
       setStatus({ kind: "busy", step: "Getting a signed quote" });
-      const q = await requestEvmQuote({ buyer, ...protection });
+      const q = await requestEvmQuote({ symbol, buyer, ...protection });
       const { hash } = await buyOnRobinhood(buyer, d, q, (step) => setStatus({ kind: "busy", step }));
       setStatus({ kind: "done", premium: q.priced.premium, openTs: q.priced.openTs, url: evmTxUrl(d, hash) });
     } catch (e) {
@@ -131,38 +178,53 @@ export function Protect() {
     }
   }
 
-  if (loadError) return <Notice>Market data is unavailable: {loadError}</Notice>;
-  if (!market) return <Notice>Loading TSLA…</Notice>;
+  if (loadError) return <Notice>Market data for {symbol} is unavailable: {loadError}</Notice>;
+  if (!market) return <Notice>Loading {symbol}…</Notice>;
+  // Still showing the last stock while the one just picked loads.
+  const loading = market.symbol !== symbol;
 
   const priced = preview && "priced" in preview ? preview.priced : null;
-  const rh = market.robinhood;
-  const unavailable =
-    chain === "robinhood" && (!rh ? "The Robinhood Chain vault isn't deployed yet." : !rh.selling ? "Robinhood Chain sales open once the quote service has its key." : null);
-  const blocked = unavailable ?? market.paused ?? (preview && "error" in preview ? preview.error : null);
+  const blocked = (loading ? `Loading ${symbol}…` : null) ?? unavailableOn(chain, market) ?? market.paused ?? (preview && "error" in preview ? preview.error : null);
   const openTs = priced?.openTs ?? market.nextOpen;
   const connected = chain === "solana" ? !!wallet : !!evm.address;
 
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
       <section className="rounded-2xl border border-line bg-surface p-5 sm:p-6">
-        <div className="mb-5 inline-flex rounded-lg border border-line bg-ink p-0.5 text-sm" role="tablist" aria-label="Chain">
-          {CHAINS.map((c) => (
-            <button
-              key={c.id}
-              role="tab"
-              aria-selected={chain === c.id}
-              onClick={() => {
-                setChain(c.id);
-                setStatus({ kind: "idle" });
-              }}
-              className={`rounded-md px-3 py-1.5 ${chain === c.id ? "bg-raised text-text" : "text-muted hover:text-text"}`}
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+          <div className="inline-flex rounded-lg border border-line bg-ink p-0.5 text-sm" role="tablist" aria-label="Chain">
+            {CHAINS.map((c) => (
+              <button
+                key={c.id}
+                role="tab"
+                aria-selected={chain === c.id}
+                onClick={() => {
+                  setChain(c.id);
+                  setStatus({ kind: "idle" });
+                }}
+                className={`rounded-md px-3 py-1.5 ${chain === c.id ? "bg-raised text-text" : "text-muted hover:text-text"}`}
+              >
+                {c.label}
+              </button>
+            ))}
+          </div>
+          <label className="flex items-center gap-2 text-sm">
+            <span className="text-muted">Stock</span>
+            <select
+              value={symbol}
+              onChange={(e) => pickStock(e.target.value)}
+              className="num rounded-lg border border-line bg-ink px-2.5 py-1.5 text-text"
             >
-              {c.label}
-            </button>
-          ))}
+              {market.stocks.map((s) => (
+                <option key={s.symbol} value={s.symbol}>
+                  {s.symbol} · {s.name}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="text-lg font-medium">Protect TSLA until {nyTime(openTs)}</h2>
+          <h2 className="text-lg font-medium">Protect {market.symbol} until {nyTime(openTs)}</h2>
           <span className="num text-sm text-muted">opens in {countdown(openTs - now)}</span>
         </div>
 
@@ -177,7 +239,7 @@ export function Protect() {
               onChange={(e) => setShares(Math.max(0.01, Number(e.target.value) || 0.01))}
               className="num mt-1.5 w-full rounded-lg border border-line bg-ink px-3 py-2 text-lg"
             />
-            {chain === "solana" && held > 0 && (
+            {chain === "solana" && market.symbol === "TSLA" && held > 0 && (
               <button type="button" onClick={() => setShares(held)} className="mt-1.5 text-xs text-brass hover:underline">
                 You hold {held} ({holdings.map((h) => h.symbol).join(" + ")}). Protect all
               </button>
@@ -191,11 +253,11 @@ export function Protect() {
           <div className="mt-6">
             <PayoffChart shares={shares} upper={protection.upper} lower={protection.lower} premium={priced.premium} reference={priced.reference.price} />
             <p className="mt-3 text-sm leading-relaxed text-muted">
-              If TSLA opens below <span className="num text-text">{usd(protection.upper)}</span>, the vault pays{" "}
+              If {market.symbol} opens below <span className="num text-text">{usd(protection.upper)}</span>, the vault pays{" "}
               <span className="num text-text">{usd(shares)}</span> for every dollar below it, up to{" "}
               <span className="num text-text">{usd(priced.maxPayout)}</span> at <span className="num text-text">{usd(protection.lower)}</span> or lower. It
-              pays more than it costs if TSLA opens below <span className="num text-text">{usd(protection.upper - priced.premium / shares)}</span>.{" "}
-              {SETTLED_BY[chain]}
+              pays more than it costs if {market.symbol} opens below <span className="num text-text">{usd(protection.upper - priced.premium / shares)}</span>.{" "}
+              {SETTLED_BY[chain](market.symbol)}
             </p>
           </div>
         )}
@@ -261,14 +323,16 @@ export function Protect() {
         )}
 
         <div className="rounded-2xl border border-line bg-surface p-5 text-sm">
-          <div className="text-muted">TSLA</div>
+          <div className="text-muted">
+            {market.symbol} · {market.name}
+          </div>
           <dl className="mt-2 space-y-2">
-            <Row label={`Close, ${nyTime(market.closeTs)}${market.closeSource === "hyperliquid" ? " (Hyperliquid)" : ""}`} value={usd(market.close)} />
-            {market.live !== null && <Row label={market.liveSource === "pyth" ? "Now (Pyth)" : "Now (Hyperliquid)"} value={usd(market.live)} />}
+            <Row label={`Close, ${nyTime(market.closeTs)} (${SOURCE[market.closeSource]})`} value={usd(market.close)} />
+            {market.live !== null && <Row label={`Now (${SOURCE[market.liveSource]})`} value={usd(market.live)} />}
           </dl>
           {record && (
             <p className="mt-4 leading-relaxed text-muted">
-              Replayed on {record.nights.length} past TSLA openings, each priced only from the ones before it, this protection paid back{" "}
+              Replayed on {record.nights.length} past {market.symbol} openings ({SOURCE[market.closeSource === "chainlink" ? "chainlink" : "pyth"]}), each priced only from the ones before it, this protection paid back{" "}
               <span className="num text-text">{Math.round(record.paidPerDollar * 100)}¢</span> per $1 of premium and paid out on{" "}
               {record.paidNights} of them.
             </p>

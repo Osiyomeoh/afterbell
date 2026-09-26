@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { roundInForce, settleError, type FeedReader, type Round } from "./rounds";
+import { cachedReader, roundInForce, settleError, type FeedReader, type Round } from "./rounds";
 
 const PHASE = 1n << 64n;
 /** A feed whose rounds 1..n in phase 1 were published at the given times. */
@@ -53,5 +53,31 @@ describe("what the contract accepts", () => {
     expect(settleError(r, 1_790_342_808n + 3n * 86_400n + 1n, 3n * 86_400n)).toBe("the round in force is older than the vault accepts");
     expect(settleError(r, 1_790_342_000n, 3n * 86_400n)).toBe("the round is after the open");
     expect(settleError({ ...r, answer: 0n }, 1_790_343_000n, 3n * 86_400n)).toBe("the round's price is out of range");
+  });
+});
+
+describe("a cached reader", () => {
+  it("reads each published round once, and the latest again only after its ttl", async () => {
+    const f = feed(Array.from({ length: 1341 }, (_, i) => (i + 1) * 60));
+    let latestReads = 0;
+    const counted = { ...f, latest: () => (latestReads++, f.latest()) };
+    let now = 0;
+    const c = cachedReader(counted, 5_000, () => now);
+    await roundInForce(c, 60n * 700n + 30n);
+    const first = f.reads;
+    expect((await roundInForce(c, 60n * 700n + 30n))?.roundId).toBe(PHASE | 700n);
+    expect(f.reads).toBe(first);
+    expect(latestReads).toBe(1);
+    now = 6_000;
+    await c.latest();
+    expect(latestReads).toBe(2);
+  });
+
+  it("doesn't remember a round that isn't there yet", async () => {
+    const f = feed([100, 200]);
+    const c = cachedReader(f, 5_000);
+    expect(await c.round(PHASE | 3n)).toBeNull();
+    expect(await c.round(PHASE | 3n)).toBeNull();
+    expect(f.reads).toBe(2);
   });
 });

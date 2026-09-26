@@ -18,18 +18,19 @@ import { backtest } from "../pricing/backtest";
 import type { SolanaQuote } from "../pricing/solanaQuote";
 import { priceQuote, type PricedProtection } from "../quoter/quoter";
 import { buyInstructions, getProgram } from "../solana/client/vault";
-import { AfterbellApi, toMarket, type MarketInfo, type SolanaQuoteResponse } from "./api";
+import { AfterbellApi, toMarket, type MarketInfo, type PriceSource, type SolanaQuoteResponse } from "./api";
 
 export const SOLANA_RPC = process.env.SOLANA_RPC || "https://api.devnet.solana.com";
 
 const ABOUT = `Afterbell sells protection for tokenized stocks until the next 09:30 ET opening bell. Tokenized stocks trade
 around the clock but the stock doesn't, so whatever happens while the exchange is shut lands on the next opening print.
-Protection is a put spread: pay a premium once; if TSLA opens below where protection starts, the vault pays the
-difference per share, down to where it stops. Settled on-chain by the first Pyth price at or after 09:30 ET, so it
-never pays more than a holder loses. Solana devnet; all money is TestUSD, which has no value.`;
+Protection is a put spread: pay a premium once; if the stock opens below where protection starts, the vault pays the
+difference per share, down to where it stops. On Solana devnet it is settled on-chain by the first Pyth price at or
+after 09:30 ET; market says which stocks are on sale there. Every stock the app covers can be priced; the rest settle
+on Robinhood Chain's Chainlink feeds, where the vault isn't deployed yet. All money is TestUSD, which has no value.`;
 
 const HOSTED = `${ABOUT}
-This hosted server holds no keys and spends nothing. market shows TSLA's price and the next open; quote_protection
+This hosted server holds no keys and spends nothing. market shows a stock's price and the next open; quote_protection
 prices protection (show the user the cost and what it pays before buying); protect_portfolio sizes protection to the
 TSLAx and TSLAon a Solana wallet holds. To buy, protection_transaction or protect_portfolio returns an unsigned
 transaction for the buyer's own wallet to sign (a fresh devnet wallet is sent test money first). positions follows any
@@ -37,7 +38,7 @@ wallet; vault shows the vault's collateral and every series. An agent that shoul
 can run the local server from the Afterbell repo (agent/server.ts).`;
 
 const LOCAL = `${ABOUT}
-Typical flow: wallet, then get_test_funds the first time. market shows TSLA's price and the next open;
+Typical flow: wallet, then get_test_funds the first time. market shows a stock's price and the next open;
 quote_protection prices protection; show the user the cost and what it pays and get their agreement before
 buy_protection, which spends from the agent's wallet up to its spending cap. protect_portfolio does the same sized to
 what a mainnet wallet holds. positions follows the agent's protection; after the open settles, claim collects payouts
@@ -45,8 +46,13 @@ what a mainnet wallet holds. positions follows the agent's protection; after the
 
 export const read = { readOnlyHint: true, openWorldHint: true } as const;
 
+const SOURCE: Record<PriceSource, string> = { pyth: "Pyth", chainlink: "Chainlink", hyperliquid: "Hyperliquid" };
+
+const symbolArg = z.string().optional().describe("The stock, such as TSLA, QQQ or NVDA. Default TSLA; market lists them all.");
+
 const protectionArgs = {
-  shares: z.number().positive().optional().describe("Shares of TSLA to protect."),
+  symbol: symbolArg,
+  shares: z.number().positive().optional().describe("Shares of the stock to protect."),
   starts_below: z.number().min(0).max(20).optional().describe("Where protection starts, in percent below the price. Default 2."),
   stops_below: z.number().min(0.5).max(50).optional().describe("Where protection stops, in percent below the price. Default 10."),
 };
@@ -75,16 +81,17 @@ export function protectionFor(m: MarketInfo, shares: number, startsBelow = 2, st
 
 export function describe(p: PricedProtection): string {
   return [
-    `Protection for ${p.protection.shares} TSLA until ${nyTime(p.openTs)}: pay ${usd(p.premium)}.`,
-    `If TSLA opens below ${usd(p.protection.upper)}, it pays ${usd(p.protection.shares)} for every dollar below, up to ${usd(p.maxPayout)} at ${usd(p.protection.lower)} or lower.`,
-    `Chance it pays anything: ${(p.probabilityOfPayout * 100).toFixed(1)}% (from ${p.model.openings} past TSLA openings). Priced from ${usd(p.reference.price)} (${p.reference.basis}).`,
+    `Protection for ${p.protection.shares} ${p.symbol} until ${nyTime(p.openTs)}: pay ${usd(p.premium)}.`,
+    `If ${p.symbol} opens below ${usd(p.protection.upper)}, it pays ${usd(p.protection.shares)} for every dollar below, up to ${usd(p.maxPayout)} at ${usd(p.protection.lower)} or lower.`,
+    `Chance it pays anything: ${(p.probabilityOfPayout * 100).toFixed(1)}% (from ${p.model.openings} past ${p.symbol} openings). Priced from ${usd(p.reference.price)} (${p.reference.basis}).`,
   ].join("\n");
 }
 
-/** How many shares: given, or what `holder` holds on mainnet. */
-export async function sharesFor(api: AfterbellApi, shares: number | undefined, holder: string | undefined): Promise<number> {
+/** How many shares: given, or the TSLA `holder` holds on mainnet (tokenized TSLA is all it can read). */
+export async function sharesFor(api: AfterbellApi, shares: number | undefined, holder: string | undefined, symbol = "TSLA"): Promise<number> {
   if (shares !== undefined) return shares;
   if (!holder) throw new Error("Give shares, or holder (a Solana mainnet wallet) to size protection to what it holds.");
+  if (symbol.toUpperCase() !== "TSLA") throw new Error(`Sizing to a wallet's holdings works for TSLA only; give shares of ${symbol}.`);
   const held = (await api.holdings(holder)).reduce((a, h) => a + h.shares, 0);
   if (!(held > 0)) throw new Error(`${holder} holds no TSLAx or TSLAon on mainnet.`);
   return held;
@@ -123,7 +130,7 @@ export async function purchase(connection: Connection, buyer: PublicKey, r: Sola
 export type AgentWalletTools = {
   wallet(): Promise<string>;
   getTestFunds(): Promise<string>;
-  buy(shares: number, startsBelow?: number, stopsBelow?: number, maxCost?: number): Promise<string>;
+  buy(symbol: string, shares: number, startsBelow?: number, stopsBelow?: number, maxCost?: number): Promise<string>;
   claim(): Promise<string>;
   address(): string;
 };
@@ -134,19 +141,23 @@ export function createServer(kind: "hosted" | "local", api: AfterbellApi, wallet
   server.registerTool(
     "market",
     {
-      title: "TSLA and the next open",
-      description: "TSLA's last close and live price, whether the exchange is open, the next 09:30 ET open protection settles on, and whether protection is on sale.",
-      inputSchema: {},
+      title: "A stock and the next open",
+      description:
+        "A stock's last close and live price, whether the exchange is open, the next 09:30 ET open protection settles on, whether protection is on sale and where, and every stock covered.",
+      inputSchema: { symbol: symbolArg },
       annotations: read,
     },
-    () =>
+    ({ symbol }) =>
       respond(async () => {
-        const m = await api.market();
+        const m = await api.market(symbol);
+        const onSolana = m.stocks.filter((s) => s.solana).map((s) => s.symbol);
         return [
-          `TSLA closed at ${usd(m.close)} (${nyTime(m.closeTs)}, ${m.closeSource === "pyth" ? "Pyth" : "Hyperliquid"}).`,
-          m.live !== null ? `Now ${usd(m.live)} on ${m.liveSource === "pyth" ? "Pyth" : "Hyperliquid"}; the exchange is ${m.inSession ? "open" : "closed"}.` : "",
+          `${m.symbol} (${m.name}) closed at ${usd(m.close)} (${nyTime(m.closeTs)}, ${SOURCE[m.closeSource]}).`,
+          m.live !== null ? `Now ${usd(m.live)} on ${SOURCE[m.liveSource]}; the exchange is ${m.inSession ? "open" : "closed"}.` : "",
           `The next open protection settles on: ${nyTime(m.nextOpen)}.`,
           m.paused ? `Sales are paused: ${m.paused}.` : `Protection is priced from ${usd(m.reference!.price)} (${m.reference!.basis}).`,
+          m.solana.selling ? `On sale on Solana devnet.` : `Not on sale on Solana devnet, which sells ${onSolana.join(" and ")}; it can be priced here.`,
+          `Stocks covered: ${m.stocks.map((s) => s.symbol).join(", ")}.`,
         ]
           .filter(Boolean)
           .join("\n");
@@ -158,17 +169,18 @@ export function createServer(kind: "hosted" | "local", api: AfterbellApi, wallet
     {
       title: "Price protection",
       description:
-        "Prices protection on TSLA until the next open: the premium, the most it pays, the chance it pays, and how the same protection did on every past TSLA opening. Spends nothing.",
-      inputSchema: { ...protectionArgs, holder: z.string().optional().describe("A Solana mainnet wallet: size protection to the TSLAx and TSLAon it holds.") },
+        "Prices protection on a stock until the next open: the premium, the most it pays, the chance it pays, and how the same protection did on every past opening of that stock. Spends nothing.",
+      inputSchema: { ...protectionArgs, holder: z.string().optional().describe("TSLA only: a Solana mainnet wallet, to size protection to the TSLAx and TSLAon it holds.") },
       annotations: read,
     },
-    ({ shares, holder, starts_below, stops_below }) =>
+    ({ symbol, shares, holder, starts_below, stops_below }) =>
       respond(async () => {
-        const m = await api.market();
-        const p = priceQuote(Math.floor(Date.now() / 1000), toMarket(m), protectionFor(m, await sharesFor(api, shares, holder), starts_below, stops_below), m.config);
+        const m = await api.market(symbol);
+        const p = priceQuote(Math.floor(Date.now() / 1000), toMarket(m), protectionFor(m, await sharesFor(api, shares, holder, m.symbol), starts_below, stops_below), m.config);
         const start = (starts_below ?? 2) / 100;
         const record = backtest(m.history, { deductible: start, depth: (stops_below ?? 10) / 100 }, { shares: 1, annualVol: m.annualVol, margin: m.config.margin });
-        return `${describe(p)}\nReplayed on ${record.nights.length} past TSLA openings, each priced only from the ones before it, this protection paid back ${Math.round(record.paidPerDollar * 100)}¢ per $1 of premium and paid out on ${record.paidNights} of them.\nTo buy: ${kind === "local" ? "buy_protection" : "protection_transaction"} with the same arguments.`;
+        const toBuy = m.solana.selling ? `To buy: ${kind === "local" ? "buy_protection" : "protection_transaction"} with the same arguments.` : `Solana devnet doesn't sell ${m.symbol}; this is a price only.`;
+        return `${describe(p)}\nReplayed on ${record.nights.length} past ${m.symbol} openings, each priced only from the ones before it, this protection paid back ${Math.round(record.paidPerDollar * 100)}¢ per $1 of premium and paid out on ${record.paidNights} of them.\n${toBuy}`;
       }),
   );
 
@@ -189,7 +201,7 @@ export function createServer(kind: "hosted" | "local", api: AfterbellApi, wallet
         return ps
           .map((p) => {
             const status = p.state === "open" ? `open until ${nyTime(p.openTs)}` : p.state === "voided" ? `voided: claim refunds ${usd(p.claimable ?? 0)}` : `opened at ${usd(p.settlementPrice ?? 0)}: claim pays ${usd(p.claimable ?? 0)}`;
-            return `${p.shares} TSLA protected from ${usd(p.upper)} to ${usd(p.lower)}, paid ${usd(p.premium)}, pays up to ${usd(p.maxPayout)}; ${status}.`;
+            return `${p.shares} ${p.symbol} protected from ${usd(p.upper)} to ${usd(p.lower)}, paid ${usd(p.premium)}, pays up to ${usd(p.maxPayout)}; ${status}.`;
           })
           .join("\n");
       }),
@@ -206,16 +218,16 @@ export function createServer(kind: "hosted" | "local", api: AfterbellApi, wallet
     () =>
       respond(async () => {
         const v = await api.vault();
-        const lines = v.series.map((s) => `${nyTime(s.openTs)}: ${s.state === "settled" ? `settled at ${usd(s.price ?? 0)}` : s.state}, ${s.positions} unclaimed positions, ${usd(s.premiums)} in premiums`);
+        const lines = v.series.map((s) => `${s.symbol}, ${nyTime(s.openTs)}: ${s.state === "settled" ? `settled at ${usd(s.price ?? 0)}` : s.state}, ${s.positions} unclaimed positions, ${usd(s.premiums)} in premiums`);
         return [`Collateral ${usd(v.collateral)} TestUSD, ${usd(v.locked)} locked for open protection (every sale locks its maximum payout).`, ...lines].join("\n");
       }),
   );
 
   if (kind === "hosted") {
-    const transactionFor = async (buyer: string, shares: number, startsBelow?: number, stopsBelow?: number) => {
+    const transactionFor = async (buyer: string, symbol: string | undefined, shares: number, startsBelow?: number, stopsBelow?: number) => {
       const owner = new PublicKey(buyer);
-      const m = await api.market();
-      const r = await api.quote(buyer, protectionFor(m, shares, startsBelow, stopsBelow));
+      const m = await api.market(symbol);
+      const r = await api.quote(m.symbol, buyer, protectionFor(m, shares, startsBelow, stopsBelow));
       const connection = new Connection(SOLANA_RPC, "confirmed");
       // A fresh devnet wallet gets test money first, so it can pay.
       const funded = await api.faucet(buyer).catch(() => null);
@@ -238,10 +250,10 @@ export function createServer(kind: "hosted" | "local", api: AfterbellApi, wallet
         inputSchema: { buyer: z.string().describe("The Solana devnet wallet that pays and holds the protection."), ...protectionArgs },
         annotations: { openWorldHint: true },
       },
-      ({ buyer, shares, starts_below, stops_below }) =>
+      ({ buyer, symbol, shares, starts_below, stops_below }) =>
         respond(async () => {
           if (shares === undefined) throw new Error("Give shares, or use protect_portfolio to size protection to a wallet's holdings.");
-          return transactionFor(buyer, shares, starts_below, stops_below);
+          return transactionFor(buyer, symbol, shares, starts_below, stops_below);
         }),
     );
 
@@ -258,7 +270,7 @@ export function createServer(kind: "hosted" | "local", api: AfterbellApi, wallet
         },
         annotations: { openWorldHint: true },
       },
-      ({ holder, buyer, starts_below, stops_below }) => respond(async () => transactionFor(buyer ?? holder, await sharesFor(api, undefined, holder), starts_below, stops_below)),
+      ({ holder, buyer, starts_below, stops_below }) => respond(async () => transactionFor(buyer ?? holder, "TSLA", await sharesFor(api, undefined, holder), starts_below, stops_below)),
     );
   }
 
@@ -281,10 +293,10 @@ export function createServer(kind: "hosted" | "local", api: AfterbellApi, wallet
         inputSchema: { ...protectionArgs, max_cost: z.number().positive().optional().describe("Most to pay, in TestUSD.") },
         annotations: { openWorldHint: true },
       },
-      ({ shares, starts_below, stops_below, max_cost }) =>
+      ({ symbol, shares, starts_below, stops_below, max_cost }) =>
         respond(async () => {
           if (shares === undefined) throw new Error("Give shares, or use protect_portfolio.");
-          return wallet.buy(shares, starts_below, stops_below, max_cost);
+          return wallet.buy(symbol ?? "TSLA", shares, starts_below, stops_below, max_cost);
         }),
     );
     server.registerTool(
@@ -295,7 +307,7 @@ export function createServer(kind: "hosted" | "local", api: AfterbellApi, wallet
         inputSchema: { holder: z.string().describe("The Solana mainnet wallet whose holdings to protect."), starts_below: protectionArgs.starts_below, stops_below: protectionArgs.stops_below, max_cost: z.number().positive().optional() },
         annotations: { openWorldHint: true },
       },
-      ({ holder, starts_below, stops_below, max_cost }) => respond(async () => wallet.buy(await sharesFor(api, undefined, holder), starts_below, stops_below, max_cost)),
+      ({ holder, starts_below, stops_below, max_cost }) => respond(async () => wallet.buy("TSLA", await sharesFor(api, undefined, holder), starts_below, stops_below, max_cost)),
     );
     server.registerTool(
       "claim",

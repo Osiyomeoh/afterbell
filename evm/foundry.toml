@@ -6,6 +6,8 @@ solc_version = "0.8.26"
 evm_version = "shanghai"
 optimizer = true
 optimizer_runs = 10_000
+# The deploy script reads the feeds to allow from the stock list.
+fs_permissions = [{ access = "read", path = "../research/data/robinhood-stocks.json" }]
 # Fork tests need the network; they run under FOUNDRY_PROFILE=fork.
 no_match_contract = "Fork"
 remappings = [

@@ -44,6 +44,8 @@ async function load(d: EvmDeployment): Promise<EvmVaultState> {
     client.readContract({ address: d.testUsd, abi: testUsdAbi, functionName: "decimals" }),
   ]);
   const unit = 10n ** BigInt(decimals);
+  // The deployment names each feed it allowed (a local one, mock feeds).
+  const symbolOf = (feed: Address) => Object.entries(d.feeds).find(([, a]) => a?.toLowerCase() === feed.toLowerCase())?.[0] ?? feed.slice(0, 10);
   const money = (x: bigint) => Number(x) / Number(unit);
   const dollars8 = (x: bigint) => Number(x) / 1e8;
 
@@ -73,6 +75,7 @@ async function load(d: EvmDeployment): Promise<EvmVaultState> {
     const row: PositionRow = {
       address: id.toString(),
       series: s.key,
+      symbol: symbolOf(s.feed),
       buyer: p[0],
       openTs: Number(p[2]),
       state: s.state,
@@ -94,6 +97,7 @@ async function load(d: EvmDeployment): Promise<EvmVaultState> {
       const mine = rows.filter((r) => r.row.series === s.key);
       return {
         address: s.key,
+        symbol: symbolOf(s.feed),
         openTs: Number(s.openTs),
         state: s.state,
         price: s.state === "settled" ? dollars8(s.price) : null,
@@ -111,6 +115,7 @@ async function load(d: EvmDeployment): Promise<EvmVaultState> {
     return {
       chain: "robinhood",
       series: s.key,
+      symbol: symbolOf(s.feed),
       openTs: Number(s.openTs),
       state: s.state,
       price: s.state === "settled" ? dollars8(s.price) : null,

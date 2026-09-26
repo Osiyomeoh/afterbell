@@ -12,12 +12,12 @@ Built for Colosseum's Crypto World's Fair (September to October 2026). Design: [
 
 - `research/`: the evidence the design rests on (below).
 - `pricing/`: put-spread pricing from the history of openings (exact under the model), an out-of-sample backtest, and signed quotes for both vaults (EIP-712 and ed25519).
-- `quoter/`: the quote service's core. It prices protection until the next open from New York's calendar and Pyth's holidays, and signs it for either vault. Stocks are data (`quoter/stocks.ts`): TSLA, and QQQ (the Nasdaq-100), priced from its own 46 Pyth openings and, outside the session, from Hyperliquid's `xyz:XYZ100` through the ratio of the two at the close. QQQ is priced in the app now and goes on sale on devnet once its feed is allowed on the vault.
+- `quoter/`: the quote service's core. It prices protection until the next open from New York's calendar and Pyth's holidays, and signs it for either vault. Stocks are data (`quoter/stocks.ts`), and each is priced from its own openings, read the way its vault settles. Solana settles on Pyth, and the Pyth key reads TSLA and QQQ (the Nasdaq-100), so those two use Pyth's openings; QQQ goes on sale on devnet once its feed is allowed on the vault. Robinhood Chain settles on Chainlink, which publishes 34 US stocks and funds there, so each of the 34 is priced from Chainlink's own rounds: the round in force at 16:00 ET and at 09:30 ET: 67 openings since 23 June for most (DELL's feed started on 20 July, USAR's on 2 July), with the volatility measured from the same closes. Outside the session the live price is Hyperliquid's perp (31 have one; for SPY, QQQ, SLV and USO it's the index perp through the ratio of the two at the close) or, for CLSK, IONQ and RGTI, Chainlink's latest round.
 - `solana/`: the Solana vault (buy against an ed25519-signed quote, settle on the first Pyth print at or after the open, claim, void), its TypeScript client, setup script and keeper. **Live on devnet** (addresses below), with purchases through the app's endpoint, the Blink and an MCP agent. A full cycle (sell, open, settle, claim) passes on a local validator.
-- `evm/`: the Robinhood Chain vault (the same, settled on Chainlink's round in force at the open), its viem client and keeper. Purchases are verified on a fork of Robinhood Chain mainnet, and a full cycle passes on a local chain. Not deployed yet.
-- `app/`: the web app, for both chains. Protect prices live with the quoter's own code, My protection lists and claims positions, Vault shows collateral and every series, and Track record shows what each series took in, settled on and paid out. It also has a devnet faucet and the Blink. The Robinhood Chain side (any injected EVM wallet) has bought, settled and claimed end to end against a local chain; it goes live when the vault is deployed.
+- `evm/`: the Robinhood Chain vault (the same, settled on Chainlink's round in force at the open), its viem client and keeper. Purchases are verified on a fork of Robinhood Chain mainnet, and a full cycle passes on a local chain. The deploy script allows all 34 Chainlink feeds; simulated against mainnet, the deploy costs about 0.00044 ETH. Not deployed yet.
+- `app/`: the web app, for both chains. Protect prices any of the 34 stocks live with the quoter's own code, My protection lists and claims positions, Vault shows collateral and every series, and Track record shows what each series took in, settled on and paid out. It also has a devnet faucet and the Blink. The Robinhood Chain side (any injected EVM wallet) has bought, settled and claimed end to end against a local chain; it goes live when the vault is deployed.
 - `agent/`: Afterbell as an MCP server, hosted (no keys) and local (the agent's own devnet wallet with a spending cap).
-- Tests: 83 TypeScript, 35 Foundry (2 fuzz), 4 fork tests against Chainlink's live TSLA feed, 16 Rust unit and 24 LiteSVM tests of the compiled program.
+- Tests: 135 TypeScript (including a check of every stock's Chainlink history, and that TSLA's agrees with Pyth's), 35 Foundry (2 fuzz), 4 fork tests against Chainlink's live TSLA feed, 16 Rust unit and 24 LiteSVM tests of the compiled program.
 
 **Next:** deploy the EVM vault to Robinhood Chain mainnet (waiting on the deploy wallet); the app's Robinhood flow is ready for it. Run the keeper on devnet after Monday 28 September's open to settle and claim the first series. Host the app.
 
@@ -43,9 +43,13 @@ npx tsx research/proof-multi.ts   # six markets, Hyperliquid prices only
 npx tsx research/chainlink.ts     # Chainlink's TSLA feed on Robinhood Chain vs Pyth's open
 npx tsx pricing/report.ts         # protection backtest on every TSLA opening
 PYTH_API_KEY=<key> npx tsx research/refresh-openings.ts [QQQ]   # append a stock's latest openings from Pyth (--from YYYY-MM-DD builds a new one)
+npx tsx research/robinhood-stocks.ts          # the stocks Chainlink publishes on Robinhood Chain, with their Pyth schedule and Hyperliquid perp
+npx tsx research/chainlink-openings.ts [NVDA ...]   # each one's openings from Chainlink's rounds (no key; slow the first time, the public RPC is rate-limited)
 ```
 
-The app extends the recorded openings with any since, from Pyth, every hour, so it never prices from a stale history.
+Chainlink's Robinhood Chain feeds published their first day and a half (22 June 00:00 to 23 June 13:48 UTC) with 16 decimals while reporting 8, so AAPL's first round reads $29.6 billion. The histories leave those rounds out. The EVM vault's range check would accept a round like that; for a put spread it would settle above the strikes and pay nothing (see the design doc).
+
+The app extends the recorded openings with any since, from each stock's settlement source, every hour, so it never prices from a stale history.
 
 ## EVM vault (Robinhood Chain)
 
@@ -85,7 +89,7 @@ anchor build --arch v0              # SBPF v0, which every cluster and LiteSVM r
 cargo test -p afterbell-vault       # unit tests, then LiteSVM tests of the compiled program
 ```
 
-After deploying, [`solana/scripts/setup.ts`](solana/scripts/setup.ts) creates a TestUSD mint with no value, initializes the vault, allows the TSLA feed and deposits 100,000 TestUSD, then records the addresses in `solana/deployments/`. It skips any step already done, so it's safe to re-run:
+After deploying, [`solana/scripts/setup.ts`](solana/scripts/setup.ts) creates a TestUSD mint with no value, initializes the vault, allows a feed for each stock the Pyth key reads (TSLA and QQQ) and deposits 100,000 TestUSD, then records the addresses in `solana/deployments/`. It skips any step already done, so it's safe to re-run:
 
 ```bash
 cd solana && solana program deploy target/deploy/afterbell_vault.so --program-id target/deploy/afterbell_vault-keypair.json --url devnet
@@ -114,8 +118,8 @@ The LiteSVM tests run the real Ed25519 program and settle on Pyth price accounts
 
 [`app/`](app) is a Next.js app, an npm workspace that imports the quoter and the Solana client from the repo root.
 
-- **Protect** prices protection live in the browser, with the same quoter code the server signs with, as you set shares and where protection starts and stops. It draws the payoff and replays the same protection on every past TSLA opening. Buying takes a signed quote from `POST /api/quote`, then the wallet signs the Ed25519 check and `buy` in one transaction. A switch sells the same protection on Robinhood Chain instead (`/?chain=robinhood` opens it there), settled by Chainlink.
-- **`GET /api/market`** returns the close, the live price, holidays and the openings history the quoter prices from. It uses Pyth when a key is configured, otherwise Hyperliquid's prices, labelled as such. Hyperliquid's price at the close is a median 2.7 bps from Pyth's.
+- **Protect** prices protection live in the browser, with the same quoter code the server signs with, as you set shares and where protection starts and stops. It draws the payoff and replays the same protection on every past opening of the stock. Buying takes a signed quote from `POST /api/quote`, then the wallet signs the Ed25519 check and `buy` in one transaction. A switch sells the same protection on Robinhood Chain instead (`/?chain=robinhood` opens it there), settled by Chainlink. A picker chooses the stock (`/?symbol=NVDA`); one only Robinhood Chain can settle opens on that chain.
+- **`GET /api/market?symbol=`** returns the close, the live price, holidays and the openings history the quoter prices from, and every stock covered with the chains that can settle it. For TSLA and QQQ it uses Pyth when a key is configured, otherwise Hyperliquid's prices, labelled as such; for the rest, Chainlink's close and Hyperliquid's live price. Hyperliquid's price at the close is a median 2.7 bps from Pyth's.
 - **`POST /api/quote`** re-prices on the server, never trusting the browser's numbers. It signs with the quoter key from the environment and refuses if that key isn't the vault's quoter.
 - **Test money:** `POST /api/faucet` tops a devnet wallet up to 1,000 TestUSD when it holds less than 100, and sends 0.02 SOL when it has less than 0.01, so a fresh wallet can buy. The faucet key is TestUSD's mint authority and pays for all of it.
 - **Solana Action (Blink):** `/api/actions/protect`, found through `/actions.json`, sells protection from 2% to 10% below the price from any wallet or Blink client. "Protect what I hold" reads the wallet's TSLAx and TSLAon on mainnet. A fresh devnet wallet gets test money before the transaction is returned, so one click works from nothing. It has done that on devnet: a new wallet received TestUSD, signed the returned transaction, and bought protection on 3 TSLA ([`2Qq9kXbP…`](https://explorer.solana.com/tx/2Qq9kXbPBH6yacArZRaveT1tNRWnMUhM2y9b3NcQNw8zsbDPb3nj1wzUKqhLhEKS2f3iKt5Z5uKBnsCJbucWdJs4?cluster=devnet)).
@@ -131,7 +135,7 @@ QUOTE_URL=http://localhost:3000/api/quote npm run solana:smoke   # buy through t
 
 ## For agents
 
-Afterbell is also an MCP server, so an AI agent can protect a portfolio the way a person does on the site. Both servers price and sign through the app's own routes.
+Afterbell is also an MCP server, so an AI agent can protect a portfolio the way a person does on the site. Both servers price and sign through the app's own routes. `market` and `quote_protection` take any of the 34 stocks (`symbol`, TSLA by default); buying goes through the Solana vault, so it works for the stocks on sale there, and sizing to a wallet's holdings reads tokenized TSLA only.
 
 - **Hosted, `/mcp`** (Streamable HTTP, stateless, no keys). Its tools are `market`, `quote_protection`, `protect_portfolio`, `protection_transaction`, `positions` and `vault`. Buying returns an unsigned transaction for the caller's own wallet, and a fresh devnet wallet is sent test money first.
 - **Local, `agent/server.ts`** (stdio). It gives the agent its own devnet wallet, created on first use outside the repo, and a spending cap per purchase (`AGENT_MAX_SPEND`). It adds `wallet`, `get_test_funds`, `buy_protection` and `claim`, and its `protect_portfolio` sizes protection to what a mainnet wallet holds and buys it.
@@ -150,7 +154,7 @@ On devnet, the smoke run went end to end on both servers. The local agent was re
 
 - **Which open.** It finds the next 09:30 ET open from New York's calendar, skipping weekends and the holidays in Pyth's market-hours schedule.
 - **Price.** It prices the put spread from the stock's history of openings. During the session it adds the risk of the hours still to trade. The premium is the model's fair value plus a margin (15% by default).
-- **Reference price.** In the session, the live price. Outside it, the lower of the last close and Hyperliquid's live `xyz:TSLA`. On weekends the close predicts the open better on average, but on weeknights Hyperliquid's price does better about two-thirds of the time (research above). Taking the lower of the two means a drop since the close is priced in, so nobody can buy protection cheap after one. If the price has moved more than 5% since the close (earnings after the bell, say), sales pause: past openings can't price a move that has already happened.
+- **Reference price.** In the session, the live price. Outside it, the lower of the last close and Hyperliquid's live price for the stock (`xyz:TSLA`, say). On weekends the close predicts the open better on average, but on weeknights Hyperliquid's price does better about two-thirds of the time (research above). Taking the lower of the two means a drop since the close is priced in, so nobody can buy protection cheap after one. If the price has moved more than 5% since the close (earnings after the bell, say), sales pause: past openings can't price a move that has already happened.
 - **Signature.** It signs for the buyer's vault: EIP-712 for Robinhood Chain, ed25519 for Solana (with the Ed25519 instruction ready to send).
 - **Expiry.** Quotes live 60 seconds and always expire at least two minutes before their open.
 

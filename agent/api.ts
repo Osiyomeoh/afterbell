@@ -5,14 +5,19 @@
 import type { Opening } from "../pricing/model";
 import type { Market, PricedProtection, QuoterConfig } from "../quoter/quoter";
 
+export type PriceSource = "pyth" | "chainlink" | "hyperliquid";
+
 export type MarketInfo = {
   symbol: string;
+  name: string;
+  /** Every stock the app prices; `solana`/`robinhood`: that vault sells it now; `settles`: the chains whose oracle can settle it. */
+  stocks: { symbol: string; name: string; solana: boolean; robinhood: boolean; settles: ("solana" | "robinhood")[] }[];
   now: number;
   close: number;
   closeTs: number;
-  closeSource: "pyth" | "hyperliquid";
+  closeSource: PriceSource;
   live: number | null;
-  liveSource: "pyth" | "hyperliquid";
+  liveSource: PriceSource;
   inSession: boolean;
   reference: { price: number; basis: string } | null;
   paused: string | null;
@@ -22,7 +27,7 @@ export type MarketInfo = {
   history: Opening[];
   annualVol: number;
   config: QuoterConfig;
-  solana: { vault: string; collateralMint: string; programId: string; quoter: string };
+  solana: { vault: string; collateralMint: string; programId: string; quoter: string; selling: boolean };
 };
 
 export type SolanaQuoteResponse = {
@@ -39,6 +44,7 @@ export type SolanaQuoteResponse = {
 export type PositionInfo = {
   address: string;
   series: string;
+  symbol: string;
   buyer: string;
   openTs: number;
   state: "open" | "settled" | "voided";
@@ -56,7 +62,7 @@ export type VaultInfo = {
   collateral: number;
   locked: number;
   openPositions: number;
-  series: { address: string; openTs: number; state: string; price: number | null; positions: number; premiums: number; maxPayouts: number }[];
+  series: { address: string; symbol: string; openTs: number; state: string; price: number | null; positions: number; premiums: number; maxPayouts: number }[];
 };
 
 export class AfterbellApi {
@@ -69,9 +75,9 @@ export class AfterbellApi {
     return body;
   }
 
-  market = () => this.call<MarketInfo>("/api/market");
-  quote = (buyer: string, p: { shares: number; upper: number; lower: number }) =>
-    this.call<SolanaQuoteResponse>("/api/quote", { method: "POST", body: JSON.stringify({ chain: "solana", buyer, ...p }) });
+  market = (symbol = "TSLA") => this.call<MarketInfo>(`/api/market?symbol=${encodeURIComponent(symbol)}`);
+  quote = (symbol: string, buyer: string, p: { shares: number; upper: number; lower: number }) =>
+    this.call<SolanaQuoteResponse>("/api/quote", { method: "POST", body: JSON.stringify({ chain: "solana", symbol, buyer, ...p }) });
   positions = (owner: string) => this.call<{ positions: PositionInfo[] }>(`/api/positions?owner=${owner}`).then((r) => r.positions);
   vault = () => this.call<VaultInfo>("/api/vault");
   holdings = (owner: string) => this.call<{ holdings: { symbol: string; shares: number }[] }>(`/api/holdings?owner=${owner}`).then((r) => r.holdings);

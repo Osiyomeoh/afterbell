@@ -9,7 +9,8 @@
  *
  *   npx tsx research/chainlink.ts
  *
- * Rounds are cached in research/data/chainlink-robinhood-TSLA.json.
+ * Rounds are cached in research/data/chainlink-robinhood-TSLA.json. The round
+ * fetcher here serves every feed (research/chainlink-openings.ts).
  */
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -23,15 +24,17 @@ const FEED = "0x4A1166a659A55625345e9515b32adECea5547C38";
 const DECIMALS = 8;
 const LATEST_ROUND_DATA = "0xfeaf968c";
 const GET_ROUND_DATA = "0x9a6fc8f5";
-const CACHE = join(HERE, "data", "chainlink-robinhood-TSLA.json");
+
+/** Where a feed's rounds are cached, by stock symbol. */
+export const roundsCache = (symbol: string) => join(HERE, "data", `chainlink-robinhood-${symbol}.json`);
 
 export type Round = { roundId: string; answer: number; updatedAt: number };
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 // The public endpoint is rate-limited: small batches, backing off on HTTP 429.
-async function rpcBatch(calls: string[]): Promise<(string | null)[]> {
-  const body = calls.map((data, id) => ({ jsonrpc: "2.0", id, method: "eth_call", params: [{ to: FEED, data }, "latest"] }));
+async function rpcBatch(to: string, calls: string[]): Promise<(string | null)[]> {
+  const body = calls.map((data, id) => ({ jsonrpc: "2.0", id, method: "eth_call", params: [{ to, data }, "latest"] }));
   for (let attempt = 0; ; attempt++) {
     const res = await fetch(RPC, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
     if ((res.status === 429 || res.status === 403) && attempt < 8) {
@@ -55,11 +58,25 @@ export function decodeRound(hex: string): Round | null {
   return { roundId: BigInt("0x" + words[0]).toString(), answer: Number(raw) / 10 ** DECIMALS, updatedAt };
 }
 
+/**
+ * The rounds whose price is on the feed's scale. From their launch (00:00 UTC
+ * on 22 June) until 13:48 UTC on 23 June, the Robinhood feeds published
+ * answers with 16 decimals while reporting 8: AAPL's round 1 reads $29.6
+ * billion. Those are dropped, as anything more than 100 times from the feed's
+ * median would be.
+ */
+export function onScale<R extends { answer: number }>(rounds: readonly R[]): R[] {
+  const sorted = rounds.map((r) => r.answer).sort((a, b) => a - b);
+  const median = sorted[sorted.length >> 1] ?? 0;
+  return rounds.filter((r) => r.answer > median / 100 && r.answer < median * 100);
+}
+
 export const encodeRoundId = (id: bigint) => GET_ROUND_DATA + id.toString(16).padStart(64, "0");
 
-async function allRounds(): Promise<Round[]> {
-  const cached: Round[] = existsSync(CACHE) ? JSON.parse(readFileSync(CACHE, "utf8")).rounds : [];
-  const [latestHex] = await rpcBatch([LATEST_ROUND_DATA]);
+/** Every round in the feed's current phase, oldest first; fetches only those not in `cache` yet. */
+export async function allRounds(feed: string, cache: string): Promise<Round[]> {
+  const cached: Round[] = existsSync(cache) ? JSON.parse(readFileSync(cache, "utf8")).rounds : [];
+  const [latestHex] = await rpcBatch(feed, [LATEST_ROUND_DATA]);
   const latest = decodeRound(latestHex!)!;
   const latestId = BigInt(latest.roundId);
   const phase = latestId >> 64n;
@@ -74,10 +91,10 @@ async function allRounds(): Promise<Round[]> {
   const rounds = [...cached];
   const save = () => {
     rounds.sort((a, b) => a.updatedAt - b.updatedAt);
-    writeFileSync(CACHE, JSON.stringify({ source: `Chainlink ${FEED} on Robinhood Chain mainnet`, updatedAt: new Date().toISOString(), rounds }) + "\n");
+    writeFileSync(cache, JSON.stringify({ source: `Chainlink ${feed} on Robinhood Chain mainnet`, updatedAt: new Date().toISOString(), rounds }) + "\n");
   };
   for (let i = 0; i < wanted.length; i += 20) {
-    const results = await rpcBatch(wanted.slice(i, i + 20).map(encodeRoundId));
+    const results = await rpcBatch(feed, wanted.slice(i, i + 20).map(encodeRoundId));
     for (const r of results) {
       const round = r ? decodeRound(r) : null;
       if (round) rounds.push(round);
@@ -90,7 +107,8 @@ async function allRounds(): Promise<Round[]> {
 }
 
 async function main() {
-  const rounds = await allRounds();
+  const fetched = await allRounds(FEED, roundsCache("TSLA"));
+  const rounds = onScale(fetched);
   const first = rounds[0]!;
   const pyth = JSON.parse(readFileSync(join(HERE, "data", "pyth-tsla-gaps.json"), "utf8")) as {
     gaps: { from: string; to: string; open: number }[];
@@ -115,7 +133,7 @@ async function main() {
   const lines = [
     `# Settling on the open with Chainlink's TSLA feed on Robinhood Chain`,
     ``,
-    `Generated ${new Date().toISOString()} by \`npx tsx research/chainlink.ts\`. Feed ${FEED}: ${rounds.length} rounds since ${new Date(first.updatedAt * 1000).toISOString().slice(0, 10)}, ${perDay.toFixed(1)} a day on average.`,
+    `Generated ${new Date().toISOString()} by \`npx tsx research/chainlink.ts\`. Feed ${FEED}: ${rounds.length} rounds since ${new Date(first.updatedAt * 1000).toISOString().slice(0, 10)}, ${perDay.toFixed(1)} a day on average (${fetched.length - rounds.length} launch-day rounds published at the wrong scale left out).`,
     `Compared with Pyth's first print at or after 09:30 ET on ${rows.length} openings.`,
     ``,
     `| Rule | Error vs Pyth open (median / mean / max, bps) | Timing (median / max, minutes) |`,

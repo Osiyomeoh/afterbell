@@ -31,7 +31,14 @@ export async function GET(req: Request) {
     return Response.json({
       symbol: m.symbol,
       name: stock.name,
-      stocks: pricedStocks().map((s) => ({ symbol: s.symbol, name: s.name, solana: onSolanaVault(s), robinhood: !!evm?.feeds[s.symbol] })),
+      // Selling now on each vault, and which chains' oracles can settle it: Solana needs Pyth prints the key reads, Robinhood Chain a Chainlink feed.
+      stocks: pricedStocks().map((s) => ({
+        symbol: s.symbol,
+        name: s.name,
+        solana: onSolanaVault(s),
+        robinhood: !!evm?.feeds[s.symbol],
+        settles: [...(s.pyth ? ["solana"] : []), ...(s.chainlink ? ["robinhood"] : [])],
+      })),
       now,
       close: m.close,
       closeTs: snap.closeTs,
@@ -47,7 +54,7 @@ export async function GET(req: Request) {
       history: m.history,
       annualVol: m.annualVol,
       config: cfg,
-      hyperliquid: { coin: stock.hyperliquid, tracks: stock.hyperliquidTracks, ratio: snap.hyperliquidRatio ?? null },
+      hyperliquid: { coin: stock.hyperliquid ?? null, tracks: stock.hyperliquidTracks, ratio: snap.hyperliquidRatio ?? null },
       solana: { cluster: "devnet", ...SOLANA_DEPLOYMENT, selling: onSolanaVault(stock) },
       // Null until the Robinhood Chain vault is deployed. Buying there also needs a Chainlink feed for the stock and the quoter's key on the server.
       robinhood: evm && { ...evm, selling: !!process.env.QUOTER_EVM_KEY && !!robinhoodFeed },
