@@ -54,6 +54,16 @@ describe("what the contract accepts", () => {
     expect(settleError(r, 1_790_342_000n, 3n * 86_400n)).toBe("the round is after the open");
     expect(settleError({ ...r, answer: 0n }, 1_790_343_000n, 3n * 86_400n)).toBe("the round's price is out of range");
   });
+  it("refuses a price more than ten times from the series' strikes, as the launch-day rounds were", () => {
+    const strikes = { lowestLower: 340_00000000n, highestUpper: 390_00000000n };
+    expect(settleError(r, 1_790_343_000n, 3n * 86_400n, strikes)).toBeNull();
+    // TSLA's round in force at the 23 June open: $392.72 published with 16 decimals.
+    expect(settleError({ ...r, answer: 39_272_465_000_00000000n }, 1_790_343_000n, 3n * 86_400n, strikes)).toMatch(/more than 10 times/);
+    expect(settleError({ ...r, answer: 33_99999999n }, 1_790_343_000n, 3n * 86_400n, strikes)).toMatch(/more than 10 times/);
+    expect(settleError({ ...r, answer: 34_00000000n }, 1_790_343_000n, 3n * 86_400n, strikes)).toBeNull();
+    // A series with no sales has no strikes to check against.
+    expect(settleError({ ...r, answer: 1n }, 1_790_343_000n, 3n * 86_400n, { lowestLower: 0n, highestUpper: 0n })).toBeNull();
+  });
 });
 
 describe("a cached reader", () => {

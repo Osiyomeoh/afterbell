@@ -17,7 +17,7 @@ Built for Colosseum's Crypto World's Fair (September to October 2026). Design: [
 - `evm/`: the Robinhood Chain vault (the same, settled on Chainlink's round in force at the open), its viem client and keeper. Purchases are verified on a fork of Robinhood Chain mainnet, and a full cycle passes on a local chain. The deploy script allows all 34 Chainlink feeds; simulated against mainnet, the deploy costs about 0.00044 ETH. Not deployed yet.
 - `app/`: the web app, for both chains. Protect prices any of the 34 stocks live with the quoter's own code, My protection lists and claims positions, Vault shows collateral and every series, and Track record shows what each series took in, settled on and paid out. It also has a devnet faucet and the Blink. The Robinhood Chain side (any injected EVM wallet) has bought, settled and claimed end to end against a local chain; it goes live when the vault is deployed.
 - `agent/`: Afterbell as an MCP server, hosted (no keys) and local (the agent's own devnet wallet with a spending cap).
-- Tests: 135 TypeScript (including a check of every stock's Chainlink history, and that TSLA's agrees with Pyth's), 35 Foundry (2 fuzz), 4 fork tests against Chainlink's live TSLA feed, 16 Rust unit and 24 LiteSVM tests of the compiled program.
+- Tests: 136 TypeScript (including a check of every stock's Chainlink history, and that TSLA's agrees with Pyth's), 41 Foundry (3 fuzz), 5 fork tests against Chainlink's live TSLA feed, 16 Rust unit and 24 LiteSVM tests of the compiled program.
 
 **Next:** deploy the EVM vault to Robinhood Chain mainnet (waiting on the deploy wallet); the app's Robinhood flow is ready for it. Run the keeper on devnet after Monday 28 September's open to settle and claim the first series. Host the app.
 
@@ -47,13 +47,13 @@ npx tsx research/robinhood-stocks.ts          # the stocks Chainlink publishes o
 npx tsx research/chainlink-openings.ts [NVDA ...]   # each one's openings from Chainlink's rounds (no key; slow the first time, the public RPC is rate-limited)
 ```
 
-Chainlink's Robinhood Chain feeds published their first day and a half (22 June 00:00 to 23 June 13:48 UTC) with 16 decimals while reporting 8, so AAPL's first round reads $29.6 billion. The histories leave those rounds out. The EVM vault's range check would accept a round like that; for a put spread it would settle above the strikes and pay nothing (see the design doc).
+Chainlink's Robinhood Chain feeds published their first day and a half (22 June 00:00 to 23 June 13:48 UTC) with 16 decimals while reporting 8, so AAPL's first round reads $29.6 billion. The histories leave those rounds out, and the EVM vault refuses to settle on a price more than 10 times from the strikes a series sold, so a round like that voids the series and refunds every premium instead of settling it at nothing. A fork test replays TSLA's round in force at the 23 June open ($392.72 read as $39.3 billion) and checks exactly that.
 
 The app extends the recorded openings with any since, from each stock's settlement source, every hour, so it never prices from a stale history.
 
 ## EVM vault (Robinhood Chain)
 
-[`evm/src/AfterbellVault.sol`](evm/src/AfterbellVault.sol) sells protection against a quote the quoter signs (EIP-712), locks the maximum payout, and settles on the Chainlink round in force at the open: the settler passes a round id and the contract checks that the next round in the same phase came after the open, or that there is none. A series nobody can settle within a day voids and refunds every premium. Claims can be triggered by anyone and always pay the buyer. Collateral is [`TestUSD`](evm/src/TestUSD.sol), a token with no value, so the vault can run on mainnet against the real feed without real money.
+[`evm/src/AfterbellVault.sol`](evm/src/AfterbellVault.sol) sells protection against a quote the quoter signs (EIP-712), locks the maximum payout, and settles on the Chainlink round in force at the open: the settler passes a round id and the contract checks that the next round in the same phase came after the open, or that there is none. A series nobody can settle within a day voids and refunds every premium. A price more than 10 times from the strikes the series sold (above ten times its highest upper strike, or below a tenth of its lowest lower one) is refused as a broken feed, so that series voids too; a real opening doesn't come near either bound. Claims can be triggered by anyone and always pay the buyer. Collateral is [`TestUSD`](evm/src/TestUSD.sol), a token with no value, so the vault can run on mainnet against the real feed without real money.
 
 ```bash
 cd evm

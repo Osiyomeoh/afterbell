@@ -12,9 +12,11 @@ contract QuoteVectorTest is Test {
     function test_quoteDigestVector() public {
         // The same vector is asserted in pricing/quote.test.ts.
         vm.chainId(46630);
-        AfterbellVault vault = new AfterbellVault{salt: bytes32(uint256(1))}(
-            new TestUSD{salt: bytes32(uint256(1))}(), address(1), address(2), 3 days, 1 days
-        );
+        // Deployed at a fixed address, so the vector pins the typed-data encoding, not the bytecode
+        // (a CREATE2 address would move with every change to the contract).
+        address at = 0xFb94De7E63834a1271b9b7E316d7c13B66F38995;
+        deployCodeTo("AfterbellVault.sol:AfterbellVault", abi.encode(new TestUSD(), address(1), address(2), 3 days, 1 days), at);
+        AfterbellVault vault = AfterbellVault(at);
         AfterbellVault.Quote memory q = AfterbellVault.Quote({
             buyer: 0x1111111111111111111111111111111111111111,
             feed: 0x4A1166a659A55625345e9515b32adECea5547C38,

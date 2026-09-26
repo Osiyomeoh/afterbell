@@ -47,6 +47,19 @@ export const afterbellVaultAbi = [
   },
   {
     "type": "function",
+    "name": "MAX_PRICE_RATIO",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "PRICE_SCALE",
     "inputs": [],
     "outputs": [
@@ -499,6 +512,35 @@ export const afterbellVaultAbi = [
   },
   {
     "type": "function",
+    "name": "plausiblePrice",
+    "inputs": [
+      {
+        "name": "price",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "lowestLower",
+        "type": "uint64",
+        "internalType": "uint64"
+      },
+      {
+        "name": "highestUpper",
+        "type": "uint64",
+        "internalType": "uint64"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "pure"
+  },
+  {
+    "type": "function",
     "name": "positions",
     "inputs": [
       {
@@ -601,6 +643,16 @@ export const afterbellVaultAbi = [
         "name": "roundId",
         "type": "uint80",
         "internalType": "uint80"
+      },
+      {
+        "name": "lowestLower",
+        "type": "uint64",
+        "internalType": "uint64"
+      },
+      {
+        "name": "highestUpper",
+        "type": "uint64",
+        "internalType": "uint64"
       }
     ],
     "stateMutability": "view"
@@ -1080,6 +1132,11 @@ export const afterbellVaultAbi = [
   {
     "type": "error",
     "name": "FeedNotAllowed",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ImplausiblePrice",
     "inputs": []
   },
   {

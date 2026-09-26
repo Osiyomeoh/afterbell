@@ -8,7 +8,7 @@ import { parseAbi, zeroAddress, type Account, type Address, type Chain, type Hex
 
 import { afterbellVaultAbi } from "../client/abi";
 import type { EvmDeployment } from "../client/vault";
-import { roundInForce, settleError, type FeedReader, type Round } from "./rounds";
+import { roundInForce, settleError, type FeedReader, type Round, type StrikeRange } from "./rounds";
 
 const aggregatorAbi = parseAbi([
   "function latestRoundData() view returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)",
@@ -65,10 +65,16 @@ async function readVault(client: PublicClient, d: EvmDeployment) {
 type Decision = { action: "wait" | "settle" | "void"; round?: Round; note?: string };
 
 /** What to do with an open series: the same rules AfterbellVault.settle and voidSeries apply. */
-async function decide(client: PublicClient, feed: Address, openTs: bigint, v: { now: bigint; maxRoundAge: bigint; settleWindow: bigint }): Promise<Decision> {
+async function decide(
+  client: PublicClient,
+  feed: Address,
+  openTs: bigint,
+  v: { now: bigint; maxRoundAge: bigint; settleWindow: bigint },
+  strikes: StrikeRange,
+): Promise<Decision> {
   if (v.now <= openTs) return { action: "wait", note: `opens at ${iso(openTs)}` };
   const round = await roundInForce(chainlinkReader(client, feed), openTs);
-  const problem = round ? settleError(round, openTs, v.maxRoundAge) : "no round at or before the open in the feed's current phase";
+  const problem = round ? settleError(round, openTs, v.maxRoundAge, strikes) : "no round at or before the open in the feed's current phase";
   if (round && !problem) return { action: "settle", round };
   if (v.now > openTs + v.settleWindow) return { action: "void", note: problem ?? undefined };
   return { action: "wait", note: `${problem}; it voids after ${iso(openTs + v.settleWindow)}` };
@@ -92,9 +98,9 @@ export async function runEvmKeeper(opts: {
   const { vault } = v;
 
   for (const { feed, openTs } of v.due) {
-    const [state] = await v.seriesOf(feed, openTs);
+    const [state, , , lowestLower, highestUpper] = await v.seriesOf(feed, openTs);
     if (state !== 0) continue;
-    const { action, round, note } = await decide(client, feed, openTs, v);
+    const { action, round, note } = await decide(client, feed, openTs, v, { lowestLower, highestUpper });
     if (action === "settle") {
       const hash = await send(await wallet.writeContract({ ...vault, functionName: "settle", args: [feed, openTs, round!.roundId] }));
       report.settled.push({ feed, openTs: Number(openTs), price: Number(round!.answer) / 1e8, roundId: round!.roundId, hash });
@@ -150,12 +156,12 @@ export async function planEvmKeeper(opts: { client: PublicClient; deployment: Ev
     const payoutAt = (p: (typeof mine)[number]["p"], price: bigint) => client.readContract({ ...vault, functionName: "payoutAt", args: [p[3], p[4], p[5], price] });
     const base = { feed, openTs: Number(openTs) };
 
-    const [state, price] = await v.seriesOf(feed, openTs);
+    const [state, price, , lowestLower, highestUpper] = await v.seriesOf(feed, openTs);
     if (state !== 0) {
       out.push({ ...base, action: "claim", positions: await positionsAt(async (p) => (state === SETTLED ? payoutAt(p, price) : p[6])) });
       continue;
     }
-    const { action, round, note } = await decide(client, feed, openTs, v);
+    const { action, round, note } = await decide(client, feed, openTs, v, { lowestLower, highestUpper });
     const refused = async (functionName: "settle" | "voidSeries", args: readonly [Address, bigint] | readonly [Address, bigint, bigint]) => {
       try {
         await client.simulateContract({ ...vault, functionName, args: args as never, account: zeroAddress });

@@ -38,11 +38,20 @@ export async function roundInForce(feed: FeedReader, openTs: bigint): Promise<Ro
   return found;
 }
 
+/** The strikes a series sold (AfterbellVault's Series.lowestLower and highestUpper); highestUpper is 0 before any sale. */
+export type StrikeRange = { lowestLower: bigint; highestUpper: bigint };
+
+/** As AfterbellVault.MAX_PRICE_RATIO: how far from its strikes a series may settle. */
+export const MAX_PRICE_RATIO = 10n;
+
 /** Why the contract would refuse to settle on `r`, or null if it will accept it. */
-export function settleError(r: Round, openTs: bigint, maxRoundAge: bigint): string | null {
+export function settleError(r: Round, openTs: bigint, maxRoundAge: bigint, strikes?: StrikeRange): string | null {
   if (r.updatedAt > openTs) return "the round is after the open";
   if (openTs - r.updatedAt > maxRoundAge) return "the round in force is older than the vault accepts";
   if (r.answer <= 0n || r.answer > (1n << 64n) - 1n) return "the round's price is out of range";
+  if (strikes && strikes.highestUpper > 0n && (r.answer > strikes.highestUpper * MAX_PRICE_RATIO || r.answer * MAX_PRICE_RATIO < strikes.lowestLower)) {
+    return `the round's price is more than ${MAX_PRICE_RATIO} times from the series' strikes, a broken feed rather than a market`;
+  }
   return null;
 }
 

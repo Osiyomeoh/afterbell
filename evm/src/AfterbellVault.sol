@@ -26,6 +26,10 @@ interface AggregatorV3Interface {
 /// round in force is within that band of the price at the open; the first round after the open is
 /// not, which is why it isn't used. A series that can't be settled within `settleWindow` voids and
 /// every premium in it is refunded.
+///
+/// A price more than `MAX_PRICE_RATIO` times away from the strikes the series sold is refused as a
+/// broken feed, not a market: Chainlink's Robinhood Chain feeds spent their first day and a half
+/// publishing answers 10^8 too large. The series then voids and refunds instead of settling on it.
 contract AfterbellVault is EIP712, Ownable2Step, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
@@ -33,6 +37,9 @@ contract AfterbellVault is EIP712, Ownable2Step, ReentrancyGuard {
     uint256 public constant PRICE_SCALE = 1e8;
     uint256 public constant SHARE_SCALE = 1e6;
     uint8 public constant FEED_DECIMALS = 8;
+    /// @notice How far from its strikes a series may settle: above the highest upper strike times
+    /// this, or below the lowest lower strike divided by it, the price is refused.
+    uint256 public constant MAX_PRICE_RATIO = 10;
 
     bytes32 public constant QUOTE_TYPEHASH = keccak256(
         "Quote(address buyer,address feed,uint64 openTs,uint64 shares,uint64 upper,uint64 lower,uint128 premium,uint64 expiry,uint256 nonce)"
@@ -72,6 +79,10 @@ contract AfterbellVault is EIP712, Ownable2Step, ReentrancyGuard {
         SeriesState state;
         uint64 price;
         uint80 roundId;
+        /// @dev The strikes sold in the series, bounding the price it can settle at. `highestUpper`
+        /// is 0 until the first sale (every upper strike is above its lower, so above 0).
+        uint64 lowestLower;
+        uint64 highestUpper;
     }
 
     IERC20 public immutable collateral;
@@ -123,6 +134,7 @@ contract AfterbellVault is EIP712, Ownable2Step, ReentrancyGuard {
     error RoundAfterOpen();
     error RoundTooOld();
     error BadAnswer();
+    error ImplausiblePrice();
     error NotRoundInForce();
     error WindowNotOver();
     error NotClaimable();
@@ -158,6 +170,9 @@ contract AfterbellVault is EIP712, Ownable2Step, ReentrancyGuard {
 
         nonceUsed[q.nonce] = true;
         locked += maxPayout;
+        Series storage s = series[seriesKey(q.feed, q.openTs)];
+        if (s.highestUpper == 0 || q.lower < s.lowestLower) s.lowestLower = q.lower;
+        if (q.upper > s.highestUpper) s.highestUpper = q.upper;
         id = nextPositionId++;
         positions[id] = Position({
             buyer: q.buyer,
@@ -210,6 +225,10 @@ contract AfterbellVault is EIP712, Ownable2Step, ReentrancyGuard {
         if (updatedAt > openTs) revert RoundAfterOpen();
         if (openTs - updatedAt > maxRoundAge) revert RoundTooOld();
         if (answer <= 0 || uint256(answer) > type(uint64).max) revert BadAnswer();
+        // A series with no sales has nothing to pay, and no strikes to check against.
+        if (s.highestUpper != 0 && !plausiblePrice(uint256(answer), s.lowestLower, s.highestUpper)) {
+            revert ImplausiblePrice();
+        }
 
         // In force at the open: the next round in the same phase came after it, or there is none yet.
         (bool nextFound,, uint256 nextUpdatedAt) = _round(agg, roundId + 1);
@@ -257,6 +276,11 @@ contract AfterbellVault is EIP712, Ownable2Step, ReentrancyGuard {
         if (price >= upper) return 0;
         uint256 diff = Math.min(uint256(upper - price), uint256(upper - lower));
         return _payoutUnits(shares, diff);
+    }
+
+    /// @notice Whether a series with these strikes may settle at `price`: within MAX_PRICE_RATIO of them.
+    function plausiblePrice(uint256 price, uint64 lowestLower, uint64 highestUpper) public pure returns (bool) {
+        return price <= uint256(highestUpper) * MAX_PRICE_RATIO && price * MAX_PRICE_RATIO >= lowestLower;
     }
 
     function seriesKey(address feed, uint64 openTs) public pure returns (bytes32) {

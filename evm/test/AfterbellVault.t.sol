@@ -185,10 +185,67 @@ contract AfterbellVaultTest is Test {
     function test_settle_usesTheRoundInForceAtTheOpen() public {
         _buy(_quote());
         uint80 id = _settleAt(355e8);
-        (AfterbellVault.SeriesState state, uint64 price, uint80 roundId) = vault.series(vault.seriesKey(address(feed), OPEN));
+        (AfterbellVault.SeriesState state, uint64 price, uint80 roundId,,) = vault.series(vault.seriesKey(address(feed), OPEN));
         assertEq(uint8(state), uint8(AfterbellVault.SeriesState.Settled));
         assertEq(price, 355e8);
         assertEq(roundId, id);
+    }
+
+    function test_buy_recordsTheSeriesStrikeRange() public {
+        AfterbellVault.Quote memory q = _quote(); // $360 to $340
+        _buy(q);
+        q.nonce = ++nonce;
+        q.upper = 380e8;
+        q.lower = 350e8;
+        _buy(q);
+        (,,, uint64 lowestLower, uint64 highestUpper) = vault.series(vault.seriesKey(address(feed), OPEN));
+        assertEq(lowestLower, 340e8);
+        assertEq(highestUpper, 380e8);
+
+        // Protection all the way down to zero leaves no floor on the price.
+        q.nonce = ++nonce;
+        q.lower = 0;
+        _buy(q);
+        (,,, lowestLower,) = vault.series(vault.seriesKey(address(feed), OPEN));
+        assertEq(lowestLower, 0);
+    }
+
+    /// Chainlink's Robinhood Chain feeds launched publishing answers 10^8 too large (16 decimals, not 8).
+    function test_settle_refusesAPriceOnTheWrongScale() public {
+        uint256 id = _buy(_quote()); // $360 to $340
+        uint80 tooBig = feed.push(355e16, OPEN - 30 minutes);
+        feed.push(350e16, OPEN + 10 minutes);
+        vm.warp(OPEN + 1 hours);
+        vm.expectRevert(AfterbellVault.ImplausiblePrice.selector);
+        vault.settle(address(feed), OPEN, tooBig);
+
+        // Nobody can settle it, so it voids and the buyer gets the premium back, not a payout of nothing.
+        vm.warp(OPEN + 1 days + 1);
+        vault.voidSeries(address(feed), OPEN);
+        assertEq(vault.claim(id), 20e6);
+    }
+
+    function test_settle_refusesAPriceFarBelowTheStrikes() public {
+        _buy(_quote());
+        uint80 tooSmall = feed.push(355, OPEN - 30 minutes); // $355 with no decimals
+        feed.push(350, OPEN + 10 minutes);
+        vm.warp(OPEN + 1 hours);
+        vm.expectRevert(AfterbellVault.ImplausiblePrice.selector);
+        vault.settle(address(feed), OPEN, tooSmall);
+    }
+
+    function test_plausiblePrice_withinTenTimesOfTheStrikes() public view {
+        assertTrue(vault.plausiblePrice(3_600e8, 340e8, 360e8));
+        assertFalse(vault.plausiblePrice(3_600e8 + 1, 340e8, 360e8));
+        assertTrue(vault.plausiblePrice(34e8, 340e8, 360e8));
+        assertFalse(vault.plausiblePrice(34e8 - 1, 340e8, 360e8));
+        assertTrue(vault.plausiblePrice(1, 0, 360e8));
+    }
+
+    function test_settle_acceptsACrashBelowTheLowerStrike() public {
+        uint256 id = _buy(_quote()); // $360 to $340: pays $200 at $340 or lower
+        _settleAt(40e8); // down 89% overnight, still within ten times of the strikes
+        assertEq(vault.claim(id), 200e6);
     }
 
     function test_settle_acceptsTheLatestRoundWhenNoneCameAfter() public {
@@ -404,7 +461,8 @@ contract AfterbellVaultTest is Test {
     /// Whatever opens, the vault can pay every position and ends with exactly what it should.
     function testFuzz_staysSolventThroughSettlement(uint8 count, int64 openPrice) public {
         count = uint8(bound(count, 1, 20));
-        openPrice = int64(bound(openPrice, 1, 1_000e8));
+        // Anywhere the vault accepts: from a tenth of the lowest lower strike ($330) to ten times $360.
+        openPrice = int64(bound(openPrice, 33e8, 3_600e8));
         uint256 premiums;
         uint256[] memory ids = new uint256[](count);
         for (uint256 i; i < count; i++) {
@@ -425,5 +483,19 @@ contract AfterbellVaultTest is Test {
 
         assertEq(vault.locked(), 0);
         assertEq(usd.balanceOf(address(vault)), 100_000e6 + premiums - paid);
+    }
+
+    /// Outside ten times the strikes, no price settles the series; it voids and refunds every premium.
+    function testFuzz_refusesPricesFarFromTheStrikes(int64 openPrice, bool above) public {
+        openPrice = above ? int64(bound(openPrice, 3_600e8 + 1, type(int64).max - 1e8)) : int64(bound(openPrice, 1e8 + 1, 34e8 - 1));
+        uint256 id = _buy(_quote());
+        uint80 round = feed.push(openPrice, OPEN - 30 minutes);
+        feed.push(openPrice - 1e8, OPEN + 10 minutes);
+        vm.warp(OPEN + 1 hours);
+        vm.expectRevert(AfterbellVault.ImplausiblePrice.selector);
+        vault.settle(address(feed), OPEN, round);
+        vm.warp(OPEN + 1 days + 1);
+        vault.voidSeries(address(feed), OPEN);
+        assertEq(vault.claim(id), 20e6);
     }
 }
