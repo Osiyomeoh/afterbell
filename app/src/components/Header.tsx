@@ -34,7 +34,7 @@ export function Header() {
           ))}
         </nav>
         <div className="ml-auto flex items-center gap-3">
-          <span className="hidden rounded-full border border-line px-2.5 py-1 text-xs text-muted sm:inline">Solana devnet · test money</span>
+          <span className="hidden rounded-full border border-line px-2.5 py-1 text-xs text-muted sm:inline">Test money only</span>
           <WalletButton />
         </div>
       </div>

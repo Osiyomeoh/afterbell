@@ -16,6 +16,12 @@ export const robinhoodChain = defineChain({
   blockExplorers: { default: { name: "Blockscout", url: "https://robinhoodchain.blockscout.com" } },
 });
 
+/** The chain a deployment lives on: Robinhood Chain, or a local test chain, at the deployment's RPC. */
+export function evmChain(d: Pick<EvmDeployment, "chainId" | "rpc">): Chain {
+  if (d.chainId === robinhoodChain.id) return { ...robinhoodChain, rpcUrls: { default: { http: [d.rpc] } } };
+  return defineChain({ id: d.chainId, name: `Local chain ${d.chainId}`, nativeCurrency: robinhoodChain.nativeCurrency, rpcUrls: { default: { http: [d.rpc] } } });
+}
+
 /** Chainlink's Robinhood TSLA / USD feed (proxy) on Robinhood Chain mainnet. */
 export const TSLA_FEED: Address = "0x4A1166a659A55625345e9515b32adECea5547C38";
 
@@ -64,5 +70,13 @@ export async function buyProtection(
 export async function mintTestUsd(wallet: Wallet, client: PublicClient, d: EvmDeployment, amount: bigint): Promise<Hex> {
   const hash = await wallet.writeContract({ address: d.testUsd, abi: testUsdAbi, functionName: "mint", args: [wallet.account.address, amount] });
   await client.waitForTransactionReceipt({ hash });
+  return hash;
+}
+
+/** Claims a finished position; anyone may, and the money always goes to its buyer. */
+export async function claimProtection(wallet: Wallet, client: PublicClient, d: EvmDeployment, id: bigint): Promise<Hex> {
+  const hash = await wallet.writeContract({ address: d.vault, abi: afterbellVaultAbi, functionName: "claim", args: [id] });
+  const receipt = await client.waitForTransactionReceipt({ hash });
+  if (receipt.status !== "success") throw new Error(`the claim reverted (${hash})`);
   return hash;
 }

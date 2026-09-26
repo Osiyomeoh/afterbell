@@ -44,6 +44,8 @@ export type PositionRow = {
 };
 
 export type VaultState = {
+  /** EVM vaults only. */
+  chainId?: number;
   vault: string;
   collateralMint: string;
   collateral: number;

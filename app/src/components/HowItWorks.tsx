@@ -1,6 +1,8 @@
 import { DEFAULT_QUOTER_CONFIG } from "@root/quoter/quoter";
 import { DEFAULT_CONFIG } from "@root/solana/client/vault";
 
+import { evmDeployment } from "@/server/evmDeployment";
+
 const margin = `${Math.round(DEFAULT_QUOTER_CONFIG.margin * 100)}%`;
 
 const STEPS = [
@@ -23,6 +25,7 @@ const STEPS = [
 ];
 
 export function HowItWorks() {
+  const robinhood = evmDeployment();
   return (
     <section className="mt-16">
       <h2 className="text-xl font-semibold tracking-tight">How it works</h2>
@@ -36,7 +39,10 @@ export function HowItWorks() {
         ))}
       </ol>
       <p className="mt-4 max-w-3xl text-sm leading-relaxed text-faint">
-        Afterbell runs on Solana devnet with TestUSD, a token with no value, so everything here is free to try. The payout works like a put spread: it
+        {robinhood
+          ? "On Robinhood Chain, the same vault takes an EIP-712 signed quote and settles on Chainlink's TSLA price in force at 09:30 ET. Both vaults take TestUSD, a token with no value; the only real cost is gas on Robinhood Chain. "
+          : "Afterbell runs on Solana devnet with TestUSD, a token with no value, so everything here is free to try. "}
+        The payout works like a put spread: it
         doesn&apos;t check that you hold the stock. The quote service sets prices but never holds money; the vault pays only on the oracle&apos;s price.
       </p>
     </section>

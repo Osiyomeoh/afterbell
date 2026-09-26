@@ -12,3 +12,6 @@ docs/
 
 # Dotenv file
 .env
+
+# A local deployment for trying the app (npm run evm:local)
+/deployments/local.json

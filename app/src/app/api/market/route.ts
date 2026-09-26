@@ -2,6 +2,7 @@ import { nextOpen } from "@root/quoter/calendar";
 import { DEFAULT_QUOTER_CONFIG, referencePrice } from "@root/quoter/quoter";
 
 import { SOLANA_DEPLOYMENT } from "@/server/deployment";
+import { evmDeployment } from "@/server/evmDeployment";
 import { marketSnapshot } from "@/server/market";
 
 export const dynamic = "force-dynamic";
@@ -20,6 +21,7 @@ export async function GET() {
       paused = (e as Error).message;
     }
     const cfg = DEFAULT_QUOTER_CONFIG;
+    const evm = evmDeployment();
     return Response.json({
       symbol: m.symbol,
       now,
@@ -38,6 +40,8 @@ export async function GET() {
       annualVol: m.annualVol,
       config: cfg,
       solana: { cluster: "devnet", ...SOLANA_DEPLOYMENT },
+      // Null until the Robinhood Chain vault is deployed. Buying there also needs the quoter's key on the server.
+      robinhood: evm && { ...evm, selling: !!process.env.QUOTER_EVM_KEY },
     });
   } catch (e) {
     return Response.json({ error: (e as Error).message }, { status: 503 });

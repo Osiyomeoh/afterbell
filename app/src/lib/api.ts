@@ -1,3 +1,4 @@
+import type { EvmDeployment } from "@root/evm/client/vault";
 import type { Opening } from "@root/pricing/model";
 import type { Market, PricedProtection, QuoterConfig } from "@root/quoter/quoter";
 
@@ -19,6 +20,8 @@ export type MarketResponse = {
   annualVol: number;
   config: QuoterConfig;
   solana: { cluster: string; programId: string; vault: string; vaultToken: string; collateralMint: string; quoter: string; feeds: { TSLA: { feedId: string } } };
+  /** The Robinhood Chain vault, once deployed; `selling` once the server can sign its quotes. */
+  robinhood: (EvmDeployment & { selling: boolean }) | null;
 };
 
 export type QuoteResponse = {
@@ -44,6 +47,23 @@ export const fetchMarket = () => fetch("/api/market", { cache: "no-store" }).the
 export const requestQuote = (args: { buyer: string; shares: number; upper: number; lower: number }) =>
   fetch("/api/quote", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ chain: "solana", ...args }) }).then((r) =>
     json<QuoteResponse>(r),
+  );
+
+export type EvmQuoteResponse = {
+  priced: PricedProtection;
+  evm: {
+    chainId: number;
+    vault: string;
+    testUsd: string;
+    quoter: string;
+    quote: Record<"buyer" | "feed" | "openTs" | "shares" | "upper" | "lower" | "premium" | "expiry" | "nonce", string>;
+    signature: string;
+  };
+};
+
+export const requestEvmQuote = (args: { buyer: string; shares: number; upper: number; lower: number }) =>
+  fetch("/api/quote", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ chain: "robinhood", ...args }) }).then((r) =>
+    json<EvmQuoteResponse>(r),
   );
 
 /** The quoter's Market, rebuilt from the API's JSON, so the browser prices exactly as the server does. */
@@ -77,6 +97,7 @@ export type PositionRow = {
 };
 
 export type VaultResponse = {
+  chainId?: number;
   vault: string;
   collateralMint: string;
   collateral: number;
@@ -85,7 +106,10 @@ export type VaultResponse = {
   series: { address: string; openTs: number; state: SeriesState; price: number | null; publishTime: number | null; positions: number; premiums: number; maxPayouts: number }[];
 };
 
-export const fetchVault = () => fetch("/api/vault", { cache: "no-store" }).then((r) => json<VaultResponse>(r));
+export type Chain = "solana" | "robinhood";
+
+export const fetchVault = (chain: Chain = "solana") =>
+  fetch(chain === "robinhood" ? "/api/vault?chain=robinhood" : "/api/vault", { cache: "no-store" }).then((r) => json<VaultResponse>(r));
 export const fetchPositions = (owner: string) =>
   fetch(`/api/positions?owner=${owner}`, { cache: "no-store" }).then((r) => json<{ positions: PositionRow[] }>(r));
 

@@ -14,6 +14,7 @@
     "evm:abi": "tsx evm/scripts/abi.ts",
     "evm:keeper": "tsx evm/scripts/keeper.ts",
     "evm:cycle": "tsx evm/scripts/local-cycle.ts",
+    "evm:local": "tsx evm/scripts/local-app.ts",
     "agent": "tsx agent/server.ts",
     "agent:smoke": "tsx agent/smoke.ts"
   },

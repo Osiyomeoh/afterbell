@@ -15,11 +15,11 @@ Built for Colosseum's Crypto World's Fair (September to October 2026). Design: [
 - `quoter/`: the quote service's core. It prices protection until the next open from New York's calendar and Pyth's holidays, and signs it for either vault.
 - `solana/`: the Solana vault (buy against an ed25519-signed quote, settle on the first Pyth print at or after the open, claim, void), its TypeScript client, setup script and keeper. **Live on devnet** (addresses below), with purchases through the app's endpoint, the Blink and an MCP agent. A full cycle (sell, open, settle, claim) passes on a local validator.
 - `evm/`: the Robinhood Chain vault (the same, settled on Chainlink's round in force at the open), its viem client and keeper. Purchases are verified on a fork of Robinhood Chain mainnet, and a full cycle passes on a local chain. Not deployed yet.
-- `app/`: the web app. Protect prices live with the quoter's own code, My protection lists and claims positions, and Vault shows collateral and every series. It also has a devnet faucet and the Blink.
+- `app/`: the web app, for both chains. Protect prices live with the quoter's own code, My protection lists and claims positions, and Vault shows collateral and every series. It also has a devnet faucet and the Blink. The Robinhood Chain side (any injected EVM wallet) has bought, settled and claimed end to end against a local chain; it goes live when the vault is deployed.
 - `agent/`: Afterbell as an MCP server, hosted (no keys) and local (the agent's own devnet wallet with a spending cap).
 - Tests: 78 TypeScript, 35 Foundry (2 fuzz), 4 fork tests against Chainlink's live TSLA feed, 16 Rust unit and 24 LiteSVM tests of the compiled program.
 
-**Next:** deploy the EVM vault to Robinhood Chain mainnet (waiting on the deploy wallet), then its buy flow in the app. Run the keeper on devnet after Monday 28 September's open to settle and claim the first series. Host the app.
+**Next:** deploy the EVM vault to Robinhood Chain mainnet (waiting on the deploy wallet); the app's Robinhood flow is ready for it. Run the keeper on devnet after Monday 28 September's open to settle and claim the first series. Host the app.
 
 **Planned:** the Hyperliquid hedger. Dates and cut line are in the design doc.
 
@@ -61,6 +61,8 @@ The TypeScript signer ([`pricing/quote.ts`](pricing/quote.ts)) and the contract 
 
 [`evm/client/vault.ts`](evm/client/vault.ts) buys with viem (approve TestUSD, then `buy` with the signed quote), using ABIs generated from forge's build (`npm run evm:abi`). The quote endpoint signs Robinhood Chain quotes once `evm/deployments/robinhood.json` exists. On a local fork of Robinhood Chain mainnet, against the live Chainlink feed, a purchase went through both ways: with a quote signed locally, and with one the app's endpoint signed.
 
+The app buys and claims on Robinhood Chain from any injected EVM wallet (MetaMask, Rabby…), with viem and no wallet library: it switches the wallet to Robinhood Chain (adding it if needed), mints TestUSD if the buyer is short, then approves and buys. `npm run evm:local` stands in for the chain until the vault is deployed: anvil with the vault on a mock feed, recorded in `evm/deployments/local.json`. Against it, the app sold 10 shares of protection from $364.41 to $334.66 for 8.61 TestUSD; after the mock feed published $350 before the open and the series settled, My protection showed $144.10 due and claimed it to the buyer.
+
 The EVM keeper ([`evm/keeper`](evm/keeper)) settles each due series on Chainlink's round in force at the open. It finds that round by binary search over the feed's current phase, then checks it as the contract will. It voids series nobody could settle within the settle window and claims every finished position. On the live feed it picks round 1341 ($383.8284, published 09:26:48 ET) for Friday 25 September's open, the round the fork tests settle on. `npm run evm:cycle` runs a whole cycle on a local chain, with a feed that replays that morning's rounds, and checks every payout.
 
 ```bash
@@ -68,6 +70,7 @@ anvil --fork-url https://rpc.mainnet.chain.robinhood.com                  # a lo
 BUYER_PRIVATE_KEY=0x… QUOTE_URL=http://localhost:3000/api/quote npx tsx evm/scripts/smoke-buy.ts
 npx tsx evm/scripts/check-round.ts [open]                                  # the round the keeper would settle on (read-only)
 npm run evm:cycle                                                         # sell, open, settle, claim on a local chain
+npm run evm:local                                                         # a local chain for the app's Robinhood flow (then EVM_DEPLOYMENT_FILE, QUOTER_EVM_KEY)
 KEEPER_PRIVATE_KEY=0x… npm run evm:keeper                                 # settle, void and claim on the deployed vault
 ```
 
@@ -109,13 +112,13 @@ The LiteSVM tests run the real Ed25519 program and settle on Pyth price accounts
 
 [`app/`](app) is a Next.js app, an npm workspace that imports the quoter and the Solana client from the repo root.
 
-- **Protect** prices protection live in the browser, with the same quoter code the server signs with, as you set shares and where protection starts and stops. It draws the payoff and replays the same protection on every past TSLA opening. Buying takes a signed quote from `POST /api/quote`, then the wallet signs the Ed25519 check and `buy` in one transaction.
+- **Protect** prices protection live in the browser, with the same quoter code the server signs with, as you set shares and where protection starts and stops. It draws the payoff and replays the same protection on every past TSLA opening. Buying takes a signed quote from `POST /api/quote`, then the wallet signs the Ed25519 check and `buy` in one transaction. A switch sells the same protection on Robinhood Chain instead (`/?chain=robinhood` opens it there), settled by Chainlink.
 - **`GET /api/market`** returns the close, the live price, holidays and the openings history the quoter prices from. It uses Pyth when a key is configured, otherwise Hyperliquid's prices, labelled as such. Hyperliquid's price at the close is a median 2.7 bps from Pyth's.
 - **`POST /api/quote`** re-prices on the server, never trusting the browser's numbers. It signs with the quoter key from the environment and refuses if that key isn't the vault's quoter.
 - **Test money:** `POST /api/faucet` tops a devnet wallet up to 1,000 TestUSD when it holds less than 100, and sends 0.02 SOL when it has less than 0.01, so a fresh wallet can buy. The faucet key is TestUSD's mint authority and pays for all of it.
 - **Solana Action (Blink):** `/api/actions/protect`, found through `/actions.json`, sells protection from 2% to 10% below the price from any wallet or Blink client. "Protect what I hold" reads the wallet's TSLAx and TSLAon on mainnet. A fresh devnet wallet gets test money before the transaction is returned, so one click works from nothing. It has done that on devnet: a new wallet received TestUSD, signed the returned transaction, and bought protection on 3 TSLA ([`2Qq9kXbP…`](https://explorer.solana.com/tx/2Qq9kXbPBH6yacArZRaveT1tNRWnMUhM2y9b3NcQNw8zsbDPb3nj1wzUKqhLhEKS2f3iKt5Z5uKBnsCJbucWdJs4?cluster=devnet)).
 - **How it works** and **For wallets and agents**, on the home page, explain the product and give the Blink and MCP addresses for whatever host the app runs on.
-- **My protection** and **Vault** read the chain through `GET /api/positions` and `GET /api/vault`, which share one cached read, so visitors don't each hit the RPC. A buyer can claim a settled or voided position themselves; the keeper claims for everyone anyway.
+- **My protection** and **Vault** read each chain through `GET /api/positions` (a Solana or EVM address) and `GET /api/vault` (`?chain=robinhood` for Robinhood Chain), which share one cached read per chain, so visitors don't each hit the RPC. A buyer can claim a settled or voided position themselves; the keeper claims for everyone anyway.
 
 ```bash
 cp app/.env.example app/.env.local   # then fill in PYTH_API_KEY and the quoter key (file path or contents)
