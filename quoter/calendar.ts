@@ -112,3 +112,24 @@ export function sessionSecsLeft(now: number, holidays: ReadonlySet<string> = new
   const close = closeOf(date, earlyCloses);
   return now >= open && now < close ? close - now : 0;
 }
+
+export type SessionTimes = { date: string; openTs: number; closeTs: number };
+
+/**
+ * Trading days from the NY date `fromIso` (inclusive) through `now`'s date,
+ * with each day's open and close. Holidays the schedule doesn't list (past
+ * ones) still appear; callers skip days with no prints.
+ */
+export function sessionsFrom(fromIso: string, now: number, holidays: ReadonlySet<string> = new Set(), earlyCloses: EarlyCloses = new Map()): SessionTimes[] {
+  const [y, m, d] = fromIso.split("-").map(Number) as [number, number, number];
+  const out: SessionTimes[] = [];
+  // Noon ET on each date, stepping a day at a time, stays on the right date across DST.
+  for (let t = nyTimestamp({ y, m, d }, 12, 0); t <= now + 86_400; t += 86_400) {
+    const date = nyDate(t);
+    if (!isTradingDay(date, holidays)) continue;
+    const openTs = nyTimestamp(date, 9, 30);
+    if (openTs > now) break;
+    out.push({ date: isoDate(date), openTs, closeTs: closeOf(date, earlyCloses) });
+  }
+  return out;
+}

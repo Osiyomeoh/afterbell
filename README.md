@@ -33,7 +33,10 @@ npm run proof                     # Hyperliquid vs Pyth on every TSLA opening
 npx tsx research/proof-multi.ts   # six markets, Hyperliquid prices only
 npx tsx research/chainlink.ts     # Chainlink's TSLA feed on Robinhood Chain vs Pyth's open
 npx tsx pricing/report.ts         # protection backtest on every TSLA opening
+PYTH_API_KEY=<key> npx tsx research/refresh-openings.ts   # append the latest TSLA openings from Pyth
 ```
+
+The app extends the recorded openings with any since, from Pyth, every hour, so it never prices from a stale history.
 
 ## EVM vault (Robinhood Chain)
 
