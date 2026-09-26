@@ -3,7 +3,7 @@
  * its addresses and a typed Anchor program. `idl/` is copied from
  * solana/target after `anchor build` (npm run solana:idl).
  */
-import anchor from "@anchor-lang/core";
+import * as anchorModule from "@anchor-lang/core";
 import type { AnchorProvider, Program } from "@anchor-lang/core";
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import {
@@ -19,6 +19,10 @@ import type { SolanaQuote } from "../../pricing/solanaQuote";
 
 import idl from "./idl/afterbell_vault.json" with { type: "json" };
 import type { AfterbellVault } from "./idl/afterbell_vault";
+
+// Node loads Anchor's CommonJS build, where BN is only on the default export;
+// bundlers load its ES build, which has no default export. Take whichever exists.
+const anchor = ((anchorModule as { default?: typeof anchorModule }).default ?? anchorModule) as typeof anchorModule;
 
 export const PROGRAM_ID = new PublicKey(idl.address);
 

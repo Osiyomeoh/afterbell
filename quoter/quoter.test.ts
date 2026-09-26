@@ -8,7 +8,7 @@ import data from "../research/data/pyth-tsla-gaps.json" with { type: "json" };
 import type { Opening } from "../pricing/model";
 import { QUOTE_TYPES } from "../pricing/quote";
 import { solanaQuoteMessage } from "../pricing/solanaQuote";
-import { nextOpen, scheduleHolidays, sessionSecsLeft } from "./calendar";
+import { lastClose, nextOpen, scheduleEarlyCloses, scheduleHolidays, sessionSecsLeft } from "./calendar";
 import { DEFAULT_QUOTER_CONFIG, priceQuote, referencePrice, signForEvm, signForSolana, type Market } from "./quoter";
 
 const utc = (iso: string) => Date.parse(iso) / 1000;
@@ -52,9 +52,21 @@ describe("calendar", () => {
     expect(sessionSecsLeft(MONDAY_NOON, new Set(["2026-09-28"]))).toBe(0);
   });
 
+  it("finds the last close, including early closes", () => {
+    expect(lastClose(FRIDAY_EVENING)).toBe(utc("2026-09-25T20:00:00Z"));
+    expect(lastClose(MONDAY_NOON)).toBe(utc("2026-09-25T20:00:00Z"));
+    expect(lastClose(utc("2026-09-28T20:00:00Z"))).toBe(utc("2026-09-28T20:00:00Z"));
+    const early = new Map([["2026-11-27", { hour: 13, minute: 0 }]]);
+    // Friday 27 Nov closes at 13:00 EST; by 15:00 the session is over.
+    expect(lastClose(utc("2026-11-27T20:00:00Z"), new Set(["2026-11-26"]), early)).toBe(utc("2026-11-27T18:00:00Z"));
+    expect(sessionSecsLeft(utc("2026-11-27T17:00:00Z"), new Set(), early)).toBe(3600);
+    expect(sessionSecsLeft(utc("2026-11-27T19:00:00Z"), new Set(), early)).toBe(0);
+  });
+
   it("reads holidays from Pyth's market-hours schedule", () => {
     const schedule = "America/New_York;0930-1600,0930-1600,0930-1600,0930-1600,0930-1600,C,C;1126/C,1127/0930-1300,0101/C";
     expect([...scheduleHolidays(schedule, FRIDAY_EVENING)].sort()).toEqual(["2026-11-26", "2027-01-01"]);
+    expect([...scheduleEarlyCloses(schedule, FRIDAY_EVENING)]).toEqual([["2026-11-27", { hour: 13, minute: 0 }]]);
   });
 });
 

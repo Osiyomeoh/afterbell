@@ -30,5 +30,8 @@
   },
   "overrides": {
     "@solana/web3.js": "$@solana/web3.js"
-  }
+  },
+  "workspaces": [
+    "app"
+  ]
 }

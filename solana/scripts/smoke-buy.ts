@@ -5,7 +5,10 @@
  * and the program agree on a real cluster.
  *
  *   QUOTER_KEYPAIR=~/.config/solana/afterbell-quoter.json npm run solana:smoke
+ *   QUOTE_URL=http://localhost:3100/api/quote npm run solana:smoke
  *
+ * QUOTE_URL      take the signed quote from the app's quote endpoint instead
+ *                of signing here (then QUOTER_KEYPAIR isn't needed)
  * RPC_URL        defaults to devnet
  * ANCHOR_WALLET  the buyer, defaults to ~/.config/solana/id.json; if it's the
  *                TestUSD mint authority, it mints itself TestUSD when short
@@ -24,7 +27,8 @@ import { Connection, Keypair, PublicKey, sendAndConfirmTransaction, Transaction 
 
 import data from "../../research/data/pyth-tsla-gaps.json" with { type: "json" };
 import type { Opening } from "../../pricing/model";
-import { priceQuote, signForSolana } from "../../quoter/quoter";
+import type { SolanaQuote } from "../../pricing/solanaQuote";
+import { priceQuote, signForSolana, type PricedProtection } from "../../quoter/quoter";
 import { buyInstructions, getProgram, positionAddress, PROGRAM_ID } from "../client/vault";
 
 const expand = (p: string) => p.replace(/^~(?=\/)/, homedir());
@@ -33,10 +37,6 @@ const loadKeypair = (path: string) => Keypair.fromSecretKey(Uint8Array.from(JSON
 async function main() {
   const rpc = process.env.RPC_URL ?? "https://api.devnet.solana.com";
   const d = JSON.parse(readFileSync(process.env.DEPLOYMENTS ?? "solana/deployments/devnet.json", "utf8"));
-  const quoterPath = process.env.QUOTER_KEYPAIR;
-  if (!quoterPath) throw new Error("set QUOTER_KEYPAIR to the quoter's keypair file");
-  const quoter = loadKeypair(quoterPath);
-  if (quoter.publicKey.toBase58() !== d.quoter) throw new Error(`the vault's quoter is ${d.quoter}, not ${quoter.publicKey.toBase58()}`);
   const buyer = loadKeypair(process.env.ANCHOR_WALLET ?? join(homedir(), ".config/solana/id.json"));
 
   const connection = new Connection(rpc, "confirmed");
@@ -44,17 +44,43 @@ async function main() {
   const vault = new PublicKey(d.vault);
   const mint = new PublicKey(d.collateralMint);
 
-  // Price and sign, as the quote service will.
   const history = data.gaps as Opening[];
   const reference = history[history.length - 1]!.close;
-  const now = Math.floor(Date.now() / 1000);
-  const priced = priceQuote(now, { symbol: "TSLA", close: reference, history, annualVol: 0.6, holidays: new Set() }, {
+  const protection = {
     shares: 1,
     upper: Math.round(reference * 0.98 * 100) / 100,
     lower: Math.round(reference * 0.9 * 100) / 100,
-  });
-  // A Solana keypair file holds the 32-byte seed followed by the public key.
-  const signed = signForSolana(priced, buyer.publicKey.toBase58(), { programId: PROGRAM_ID.toBase58(), vault: d.vault, feedId: d.feeds.TSLA.feedId }, quoter.secretKey.slice(0, 32));
+  };
+  let priced: PricedProtection;
+  let signed: { quote: SolanaQuote; ed25519Data: Uint8Array };
+  if (process.env.QUOTE_URL) {
+    // The app's quote endpoint prices with live market data and signs.
+    const res = await fetch(process.env.QUOTE_URL, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ chain: "solana", buyer: buyer.publicKey.toBase58(), ...protection }),
+    });
+    const body = await res.json();
+    if (!res.ok) throw new Error(`quote endpoint: ${body.error}`);
+    if (body.solana.vault !== d.vault) throw new Error(`the quote is for vault ${body.solana.vault}, not ${d.vault}`);
+    const q = body.solana.quote;
+    const hexBytes = (h: string) => Uint8Array.from(Buffer.from(h, "hex"));
+    priced = body.priced;
+    signed = {
+      quote: { feedId: hexBytes(q.feedId), openTs: BigInt(q.openTs), shares: BigInt(q.shares), upper: BigInt(q.upper), lower: BigInt(q.lower), premium: BigInt(q.premium), expiry: BigInt(q.expiry), nonce: hexBytes(q.nonce) },
+      ed25519Data: Uint8Array.from(Buffer.from(body.solana.ed25519Data, "base64")),
+    };
+  } else {
+    // Price and sign here, as the quote service does.
+    const quoterPath = process.env.QUOTER_KEYPAIR;
+    if (!quoterPath) throw new Error("set QUOTER_KEYPAIR to the quoter's keypair file, or QUOTE_URL to the app's quote endpoint");
+    const quoter = loadKeypair(quoterPath);
+    if (quoter.publicKey.toBase58() !== d.quoter) throw new Error(`the vault's quoter is ${d.quoter}, not ${quoter.publicKey.toBase58()}`);
+    const now = Math.floor(Date.now() / 1000);
+    priced = priceQuote(now, { symbol: "TSLA", close: reference, history, annualVol: 0.6, holidays: new Set() }, protection);
+    // A Solana keypair file holds the 32-byte seed followed by the public key.
+    signed = signForSolana(priced, buyer.publicKey.toBase58(), { programId: PROGRAM_ID.toBase58(), vault: d.vault, feedId: d.feeds.TSLA.feedId }, quoter.secretKey.slice(0, 32));
+  }
   console.log(`quote            1 TSLA share, $${priced.protection.upper} down to $${priced.protection.lower}, open ${new Date(priced.openTs * 1000).toISOString()}`);
   console.log(`premium          $${priced.premium.toFixed(4)} for up to $${priced.maxPayout.toFixed(2)} (${(priced.probabilityOfPayout * 100).toFixed(1)}% chance it pays)`);
 

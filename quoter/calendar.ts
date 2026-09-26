@@ -56,6 +56,40 @@ export function scheduleHolidays(schedule: string, from: number): Set<string> {
   return out;
 }
 
+export type CloseTime = { hour: number; minute: number };
+export type EarlyCloses = ReadonlyMap<string, CloseTime>;
+const REGULAR_CLOSE: CloseTime = { hour: 16, minute: 0 };
+
+/** Early-close days in a Pyth schedule ("1127/0930-1300"), as NY date to closing time. */
+export function scheduleEarlyCloses(schedule: string, from: number): Map<string, CloseTime> {
+  const today = nyDate(from);
+  const out = new Map<string, CloseTime>();
+  for (const entry of (schedule.split(";")[2] ?? "").split(",")) {
+    const match = /^(\d{2})(\d{2})\/0930-(\d{2})(\d{2})$/.exec(entry.trim());
+    if (!match) continue;
+    const [m, d, hour, minute] = match.slice(1).map(Number) as [number, number, number, number];
+    const y = m * 100 + d >= today.m * 100 + today.d ? today.y : today.y + 1;
+    out.set(isoDate({ y, m, d }), { hour, minute });
+  }
+  return out;
+}
+
+const closeOf = (date: NyDate, earlyCloses: EarlyCloses) => {
+  const c = earlyCloses.get(isoDate(date)) ?? REGULAR_CLOSE;
+  return nyTimestamp(date, c.hour, c.minute);
+};
+
+/** The most recent close at or before `now`: 16:00 ET, or the early close, on a trading day. */
+export function lastClose(now: number, holidays: ReadonlySet<string> = new Set(), earlyCloses: EarlyCloses = new Map()): number {
+  for (let day = 0; day < 14; day++) {
+    const date = nyDate(now - day * 86_400);
+    if (!isTradingDay(date, holidays)) continue;
+    const ts = closeOf(date, earlyCloses);
+    if (ts <= now) return ts;
+  }
+  throw new Error("no close in the last 14 days");
+}
+
 /** The first 09:30 ET open on a trading day that is at least `leadSecs` after `now`. */
 export function nextOpen(now: number, leadSecs: number, holidays: ReadonlySet<string> = new Set()): number {
   for (let day = 0; day < 14; day++) {
@@ -68,14 +102,13 @@ export function nextOpen(now: number, leadSecs: number, holidays: ReadonlySet<st
 }
 
 /**
- * Regular-session time left today (09:30 to 16:00 ET on a trading day), in
- * seconds; zero outside the session. Early closes aren't modeled, which only
- * overstates the risk left on those days.
+ * Regular-session time left today (09:30 ET to the close on a trading day),
+ * in seconds; zero outside the session.
  */
-export function sessionSecsLeft(now: number, holidays: ReadonlySet<string> = new Set()): number {
+export function sessionSecsLeft(now: number, holidays: ReadonlySet<string> = new Set(), earlyCloses: EarlyCloses = new Map()): number {
   const date = nyDate(now);
   if (!isTradingDay(date, holidays)) return 0;
   const open = nyTimestamp(date, 9, 30);
-  const close = nyTimestamp(date, 16, 0);
+  const close = closeOf(date, earlyCloses);
   return now >= open && now < close ? close - now : 0;
 }

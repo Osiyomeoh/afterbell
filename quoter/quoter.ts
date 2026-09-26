@@ -16,7 +16,7 @@ import {
   solanaQuoteMessage,
   type SolanaQuote,
 } from "../pricing/solanaQuote";
-import { nextOpen, SESSION_SECS_PER_YEAR, sessionSecsLeft } from "./calendar";
+import { nextOpen, SESSION_SECS_PER_YEAR, sessionSecsLeft, type EarlyCloses } from "./calendar";
 
 const YEAR_SECS = 365.25 * 86_400;
 
@@ -63,6 +63,8 @@ export type Market = {
   annualVol: number;
   /** NY dates the exchange is closed (calendar.scheduleHolidays). */
   holidays: ReadonlySet<string>;
+  /** Early-close days (calendar.scheduleEarlyCloses). */
+  earlyCloses?: EarlyCloses;
 };
 
 export type PricedProtection = {
@@ -94,7 +96,7 @@ export type ReferenceBasis = "live" | "close" | "live, below the close";
  */
 export function referencePrice(now: number, market: Market, cfg: QuoterConfig = DEFAULT_QUOTER_CONFIG): { price: number; basis: ReferenceBasis } {
   const live = market.live;
-  if (sessionSecsLeft(now, market.holidays) > 0) {
+  if (sessionSecsLeft(now, market.holidays, market.earlyCloses) > 0) {
     if (!(live !== undefined && live > 0)) throw new Error("no live price during the session");
     return { price: live, basis: "live" };
   }
@@ -115,7 +117,7 @@ export function priceQuote(now: number, market: Market, protection: Protection, 
   const model = openingModel(market.history, {
     annualVol: market.annualVol,
     years: (openTs - now) / YEAR_SECS,
-    sessionYears: sessionSecsLeft(now, market.holidays) / SESSION_SECS_PER_YEAR,
+    sessionYears: sessionSecsLeft(now, market.holidays, market.earlyCloses) / SESSION_SECS_PER_YEAR,
   });
   const price = priceProtection(model, reference.price, protection, cfg.margin);
   // The vault takes premium <= max payout, but protection that dear is no use to anyone.
