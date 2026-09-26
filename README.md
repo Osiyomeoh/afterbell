@@ -8,13 +8,22 @@ Built for Colosseum's Crypto World's Fair (September to October 2026). Design: [
 
 ## Status
 
-| | |
-|---|---|
-| **Built** | `research/`: the evidence the design rests on (below). `pricing/`: put-spread pricing from the history of openings (exact under the model), an out-of-sample backtest, and signed quotes for both vaults (EIP-712 and ed25519). `evm/`: the Robinhood Chain vault (buy against a signed quote, settle on Chainlink's round in force at the open, claim, void). `solana/`: the Solana vault (the same against an ed25519-signed quote, settled on the first Pyth print at or after the open). `quoter/`: the quote service's core, which prices protection until the next open and signs it for either vault. `app/`: the web app. Protect prices live in the browser with the quoter's own code; My protection lists a wallet's positions and claims them; Vault shows collateral, locked payouts and every series. It has market, quote, vault and positions endpoints, and a devnet purchase has gone through with a quote the endpoint signed. A TypeScript client, setup script, purchase smoke test and keeper (settle on Pyth's first print after the open, void, claim) for the Solana vault; a full cycle (sell, open, settle, claim) passes on a local validator. **The Solana vault is live on devnet** (addresses below), and a purchase priced and signed by the quote service has gone through. 62 TypeScript tests, 35 Foundry tests (2 fuzz), 4 fork tests against Chainlink's live TSLA feed, 16 Rust unit tests and 24 LiteSVM tests of the compiled program |
-| **Next** | Deploy the EVM vault to Robinhood Chain mainnet (the client, quoting and purchase are verified on a fork; waiting on the deploy wallet), then its buy flow in the app; run the keeper on devnet after Monday 28 September's open to settle and claim the first series; hosting the app |
-| **Planned** | Hyperliquid hedger. Dates and cut line in the design doc |
+**Built and tested**
 
-This table changes as parts ship. Nothing is listed as built until it runs and is tested.
+- `research/`: the evidence the design rests on (below).
+- `pricing/`: put-spread pricing from the history of openings (exact under the model), an out-of-sample backtest, and signed quotes for both vaults (EIP-712 and ed25519).
+- `quoter/`: the quote service's core. It prices protection until the next open from New York's calendar and Pyth's holidays, and signs it for either vault.
+- `solana/`: the Solana vault (buy against an ed25519-signed quote, settle on the first Pyth print at or after the open, claim, void), its TypeScript client, setup script and keeper. **Live on devnet** (addresses below), with purchases through the app's endpoint, the Blink and an MCP agent. A full cycle (sell, open, settle, claim) passes on a local validator.
+- `evm/`: the Robinhood Chain vault (the same, settled on Chainlink's round in force at the open), its viem client and keeper. Purchases are verified on a fork of Robinhood Chain mainnet, and a full cycle passes on a local chain. Not deployed yet.
+- `app/`: the web app. Protect prices live with the quoter's own code, My protection lists and claims positions, and Vault shows collateral and every series. It also has a devnet faucet and the Blink.
+- `agent/`: Afterbell as an MCP server, hosted (no keys) and local (the agent's own devnet wallet with a spending cap).
+- Tests: 78 TypeScript, 35 Foundry (2 fuzz), 4 fork tests against Chainlink's live TSLA feed, 16 Rust unit and 24 LiteSVM tests of the compiled program.
+
+**Next:** deploy the EVM vault to Robinhood Chain mainnet (waiting on the deploy wallet), then its buy flow in the app. Run the keeper on devnet after Monday 28 September's open to settle and claim the first series. Host the app.
+
+**Planned:** the Hyperliquid hedger. Dates and cut line are in the design doc.
+
+This section changes as parts ship. Nothing is listed as built until it runs and is tested.
 
 ## Evidence so far
 
@@ -105,6 +114,7 @@ The LiteSVM tests run the real Ed25519 program and settle on Pyth price accounts
 - **`POST /api/quote`** re-prices on the server, never trusting the browser's numbers. It signs with the quoter key from the environment and refuses if that key isn't the vault's quoter.
 - **Test money:** `POST /api/faucet` tops a devnet wallet up to 1,000 TestUSD when it holds less than 100, and sends 0.02 SOL when it has less than 0.01, so a fresh wallet can buy. The faucet key is TestUSD's mint authority and pays for all of it.
 - **Solana Action (Blink):** `/api/actions/protect`, found through `/actions.json`, sells protection from 2% to 10% below the price from any wallet or Blink client. "Protect what I hold" reads the wallet's TSLAx and TSLAon on mainnet. A fresh devnet wallet gets test money before the transaction is returned, so one click works from nothing. It has done that on devnet: a new wallet received TestUSD, signed the returned transaction, and bought protection on 3 TSLA ([`2Qq9kXbP…`](https://explorer.solana.com/tx/2Qq9kXbPBH6yacArZRaveT1tNRWnMUhM2y9b3NcQNw8zsbDPb3nj1wzUKqhLhEKS2f3iKt5Z5uKBnsCJbucWdJs4?cluster=devnet)).
+- **How it works** and **For wallets and agents**, on the home page, explain the product and give the Blink and MCP addresses for whatever host the app runs on.
 - **My protection** and **Vault** read the chain through `GET /api/positions` and `GET /api/vault`, which share one cached read, so visitors don't each hit the RPC. A buyer can claim a settled or voided position themselves; the keeper claims for everyone anyway.
 
 ```bash

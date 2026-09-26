@@ -2,7 +2,7 @@
 
 Protection for tokenized stocks until the next open, sold on the chain where you hold them, hedged on Hyperliquid.
 
-Status: `research/`, `pricing/`, the EVM vault and the Solana vault are built and tested; neither vault is deployed yet. The hedger, app and MCP tool are planned. The README keeps the built/planned split current.
+Status (26 Sep): the Solana vault is live on devnet, with the app, quote endpoint, faucet, Blink, keeper and MCP server built on it. The EVM vault, its client and keeper are built and tested on a fork and a local chain, waiting on a mainnet deploy. The hedger and a track record page are planned. The README keeps the built/planned split current.
 
 ## Problem
 
@@ -22,12 +22,13 @@ Customers, in order:
 
 | Component | Where | Role |
 |---|---|---|
-| Pricing engine | TypeScript | Prices the put spread from the stock's history of openings (Weekend Markets' kernel model, backtested), signs quotes |
+| Pricing engine and quote service | TypeScript | Prices the put spread from the stock's history of openings (Weekend Markets' kernel model, backtested) until the next open, signs quotes for either vault |
 | EVM vault | Robinhood Chain, Solidity | Sells protection against a signed quote (EIP-712), locks the maximum payout, settles on Chainlink's round in force at the open, pays claims |
 | Solana vault | Solana, Anchor | The same against an ed25519-signed quote, settled on the first Pyth print at or after the open |
-| Hedger | TypeScript, Hyperliquid | Sums open protection across vaults, shorts the matching `xyz:` perp at the close, closes the hedge at the open |
-| App | Next.js | Protect (holdings across chains, one ticket), Vault (collateral per chain, live hedge), Track record |
-| MCP server | TypeScript | `protect_portfolio` and read tools for agents |
+| Keepers | TypeScript | Permissionless: settle each due series (Pyth's first print posted through its receiver; Chainlink's round in force found by binary search), void the unsettleable, claim every position to its buyer |
+| Hedger (planned) | TypeScript, Hyperliquid | Sums open protection across vaults, shorts the matching `xyz:` perp at the close, closes the hedge at the open |
+| App | Next.js | Protect (live pricing, payoff, backtest, "protect what I hold"), My protection, Vault, a devnet faucet and a Solana Action. Planned: Robinhood Chain buying, the live hedge, a track record |
+| MCP server | TypeScript | Hosted (no keys, returns unsigned transactions) and local (the agent's own devnet wallet, capped spend): `protect_portfolio`, `quote_protection` and read tools |
 
 ### Why a vault and fixed quotes (not Weekend Markets' pools)
 
@@ -78,10 +79,11 @@ Colosseum's form asks for every chain integrated. We select only chains that are
 
 | Dates | Work |
 |---|---|
-| Sep 26 (done) | Repo, research proof, infrastructure checks; pricing engine and quote signing (EIP-712, ed25519); EVM vault (Foundry and fork tests); Solana vault (LiteSVM tests) |
-| Sep 27 to Oct 1 | Deploys: Robinhood Chain mainnet with test collateral (waits on the deploy wallet), Solana devnet. App: Protect, Vault, Track record |
+| Sep 26 (done) | Repo, research proof, infrastructure checks; pricing engine and quote signing (EIP-712, ed25519); EVM vault (Foundry and fork tests); Solana vault (LiteSVM tests); Solana devnet deploy; quote service; app (Protect, My protection, Vault), faucet, Solana Action; keepers for both vaults; MCP server |
+| Sep 28 | First devnet settlement and claims by the keeper after Monday's open; week-2 update video |
+| Sep 27 to Oct 1 | Robinhood Chain mainnet deploy with test collateral (waits on the deploy wallet) and its buy flow in the app; hosting; track record page |
 | Oct 2 to 6 | Hedger on Hyperliquid, inside the Perps hackathon window; exposure across vaults; tests |
-| Oct 6 to 8 | MCP `protect_portfolio`, Solana Action; Perps submission Oct 8 |
+| Oct 6 to 8 | Hedge shown in the app; Perps submission Oct 8 |
 | Oct 9 | Buffer, traction push |
 | **cut line** | Below: Arbitrum, vault shares for outside depositors, stocks beyond TSLA (Pyth entitlement), Solami side track |
 | Oct 10 to 11 | Video, deck, README, form, submit |

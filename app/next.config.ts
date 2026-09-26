@@ -10,6 +10,8 @@ const nextConfig: NextConfig = {
   outputFileTracingRoot: root,
   // The Pyth receiver (used by the keeper) only loads through its CommonJS build.
   serverExternalPackages: ["@pythnetwork/pyth-solana-receiver"],
+  // The Robinhood Chain deployment is read from disk at request time (it may not exist yet).
+  outputFileTracingIncludes: { "/api/quote": ["../evm/deployments/*.json"] },
 };
 
 export default nextConfig;

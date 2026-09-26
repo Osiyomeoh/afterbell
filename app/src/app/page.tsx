@@ -1,3 +1,5 @@
+import { ForAgents } from "@/components/ForAgents";
+import { HowItWorks } from "@/components/HowItWorks";
 import { Protect } from "@/components/Protect";
 
 export default function Home() {
@@ -12,6 +14,8 @@ export default function Home() {
         </p>
       </section>
       <Protect />
+      <HowItWorks />
+      <ForAgents />
     </>
   );
 }

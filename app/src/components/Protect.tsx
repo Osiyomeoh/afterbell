@@ -104,7 +104,7 @@ export function Protect() {
   const openTs = priced?.openTs ?? market.nextOpen;
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_20rem]">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
       <section className="rounded-2xl border border-line bg-surface p-5 sm:p-6">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="text-lg font-medium">Protect TSLA until {nyTime(openTs)}</h2>
@@ -138,8 +138,9 @@ export function Protect() {
             <p className="mt-3 text-sm leading-relaxed text-muted">
               If TSLA opens below <span className="num text-text">{usd(protection.upper)}</span>, the vault pays{" "}
               <span className="num text-text">{usd(shares)}</span> for every dollar below it, up to{" "}
-              <span className="num text-text">{usd(priced.maxPayout)}</span> at <span className="num text-text">{usd(protection.lower)}</span> or lower. Settled
-              by the first Pyth price at or after 09:30 ET.
+              <span className="num text-text">{usd(priced.maxPayout)}</span> at <span className="num text-text">{usd(protection.lower)}</span> or lower. It
+              pays more than it costs if TSLA opens below <span className="num text-text">{usd(protection.upper - priced.premium / shares)}</span>. Settled by the first Pyth
+              price at or after 09:30 ET.
             </p>
           </div>
         )}
