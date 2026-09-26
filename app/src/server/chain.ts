@@ -6,10 +6,10 @@ import { claimUnits, type SeriesState } from "@root/solana/keeper/plan";
 
 import { SOLANA_DEPLOYMENT } from "./deployment";
 
-const RPC = process.env.SOLANA_RPC || process.env.NEXT_PUBLIC_SOLANA_RPC || "https://api.devnet.solana.com";
+export const RPC = process.env.SOLANA_RPC || process.env.NEXT_PUBLIC_SOLANA_RPC || "https://api.devnet.solana.com";
 
 /** Reads only; nothing on the server signs with this wallet. */
-const readOnly = {
+export const readOnly = {
   publicKey: PublicKey.default,
   signTransaction: () => Promise.reject(new Error("read-only")),
   signAllTransactions: () => Promise.reject(new Error("read-only")),

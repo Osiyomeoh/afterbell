@@ -10,7 +10,7 @@ export async function GET(req: Request) {
   if (!state) return Response.json({ error: "the Robinhood Chain vault isn't deployed yet" }, { status: 404 });
   try {
     const s = await state;
-    return Response.json({ ...s, positions: undefined, openPositions: s.positions.length });
+    return Response.json({ ...s, positions: undefined, ledger: undefined, openPositions: s.positions.length });
   } catch (e) {
     return Response.json({ error: (e as Error).message }, { status: 503 });
   }

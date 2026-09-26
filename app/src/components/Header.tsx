@@ -11,6 +11,7 @@ const NAV = [
   { href: "/", label: "Protect" },
   { href: "/positions", label: "My protection" },
   { href: "/vault", label: "Vault" },
+  { href: "/record", label: "Track record" },
 ];
 
 export function Header() {

@@ -11,7 +11,7 @@ const nextConfig: NextConfig = {
   // The Pyth receiver (used by the keeper) only loads through its CommonJS build.
   serverExternalPackages: ["@pythnetwork/pyth-solana-receiver"],
   // The Robinhood Chain deployment is read from disk at request time (it may not exist yet).
-  outputFileTracingIncludes: Object.fromEntries(["/api/quote", "/api/market", "/api/positions", "/api/vault"].map((r) => [r, ["../evm/deployments/*.json"]])),
+  outputFileTracingIncludes: Object.fromEntries(["/api/quote", "/api/market", "/api/positions", "/api/vault", "/api/record"].map((r) => [r, ["../evm/deployments/*.json"]])),
 };
 
 export default nextConfig;

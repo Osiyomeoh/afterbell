@@ -120,3 +120,20 @@ export const requestTestFunds = (owner: string) =>
 
 export const fetchHoldings = (owner: string) =>
   fetch(`/api/holdings?owner=${owner}`, { cache: "no-store" }).then((r) => json<{ holdings: { symbol: string; shares: number }[] }>(r));
+
+export type LedgerRow = {
+  chain: Chain;
+  series: string;
+  openTs: number;
+  state: SeriesState;
+  price: number | null;
+  priceTime: number | null;
+  settleTx: string | null;
+  sales: number;
+  premiums: number;
+  maxPayouts: number;
+  paid: number;
+  claims: number;
+};
+
+export const fetchRecord = () => fetch("/api/record", { cache: "no-store" }).then((r) => json<{ series: LedgerRow[] }>(r));

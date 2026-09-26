@@ -144,3 +144,14 @@ export function claimInstruction(
     .accountsPartial({ ...args, vaultToken: vaultTokenAddress(args.vault), tokenProgram: TOKEN_PROGRAM_ID })
     .instruction();
 }
+
+export type VaultEvent =
+  | { name: "protectionBought"; data: { position: PublicKey; buyer: PublicKey; feedId: number[]; openTs: { toString(): string }; premium: { toString(): string }; maxPayout: { toString(): string } } }
+  | { name: "seriesSettled"; data: { series: PublicKey; price: { toString(): string }; publishTime: { toString(): string } } }
+  | { name: "seriesVoided"; data: { series: PublicKey } }
+  | { name: "claimed"; data: { position: PublicKey; buyer: PublicKey; amount: { toString(): string }; refund: boolean } };
+
+/** The vault's events in one transaction's logs: sales, settlements, voids and claims. */
+export function parseVaultEvents(program: Program<AfterbellVault>, logs: string[]): VaultEvent[] {
+  return [...new anchor.EventParser(program.programId, program.coder).parseLogs(logs)] as VaultEvent[];
+}

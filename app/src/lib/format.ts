@@ -18,3 +18,18 @@ export function countdown(secs: number): string {
 }
 
 export const explorer = (kind: "tx" | "address", id: string) => `https://explorer.solana.com/${kind}/${id}?cluster=devnet`;
+
+/** "Wed 22 Jul", for a NY calendar date like "2026-07-22". */
+export function dayLabel(iso: string): string {
+  const p = Object.fromEntries(
+    new Intl.DateTimeFormat("en-US", { timeZone: "UTC", weekday: "short", day: "numeric", month: "short" })
+      .formatToParts(new Date(`${iso}T12:00:00Z`))
+      .map((x) => [x.type, x.value]),
+  );
+  return `${p.weekday} ${p.day} ${p.month}`;
+}
+
+/** "09:30:01 ET" */
+export function nyClock(unix: number): string {
+  return `${new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" }).format(new Date(unix * 1000))} ET`;
+}

@@ -2,23 +2,28 @@ import { createPublicClient, http, type Address, type Hex } from "viem";
 
 import { afterbellVaultAbi, testUsdAbi } from "@root/evm/client/abi";
 import { evmChain, type EvmDeployment } from "@root/evm/client/vault";
+import { chainlinkReader } from "@root/evm/keeper/keeper";
 import { claimUnits } from "@root/solana/keeper/plan";
 
 import type { PositionRow, SeriesRow, VaultState } from "./chain";
 import { evmDeployment } from "./evmDeployment";
+import type { LedgerRow } from "./ledger";
+
+type EvmVaultState = VaultState & { ledger: LedgerRow[] };
 
 // The contract's SeriesState enum, in order.
 const STATES = ["open", "settled", "voided"] as const;
 
 const TTL_MS = 10_000;
-let cache: { at: number; state: Promise<VaultState> } | null = null;
+let cache: { at: number; state: Promise<EvmVaultState> } | null = null;
 
 /**
  * The Robinhood Chain vault in the same shape as the Solana one: its series
- * and unclaimed positions, shared by every visitor and refreshed at most every
- * 10 seconds. Null until the vault is deployed.
+ * and unclaimed positions, plus its ledger (claimed positions stay on-chain
+ * here, so what each series paid comes straight from state). Shared by every
+ * visitor and refreshed at most every 10 seconds. Null until deployed.
  */
-export function evmVaultState(): Promise<VaultState> | null {
+export function evmVaultState(): Promise<EvmVaultState> | null {
   const d = evmDeployment();
   if (!d) return null;
   if (!cache || Date.now() - cache.at > TTL_MS) {
@@ -29,7 +34,7 @@ export function evmVaultState(): Promise<VaultState> | null {
   return cache.state;
 }
 
-async function load(d: EvmDeployment): Promise<VaultState> {
+async function load(d: EvmDeployment): Promise<EvmVaultState> {
   const client = createPublicClient({ chain: evmChain(d), transport: http(d.rpc) });
   const vault = { address: d.vault, abi: afterbellVaultAbi } as const;
   const [next, locked, held, decimals] = await Promise.all([
@@ -46,18 +51,20 @@ async function load(d: EvmDeployment): Promise<VaultState> {
   const positions = await Promise.all(ids.map(async (id) => ({ id, p: await client.readContract({ ...vault, functionName: "positions", args: [id] }) })));
 
   // One series per feed and open.
-  const seriesOf = new Map<string, { key: Hex; feed: Address; openTs: bigint; state: (typeof STATES)[number]; price: bigint }>();
+  const seriesOf = new Map<string, { key: Hex; feed: Address; openTs: bigint; state: (typeof STATES)[number]; price: bigint; priceTime: number | null }>();
   for (const { p } of positions) {
     const k = `${p[1]}:${p[2]}`;
     if (seriesOf.has(k)) continue;
-    seriesOf.set(k, { key: "0x", feed: p[1], openTs: p[2], state: "open", price: 0n });
+    seriesOf.set(k, { key: "0x", feed: p[1], openTs: p[2], state: "open", price: 0n, priceTime: null });
   }
   await Promise.all(
     [...seriesOf.values()].map(async (s) => {
       s.key = await client.readContract({ ...vault, functionName: "seriesKey", args: [s.feed, s.openTs] });
-      const [state, price] = await client.readContract({ ...vault, functionName: "series", args: [s.key] });
+      const [state, price, roundId] = await client.readContract({ ...vault, functionName: "series", args: [s.key] });
       s.state = STATES[state]!;
       s.price = price;
+      // When Chainlink published the round the series settled on.
+      if (s.state === "settled") s.priceTime = Number((await chainlinkReader(client, s.feed).round(roundId))?.updatedAt ?? 0) || null;
     }),
   );
 
@@ -98,7 +105,27 @@ async function load(d: EvmDeployment): Promise<VaultState> {
     })
     .sort((a, b) => b.openTs - a.openTs);
 
+  const ledger: LedgerRow[] = [...seriesOf.values()].map((s) => {
+    const mine = rows.filter((r) => r.row.series === s.key);
+    const claimed = mine.filter((r) => r.closed);
+    return {
+      chain: "robinhood",
+      series: s.key,
+      openTs: Number(s.openTs),
+      state: s.state,
+      price: s.state === "settled" ? dollars8(s.price) : null,
+      priceTime: s.priceTime,
+      settleTx: null,
+      sales: mine.length,
+      premiums: mine.reduce((t, r) => t + r.row.premium, 0),
+      maxPayouts: mine.reduce((t, r) => t + r.row.maxPayout, 0),
+      paid: claimed.reduce((t, r) => t + (r.row.claimable ?? 0), 0),
+      claims: claimed.length,
+    };
+  });
+
   return {
+    ledger,
     chainId: d.chainId,
     vault: d.vault,
     collateralMint: d.testUsd,
