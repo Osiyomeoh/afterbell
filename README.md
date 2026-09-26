@@ -10,8 +10,8 @@ Built for Colosseum's Crypto World's Fair (September to October 2026). Design: [
 
 | | |
 |---|---|
-| **Built** | `research/`: the evidence the design rests on (below). `pricing/`: put-spread pricing from the history of openings (exact under the model), an out-of-sample backtest, and signed quotes for both vaults (EIP-712 and ed25519). `evm/`: the Robinhood Chain vault (buy against a signed quote, settle on Chainlink's round in force at the open, claim, void). `solana/`: the Solana vault (the same against an ed25519-signed quote, settled on the first Pyth print at or after the open). `quoter/`: the quote service's core, which prices protection until the next open and signs it for either vault. A TypeScript client, setup script and purchase smoke test for the Solana vault; a purchase has run end to end on a local validator. 54 TypeScript tests, 35 Foundry tests (2 fuzz), 4 fork tests against Chainlink's live TSLA feed, 16 Rust unit tests and 24 LiteSVM tests of the compiled program |
-| **Next** | Deploy the Solana vault to devnet and set it up with test collateral; deploy the EVM vault to Robinhood Chain mainnet with test collateral (waiting on the deploy wallet) |
+| **Built** | `research/`: the evidence the design rests on (below). `pricing/`: put-spread pricing from the history of openings (exact under the model), an out-of-sample backtest, and signed quotes for both vaults (EIP-712 and ed25519). `evm/`: the Robinhood Chain vault (buy against a signed quote, settle on Chainlink's round in force at the open, claim, void). `solana/`: the Solana vault (the same against an ed25519-signed quote, settled on the first Pyth print at or after the open). `quoter/`: the quote service's core, which prices protection until the next open and signs it for either vault. A TypeScript client, setup script and purchase smoke test for the Solana vault. **The Solana vault is live on devnet** (addresses below), and a purchase priced and signed by the quote service has gone through. 54 TypeScript tests, 35 Foundry tests (2 fuzz), 4 fork tests against Chainlink's live TSLA feed, 16 Rust unit tests and 24 LiteSVM tests of the compiled program |
+| **Next** | Settle the first devnet series on Pyth's print at Monday's open, then claim; the app with a live quote endpoint; deploy the EVM vault to Robinhood Chain mainnet with test collateral (waiting on the deploy wallet) |
 | **Planned** | Hyperliquid hedger, app, MCP tool. Dates and cut line in the design doc |
 
 This table changes as parts ship. Nothing is listed as built until it runs and is tested.
@@ -64,6 +64,16 @@ cd solana && solana program deploy target/deploy/afterbell_vault.so --program-id
 cd .. && QUOTER=<quoter pubkey> npm run solana:setup
 QUOTER_KEYPAIR=<quoter keypair file> npm run solana:smoke   # buy protection end to end
 ```
+
+**On devnet** (recorded in [`solana/deployments/devnet.json`](solana/deployments/devnet.json)):
+
+| | |
+|---|---|
+| Program | [`6J5BHSf1yWup7SXae5xS2nzNUbtz7Bq3VpfJTtxr7Dsc`](https://explorer.solana.com/address/6J5BHSf1yWup7SXae5xS2nzNUbtz7Bq3VpfJTtxr7Dsc?cluster=devnet) |
+| Vault | [`89oR2SqBFhrZ3sAUN9j6YrS95FpJvxJVAER87DN4dbeW`](https://explorer.solana.com/address/89oR2SqBFhrZ3sAUN9j6YrS95FpJvxJVAER87DN4dbeW?cluster=devnet), 100,000 TestUSD of collateral |
+| TestUSD (no value) | [`FDsn8wf4XTYf26vfLp1TNVnaJn2NGFV8tfzten1YajVi`](https://explorer.solana.com/address/FDsn8wf4XTYf26vfLp1TNVnaJn2NGFV8tfzten1YajVi?cluster=devnet) |
+| Quoter | `Ajy9Hwcc7FcTfoU9fJbHU4DRTzJDuubdQ3EDRAmMQ9hW` |
+| First purchase | [`4azwQAH3…`](https://explorer.solana.com/tx/4azwQAH3Az4h7omEkZRtXxiHzkpFP1WPoU4Pp1Um53ARvwiLopZWzYRgunkB5bU4CGztpXDyVvnVGi8YLBsjojvC?cluster=devnet): 1 TSLA share, protected from $370.32 down to $340.09 until Monday 28 September's open, for 0.87 TestUSD |
 
 The LiteSVM tests run the real Ed25519 program and settle on Pyth price accounts owned by the receiver program, plus forged ones that must be rejected. The TypeScript signer ([`pricing/solanaQuote.ts`](pricing/solanaQuote.ts)) and client ([`solana/client/vault.ts`](solana/client/vault.ts)) are checked against the program with shared vectors: the same quote message, Ed25519 instruction and account addresses. CI runs the unit tests; the LiteSVM tests need the compiled program, so they run locally.
 
