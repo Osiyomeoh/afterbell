@@ -87,6 +87,7 @@ The LiteSVM tests run the real Ed25519 program and settle on Pyth price accounts
 
 - **Which open.** It finds the next 09:30 ET open from New York's calendar, skipping weekends and the holidays in Pyth's market-hours schedule.
 - **Price.** It prices the put spread from the stock's history of openings. During the session it adds the risk of the hours still to trade. The premium is the model's fair value plus a margin (15% by default).
+- **Reference price.** In the session, the live price. Outside it, the lower of the last close and Hyperliquid's live `xyz:TSLA`. On weekends the close predicts the open better on average, but on weeknights Hyperliquid's price does better about two-thirds of the time (research above). Taking the lower of the two means a drop since the close is priced in, so nobody can buy protection cheap after one. If the price has moved more than 5% since the close (earnings after the bell, say), sales pause: past openings can't price a move that has already happened.
 - **Signature.** It signs for the buyer's vault: EIP-712 for Robinhood Chain, ed25519 for Solana (with the Ed25519 instruction ready to send).
 - **Expiry.** Quotes live 60 seconds and always expire at least two minutes before their open.
 

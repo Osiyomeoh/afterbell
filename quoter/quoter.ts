@@ -33,18 +33,31 @@ export type QuoterConfig = {
   stopBeforeOpenSecs: number;
   /** Most shares one quote covers. */
   maxShares: number;
+  /**
+   * Outside the session, sales pause once the live price has moved this far
+   * from the close (earnings after the bell, say): the history of openings
+   * can't price a move that has already happened.
+   */
+  maxMoveSinceClose: number;
 };
 
-export const DEFAULT_QUOTER_CONFIG: QuoterConfig = { margin: 0.15, ttlSecs: 60, stopBeforeOpenSecs: 120, maxShares: 1_000 };
+export const DEFAULT_QUOTER_CONFIG: QuoterConfig = {
+  margin: 0.15,
+  ttlSecs: 60,
+  stopBeforeOpenSecs: 120,
+  maxShares: 1_000,
+  maxMoveSinceClose: 0.05,
+};
 
 export type Market = {
   symbol: string;
+  /** The last official close: Pyth's first print at or after 16:00 ET. */
+  close: number;
   /**
-   * The price protection is centred on: the latest price during the regular
-   * session, otherwise the last close. (Closed-hours prices predict the open
-   * worse than the close does: research/results/multi-weekend-proof.md.)
+   * The price now: Pyth's during the session, otherwise Hyperliquid's xyz
+   * perp, which trades while the exchange is shut. Required in the session.
    */
-  reference: number;
+  live?: number;
   /** Past close-to-open moves, oldest first. */
   history: readonly Opening[];
   annualVol: number;
@@ -65,18 +78,46 @@ export type PricedProtection = {
   maxPayout: number;
   probabilityOfPayout: number;
   model: { source: "history" | "lognormal"; sd: number; openings: number };
+  /** The price the protection was priced from, and why that one. */
+  reference: { price: number; basis: ReferenceBasis };
 };
 
+export type ReferenceBasis = "live" | "close" | "live, below the close";
+
+/**
+ * The price protection is centred on. In the session, the live price. Outside
+ * it, the lower of the close and the live price: on average the close
+ * predicts the open better (research/results/multi-weekend-proof.md), but on
+ * weeknights and close to the open Hyperliquid's price often does better, so
+ * a drop since the close is priced in and a buyer can't get protection cheap
+ * after one. A rise since the close is ignored, which errs on the vault's side.
+ */
+export function referencePrice(now: number, market: Market, cfg: QuoterConfig = DEFAULT_QUOTER_CONFIG): { price: number; basis: ReferenceBasis } {
+  const live = market.live;
+  if (sessionSecsLeft(now, market.holidays) > 0) {
+    if (!(live !== undefined && live > 0)) throw new Error("no live price during the session");
+    return { price: live, basis: "live" };
+  }
+  if (!(market.close > 0)) throw new Error("no closing price");
+  if (live === undefined) return { price: market.close, basis: "close" };
+  if (!(live > 0)) throw new Error("no live price");
+  const move = live / market.close - 1;
+  if (Math.abs(move) > cfg.maxMoveSinceClose) {
+    throw new Error(`sales paused: the price has moved ${(move * 100).toFixed(1)}% since the close`);
+  }
+  return live < market.close ? { price: live, basis: "live, below the close" } : { price: market.close, basis: "close" };
+}
+
 export function priceQuote(now: number, market: Market, protection: Protection, cfg: QuoterConfig = DEFAULT_QUOTER_CONFIG): PricedProtection {
-  if (!(market.reference > 0)) throw new Error("no reference price");
   if (protection.shares > cfg.maxShares) throw new Error(`at most ${cfg.maxShares} shares per quote`);
+  const reference = referencePrice(now, market, cfg);
   const openTs = nextOpen(now, cfg.stopBeforeOpenSecs + cfg.ttlSecs, market.holidays);
   const model = openingModel(market.history, {
     annualVol: market.annualVol,
     years: (openTs - now) / YEAR_SECS,
     sessionYears: sessionSecsLeft(now, market.holidays) / SESSION_SECS_PER_YEAR,
   });
-  const price = priceProtection(model, market.reference, protection, cfg.margin);
+  const price = priceProtection(model, reference.price, protection, cfg.margin);
   // The vault takes premium <= max payout, but protection that dear is no use to anyone.
   if (price.premium >= price.maxPayout) throw new Error("protection this deep costs as much as it can pay");
   return {
@@ -89,6 +130,7 @@ export function priceQuote(now: number, market: Market, protection: Protection, 
     maxPayout: price.maxPayout,
     probabilityOfPayout: price.probabilityOfPayout,
     model: { source: model.source, sd: model.sd, openings: market.history.length },
+    reference,
   };
 }
 

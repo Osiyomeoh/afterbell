@@ -11,8 +11,8 @@
  *                TestUSD mint authority, it mints itself TestUSD when short
  * DEPLOYMENTS    defaults to solana/deployments/devnet.json (from setup.ts)
  *
- * Keys are only loaded to sign, never printed. The reference price is the
- * last recorded close; the app will use Pyth's live price.
+ * Keys are only loaded to sign, never printed. It prices from the last
+ * recorded close, so run it outside the session; the app uses live prices.
  */
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
@@ -48,7 +48,7 @@ async function main() {
   const history = data.gaps as Opening[];
   const reference = history[history.length - 1]!.close;
   const now = Math.floor(Date.now() / 1000);
-  const priced = priceQuote(now, { symbol: "TSLA", reference, history, annualVol: 0.6, holidays: new Set() }, {
+  const priced = priceQuote(now, { symbol: "TSLA", close: reference, history, annualVol: 0.6, holidays: new Set() }, {
     shares: 1,
     upper: Math.round(reference * 0.98 * 100) / 100,
     lower: Math.round(reference * 0.9 * 100) / 100,

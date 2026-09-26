@@ -33,6 +33,10 @@ Customers, in order:
 
 Weekend Markets sold cover as stakes in parimutuel YES/NO pools. The payout was an estimate until betting closed, and liquidity came from operator seeding. A vault that sells against a signed quote gives the buyer a fixed price and payout, and its capacity comes from collateral plus the hedge, not from seeded pools. Settlement keeps Weekend Markets' rule.
 
+### Pricing reference: protecting against informed buyers
+
+Outside the session, protection is priced from the lower of the last close and Hyperliquid's live price, and sales pause after a move of more than 5% since the close. Pricing only from the close would leak edge: on weeknights, and 5.5 hours before the open on weekends, Hyperliquid's price beats the close as a predictor of the open about two-thirds of the time (research/results/multi-weekend-proof.md). Anyone watching it could buy underpriced protection after a drop. Using the lower price makes protection dearer after a drop and never cheaper after a rise. The pause covers moves the history of openings can't price, such as earnings after the bell.
+
 ### Settlement: the first print at or after the open
 
 - Solana: a Pyth `PriceUpdateV2`, Wormhole-verified by Pyth's receiver, with `prev_publish_time < open_ts <= publish_time <= open_ts + window` (Weekend Markets' rule and tests).

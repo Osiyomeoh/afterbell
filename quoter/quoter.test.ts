@@ -9,7 +9,7 @@ import type { Opening } from "../pricing/model";
 import { QUOTE_TYPES } from "../pricing/quote";
 import { solanaQuoteMessage } from "../pricing/solanaQuote";
 import { nextOpen, scheduleHolidays, sessionSecsLeft } from "./calendar";
-import { DEFAULT_QUOTER_CONFIG, priceQuote, signForEvm, signForSolana, type Market } from "./quoter";
+import { DEFAULT_QUOTER_CONFIG, priceQuote, referencePrice, signForEvm, signForSolana, type Market } from "./quoter";
 
 const utc = (iso: string) => Date.parse(iso) / 1000;
 // Friday 25 Sep 2026, 20:00 EDT, and the Monday open after it.
@@ -20,7 +20,8 @@ const MONDAY_NOON = utc("2026-09-28T16:00:00Z");
 
 const TSLA: Market = {
   symbol: "TSLA",
-  reference: 380,
+  close: 380,
+  live: 380,
   history: data.gaps as Opening[],
   annualVol: 0.6,
   holidays: new Set(),
@@ -88,7 +89,7 @@ describe("priceQuote", () => {
 
   it("refuses oversized, unpriced and pointless protection", () => {
     expect(() => priceQuote(FRIDAY_EVENING, TSLA, { ...PROTECTION, shares: 1_001 })).toThrow("at most 1000 shares");
-    expect(() => priceQuote(FRIDAY_EVENING, { ...TSLA, reference: 0 }, PROTECTION)).toThrow("no reference price");
+    expect(() => priceQuote(FRIDAY_EVENING, { ...TSLA, close: 0, live: undefined }, PROTECTION)).toThrow("no closing price");
     expect(() => priceQuote(FRIDAY_EVENING, TSLA, { shares: 10, upper: 700, lower: 600 })).toThrow("costs as much as it can pay");
     expect(() => priceQuote(FRIDAY_EVENING, TSLA, { shares: 10, upper: 340, lower: 370 })).toThrow("upper must be above lower");
   });
@@ -125,5 +126,30 @@ describe("signing", () => {
       signature: s.signature,
     });
     expect(signer).toBe(privateKeyToAccount(quoterKey).address);
+  });
+});
+
+describe("reference price", () => {
+  it("uses the live price in the session and refuses to quote without one", () => {
+    expect(referencePrice(MONDAY_NOON, { ...TSLA, live: 390 })).toEqual({ price: 390, basis: "live" });
+    expect(() => referencePrice(MONDAY_NOON, { ...TSLA, live: undefined })).toThrow("no live price during the session");
+  });
+
+  it("outside the session, prices a drop since the close but not a rise", () => {
+    expect(referencePrice(FRIDAY_EVENING, { ...TSLA, live: 376 })).toEqual({ price: 376, basis: "live, below the close" });
+    expect(referencePrice(FRIDAY_EVENING, { ...TSLA, live: 384 })).toEqual({ price: 380, basis: "close" });
+    expect(referencePrice(FRIDAY_EVENING, { ...TSLA, live: undefined })).toEqual({ price: 380, basis: "close" });
+  });
+
+  it("makes protection dearer after a drop, never cheaper after a rise", () => {
+    const flat = priceQuote(FRIDAY_EVENING, TSLA, PROTECTION).premium;
+    expect(priceQuote(FRIDAY_EVENING, { ...TSLA, live: 376 }, PROTECTION).premium).toBeGreaterThan(flat);
+    expect(priceQuote(FRIDAY_EVENING, { ...TSLA, live: 384 }, PROTECTION).premium).toBe(flat);
+  });
+
+  it("pauses sales after a move the history can't price", () => {
+    expect(() => referencePrice(FRIDAY_EVENING, { ...TSLA, live: 360 })).toThrow("sales paused: the price has moved -5.3% since the close");
+    expect(() => referencePrice(FRIDAY_EVENING, { ...TSLA, live: 400 })).toThrow("sales paused: the price has moved 5.3% since the close");
+    expect(referencePrice(FRIDAY_EVENING, { ...TSLA, live: 362 }).basis).toBe("live, below the close");
   });
 });
