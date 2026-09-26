@@ -1,8 +1,8 @@
 /**
  * Buys protection end to end on a deployed, set-up vault: the quote service
  * prices and signs a quote, and the buyer sends the Ed25519 check plus `buy`.
- * Then it reads the position back. Proves the pricing, the signer, the client
- * and the program agree on a real cluster.
+ * Then it reads the position back and checks the buyer holds its NFT. Proves
+ * the pricing, the signer, the client and the program agree on a real cluster.
  *
  *   QUOTER_KEYPAIR=~/.config/solana/afterbell-quoter.json npm run solana:smoke
  *   QUOTE_URL=http://localhost:3100/api/quote npm run solana:smoke
@@ -22,14 +22,14 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 
 import anchor from "@anchor-lang/core";
-import { getAccount, getMint, getOrCreateAssociatedTokenAccount, mintTo } from "@solana/spl-token";
+import { getAccount, getMint, getOrCreateAssociatedTokenAccount, mintTo, TOKEN_2022_PROGRAM_ID } from "@solana/spl-token";
 import { Connection, Keypair, PublicKey, sendAndConfirmTransaction, Transaction } from "@solana/web3.js";
 
 import data from "../../research/data/pyth-tsla-gaps.json" with { type: "json" };
 import type { Opening } from "../../pricing/model";
 import type { SolanaQuote } from "../../pricing/solanaQuote";
 import { priceQuote, signForSolana, type PricedProtection } from "../../quoter/quoter";
-import { buyInstructions, getProgram, positionAddress, PROGRAM_ID } from "../client/vault";
+import { buyInstructions, getProgram, positionAddress, PROGRAM_ID, token2022Account } from "../client/vault";
 
 const expand = (p: string) => p.replace(/^~(?=\/)/, homedir());
 const loadKeypair = (path: string) => Keypair.fromSecretKey(Uint8Array.from(JSON.parse(readFileSync(expand(path), "utf8"))));
@@ -104,6 +104,9 @@ async function main() {
   console.log(`position         premium ${position.premium.toString()} units, max payout ${position.maxPayout.toString()} units`);
   console.log(`vault            ${Number(held) / 1e6} TestUSD held, ${Number(v.locked.toString()) / 1e6} locked`);
   if (position.premium.toString() !== signed.quote.premium.toString()) throw new Error("the position's premium differs from the quote");
+  const nft = await getAccount(connection, token2022Account(buyer.publicKey, position.mint), "confirmed", TOKEN_2022_PROGRAM_ID);
+  console.log(`NFT              #${position.number.toString()}, mint ${position.mint.toBase58()}, held by the buyer`);
+  if (nft.amount !== 1n) throw new Error("the buyer doesn't hold the position's NFT");
 }
 
 main().catch((e) => {
