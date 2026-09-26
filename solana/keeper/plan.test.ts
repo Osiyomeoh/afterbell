@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { claimUnits, plan, settlementTimingError, type PositionView, type SeriesView } from "./plan";
+import { claimUnits, plan, settlementError, settlementTimingError, toPrice8, type PositionView, type SeriesView } from "./plan";
 
 const OPEN = 1_790_602_200; // Monday 28 Sep 2026, 09:30 EDT
 const VAULT = { settleWindowSecs: 60, voidDelaySecs: 86_400 };
@@ -38,6 +38,40 @@ describe("settlement timing, as math::check_settlement_timing", () => {
     expect(settlementTimingError(OPEN - 1, OPEN - 2, OPEN, 60)).toBe("the print is before the open");
     expect(settlementTimingError(OPEN + 61, OPEN - 1, OPEN, 60)).toBe("the first print came more than 60s after the open");
     expect(settlementTimingError(OPEN + 2, OPEN, OPEN, 60)).toBe("not the first print after the open");
+  });
+});
+
+describe("every settle check, as handle_settle", () => {
+  const vault = { settleWindowSecs: 60, maxConfBps: 100 };
+  // $383.82840 at expo -5, first print one second after the open.
+  const print = { price: 38_382_840n, conf: 38_382n, expo: -5, publishTime: OPEN + 1, prevPublishTime: OPEN - 1 };
+
+  it("accepts a timely first print with confidence inside the vault's limit", () => {
+    expect(settlementError(print, OPEN, vault)).toBeNull();
+    expect(settlementError({ ...print, conf: 383_828n }, OPEN, vault)).toBeNull(); // exactly 100 bps
+  });
+
+  it("rejects a confidence interval wider than the vault's limit, which the timing check alone let through", () => {
+    expect(settlementError({ ...print, conf: 383_829n }, OPEN, vault)).toBe("the first print's confidence is ±100.0 bps, wider than the vault's 100");
+    expect(settlementError({ ...print, conf: 767_657n }, OPEN, vault)).toBe("the first print's confidence is ±200.0 bps, wider than the vault's 100");
+  });
+
+  it("checks timing first, then the price, as the program does", () => {
+    expect(settlementError({ ...print, publishTime: OPEN + 61, conf: 10n ** 9n }, OPEN, vault)).toBe("the first print came more than 60s after the open");
+    expect(settlementError({ ...print, price: 0n }, OPEN, vault)).toBe("the price is not positive");
+  });
+});
+
+describe("prices with 8 decimals, as math::to_price_8", () => {
+  it("scales coarser prices up exactly", () => {
+    expect(toPrice8(38_382_840n, -5)).toBe(38_382_840_000n);
+    expect(toPrice8(12_345n, -8)).toBe(12_345n);
+    expect(toPrice8(5n, 0)).toBe(500_000_000n);
+  });
+
+  it("rounds finer prices up, never down", () => {
+    expect(toPrice8(1_000_000_001n, -9)).toBe(100_000_001n);
+    expect(toPrice8(1_000_000_000n, -9)).toBe(100_000_000n);
   });
 });
 

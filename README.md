@@ -17,7 +17,7 @@ Built for Colosseum's Crypto World's Fair (September to October 2026). Design: [
 - `evm/`: the Robinhood Chain vault (the same, settled on Chainlink's round in force at the open), its viem client and keeper. Purchases are verified on a fork of Robinhood Chain mainnet, and a full cycle passes on a local chain. Not deployed yet.
 - `app/`: the web app, for both chains. Protect prices live with the quoter's own code, My protection lists and claims positions, Vault shows collateral and every series, and Track record shows what each series took in, settled on and paid out. It also has a devnet faucet and the Blink. The Robinhood Chain side (any injected EVM wallet) has bought, settled and claimed end to end against a local chain; it goes live when the vault is deployed.
 - `agent/`: Afterbell as an MCP server, hosted (no keys) and local (the agent's own devnet wallet with a spending cap).
-- Tests: 78 TypeScript, 35 Foundry (2 fuzz), 4 fork tests against Chainlink's live TSLA feed, 16 Rust unit and 24 LiteSVM tests of the compiled program.
+- Tests: 83 TypeScript, 35 Foundry (2 fuzz), 4 fork tests against Chainlink's live TSLA feed, 16 Rust unit and 24 LiteSVM tests of the compiled program.
 
 **Next:** deploy the EVM vault to Robinhood Chain mainnet (waiting on the deploy wallet); the app's Robinhood flow is ready for it. Run the keeper on devnet after Monday 28 September's open to settle and claim the first series. Host the app.
 
@@ -91,9 +91,10 @@ cd solana && solana program deploy target/deploy/afterbell_vault.so --program-id
 cd .. && QUOTER=<quoter pubkey> npm run solana:setup
 QUOTER_KEYPAIR=<quoter keypair file> npm run solana:smoke   # buy protection end to end
 PYTH_API_KEY=<key> npm run solana:keeper                     # settle due series, void stale ones, claim
+PYTH_API_KEY=<key> npm run solana:keeper -- --plan           # read-only: what it would settle on and pay each buyer
 ```
 
-The keeper ([`solana/keeper`](solana/keeper)) is permissionless. For each series past its open, it fetches the first print at or after the open from Pyth's Hermes. It checks that print with the same rule the program applies, posts it through Pyth's receiver and settles. It voids series nobody could settle within the void delay. Then it claims every finished position into the buyer's own token account, creating that account if the buyer closed it. `npm run solana:cycle` runs a whole cycle on a local validator and checks every payout against the program's math. A local validator has no Pyth receiver, so that run settles on a preloaded price account; posting from Hermes runs on devnet.
+The keeper ([`solana/keeper`](solana/keeper)) is permissionless. For each series past its open, it fetches the first print at or after the open from Pyth's Hermes. It checks that print as the program will (timing, then the confidence limit), so it never pays to post a print the program would reject, then posts it through Pyth's receiver and settles. It voids series nobody could settle within the void delay. Then it claims every finished position into the buyer's own token account, creating that account if the buyer closed it. With `--plan` it sends nothing and needs no wallet: it lists each series it would settle, void or leave waiting, the print it would settle on, and what every position would be paid. `npm run solana:cycle` runs a whole cycle on a local validator and checks every payout against the program's math, and that the keeper pays exactly what the plan said. A local validator has no Pyth receiver, so that run settles on a preloaded price account; posting from Hermes runs on devnet.
 
 
 **On devnet** (recorded in [`solana/deployments/devnet.json`](solana/deployments/devnet.json)):

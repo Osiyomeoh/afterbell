@@ -50,6 +50,32 @@ export function settlementTimingError(publishTime: number, prevPublishTime: numb
   return null;
 }
 
+/** A Pyth print, as Hermes returns it and PriceUpdateV2 stores it. */
+export type Print = { price: bigint; conf: bigint; expo: number; publishTime: number; prevPublishTime: number };
+
+/**
+ * Every check handle_settle makes on the print, in its order: timing, a
+ * positive price, then math::confidence_ok. Returns why the program would
+ * reject it, or null when it would settle on it.
+ */
+export function settlementError(print: Print, openTs: number, vault: { settleWindowSecs: number; maxConfBps: number }): string | null {
+  const timing = settlementTimingError(print.publishTime, print.prevPublishTime, openTs, vault.settleWindowSecs);
+  if (timing) return timing;
+  if (print.price <= 0n) return "the price is not positive";
+  if (print.conf * 10_000n > print.price * BigInt(vault.maxConfBps)) {
+    const bps = (Number(print.conf) * 10_000) / Number(print.price);
+    return `the first print's confidence is ±${bps.toFixed(1)} bps, wider than the vault's ${vault.maxConfBps}`;
+  }
+  return null;
+}
+
+/** math::to_price_8: the price with 8 decimals, rounding finer prices up. */
+export function toPrice8(price: bigint, expo: number): bigint {
+  const shift = 8 + expo;
+  const scale = 10n ** BigInt(Math.abs(shift));
+  return shift >= 0 ? price * scale : (price + scale - 1n) / scale;
+}
+
 /**
  * What a claim pays, in collateral units: the premium back if the series
  * voided, otherwise math::payout_at (nothing at or above `upper`, the loss

@@ -23,11 +23,15 @@ import { Connection, Keypair, LAMPORTS_PER_SOL, PublicKey, sendAndConfirmTransac
 
 import { signForSolana, type PricedProtection } from "../../quoter/quoter";
 import { buyInstructions, feedIdBytes, getProgram, PROGRAM_ID, seriesAddress, TSLA_FEED_ID } from "../client/vault";
-import { runKeeper } from "../keeper/keeper";
+import { planKeeper, runKeeper } from "../keeper/keeper";
 
 const RPC = "http://127.0.0.1:8899";
 const RECEIVER = new PublicKey("rec2HHDDnjLfj4kE7VyEtFA1HPGQLK33259532cRyHp");
 const SO = "solana/target/deploy/afterbell_vault.so";
+
+const unusedHermes = () => {
+  throw new Error("the local cycle never calls Hermes");
+};
 
 function check(ok: boolean, what: string) {
   if (!ok) throw new Error(`FAILED: ${what}`);
@@ -119,6 +123,12 @@ async function main() {
     await closeAccount(connection, bob!, bobToken, bob!.publicKey, bob!);
     check(true, "sold two positions against signed quotes; Bob closed his token account");
 
+    // Before the open, the plan waits and knows only each position's cap.
+    const seriesKey = seriesAddress(vault, feedIdBytes(TSLA_FEED_ID), BigInt(openTs)).toBase58();
+    const early = (await planKeeper({ connection, vault, hermes: unusedHermes, postedUpdate: () => priceUpdate })).series.find((s) => s.series === seriesKey);
+    check(early?.action === "wait" && early.positions.every((p) => p.units === undefined), "before the open, the plan waits");
+    check(early!.positions.reduce((a, p) => a + p.maxUnits, 0n) === 85_000_000n, "the plan caps the payouts at 85 TestUSD: 2 × $30 + 1 × $25");
+
     // Wait for the cluster's clock to pass the open.
     const aliceBefore = (await getAccount(connection, aliceToken)).amount;
     for (;;) {
@@ -127,13 +137,18 @@ async function main() {
       await new Promise((r) => setTimeout(r, 2000));
     }
 
+    // After it, the plan names the print and each payout, and sends nothing.
+    const planned = (await planKeeper({ connection, vault, hermes: unusedHermes, postedUpdate: () => priceUpdate })).series.find((s) => s.series === seriesKey);
+    check(planned?.action === "settle" && planned.print?.price === 360 && planned.print.publishTime === openTs + 1, "the plan would settle on the $360.00 print");
+    const plannedUnits = new Map(planned!.positions.map((p) => [p.buyer, p.units]));
+    const stillOpen = await getProgram(connection, new anchor.Wallet(payer!)).account.series.fetch(new PublicKey(seriesKey));
+    check("open" in stillOpen.state && (await getAccount(connection, aliceToken)).amount === aliceBefore, "planning sent nothing: the series is open, Alice unpaid");
+
     const report = await runKeeper({
       connection,
       payer: payer!,
       vault,
-      hermes: () => {
-        throw new Error("the local cycle never calls Hermes");
-      },
+      hermes: unusedHermes,
       postedUpdate: () => priceUpdate,
       log: (line) => console.log(`    keeper: ${line}`),
     });
@@ -145,12 +160,13 @@ async function main() {
     check(paid.get(alice!.publicKey.toBase58()) === 20_000_000n, "the keeper reports Alice is owed 20 TestUSD: 2 shares × ($370 − $360)");
     check((await getAccount(connection, aliceToken)).amount - aliceBefore === 20_000_000n, "Alice's account received exactly 20 TestUSD");
     check(paid.get(bob!.publicKey.toBase58()) === 0n, "Bob is owed nothing: $360 is above his $355 strike");
+    check(report.claimed.every((c) => plannedUnits.get(c.buyer) === c.units) && report.claimed.length === plannedUnits.size, "the keeper paid exactly what the plan said it would");
     check((await getAccount(connection, bobToken)).amount === 0n, "the keeper recreated Bob's token account to claim for him");
     check((await program.account.position.all([{ memcmp: { offset: 8, bytes: vault.toBase58() } }])).length === 0, "both positions are closed");
     const v = await program.account.vault.fetch(vault);
     check(v.locked.toString() === "0", "the vault has no collateral locked any more");
 
-    const again = await runKeeper({ connection, payer: payer!, vault, hermes: () => { throw new Error("unused"); }, postedUpdate: () => priceUpdate });
+    const again = await runKeeper({ connection, payer: payer!, vault, hermes: unusedHermes, postedUpdate: () => priceUpdate });
     check(again.settled.length + again.claimed.length + again.voided.length === 0, "a second keeper run finds nothing to do");
     console.log("PASS");
   } finally {

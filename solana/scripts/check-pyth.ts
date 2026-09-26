@@ -13,7 +13,7 @@ import { hermesFromEnv, settlementUpdate } from "../keeper/pyth";
 
 async function main() {
   const openTs = Number(process.argv[2] ?? 1_790_343_000);
-  const u = await settlementUpdate(hermesFromEnv(), TSLA_FEED_ID, openTs, DEFAULT_CONFIG.settleWindowSecs);
+  const u = await settlementUpdate(hermesFromEnv(), TSLA_FEED_ID, openTs, DEFAULT_CONFIG);
   console.log(`open             ${new Date(openTs * 1000).toISOString()}`);
   console.log(`first print      $${u.price} at ${new Date(u.publishTime * 1000).toISOString()} (${u.publishTime - openTs}s after the open)`);
   console.log(`previous print   ${new Date(u.prevPublishTime * 1000).toISOString()}`);
