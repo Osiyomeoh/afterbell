@@ -10,7 +10,8 @@
     "solana:setup": "tsx solana/scripts/setup.ts",
     "solana:smoke": "tsx solana/scripts/smoke-buy.ts",
     "solana:keeper": "tsx solana/scripts/keeper.ts",
-    "solana:cycle": "tsx solana/scripts/localnet-cycle.ts"
+    "solana:cycle": "tsx solana/scripts/localnet-cycle.ts",
+    "evm:abi": "tsx evm/scripts/abi.ts"
   },
   "devDependencies": {
     "@types/node": "^26.6.3",

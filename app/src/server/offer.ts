@@ -21,19 +21,23 @@ export class OfferError extends Error {}
 
 export type SignedOffer = { priced: PricedProtection; signed: SignedSolanaQuote };
 
-/** Prices protection with the server's market data and signs it for `buyer` with the vault's quoter key. */
+/** Prices protection with the server's market data. Pricing problems (a pause, bad strikes) are OfferErrors. */
+export async function priceOffer(protection: Protection, cfg: QuoterConfig = DEFAULT_QUOTER_CONFIG): Promise<PricedProtection> {
+  const snap = await marketSnapshot();
+  try {
+    return priceQuote(Math.floor(Date.now() / 1000), snap.market, protection, cfg);
+  } catch (e) {
+    throw new OfferError((e as Error).message);
+  }
+}
+
+/** Prices protection with the server's market data and signs it for `buyer` with the Solana vault's quoter key. */
 export async function signedOffer(buyer: PublicKey, protection: Protection, cfg: QuoterConfig = DEFAULT_QUOTER_CONFIG): Promise<SignedOffer> {
   const quoter = keypairFromEnv("QUOTER_SOLANA_KEY");
   if (!quoter) throw new Error("the quote service has no quoter key configured");
   const d = SOLANA_DEPLOYMENT;
   if (quoter.publicKey.toBase58() !== d.quoter) throw new Error("the configured quoter key isn't this vault's quoter");
-  const snap = await marketSnapshot();
-  let priced: PricedProtection;
-  try {
-    priced = priceQuote(Math.floor(Date.now() / 1000), snap.market, protection, cfg);
-  } catch (e) {
-    throw new OfferError((e as Error).message);
-  }
+  const priced = await priceOffer(protection, cfg);
   const signed = signForSolana(priced, buyer.toBase58(), { programId: d.programId, vault: d.vault, feedId: d.feeds.TSLA.feedId }, quoter.secretKey.slice(0, 32));
   return { priced, signed };
 }

@@ -11,7 +11,7 @@ Built for Colosseum's Crypto World's Fair (September to October 2026). Design: [
 | | |
 |---|---|
 | **Built** | `research/`: the evidence the design rests on (below). `pricing/`: put-spread pricing from the history of openings (exact under the model), an out-of-sample backtest, and signed quotes for both vaults (EIP-712 and ed25519). `evm/`: the Robinhood Chain vault (buy against a signed quote, settle on Chainlink's round in force at the open, claim, void). `solana/`: the Solana vault (the same against an ed25519-signed quote, settled on the first Pyth print at or after the open). `quoter/`: the quote service's core, which prices protection until the next open and signs it for either vault. `app/`: the web app. Protect prices live in the browser with the quoter's own code; My protection lists a wallet's positions and claims them; Vault shows collateral, locked payouts and every series. It has market, quote, vault and positions endpoints, and a devnet purchase has gone through with a quote the endpoint signed. A TypeScript client, setup script, purchase smoke test and keeper (settle on Pyth's first print after the open, void, claim) for the Solana vault; a full cycle (sell, open, settle, claim) passes on a local validator. **The Solana vault is live on devnet** (addresses below), and a purchase priced and signed by the quote service has gone through. 62 TypeScript tests, 35 Foundry tests (2 fuzz), 4 fork tests against Chainlink's live TSLA feed, 16 Rust unit tests and 24 LiteSVM tests of the compiled program |
-| **Next** | Run the keeper on devnet after Monday 28 September's open to settle and claim the first series; hosting the app; deploy the EVM vault to Robinhood Chain mainnet with test collateral (waiting on the deploy wallet) |
+| **Next** | Deploy the EVM vault to Robinhood Chain mainnet (the client, quoting and purchase are verified on a fork; waiting on the deploy wallet), then its buy flow in the app; run the keeper on devnet after Monday 28 September's open to settle and claim the first series; hosting the app |
 | **Planned** | Hyperliquid hedger, app, MCP tool. Dates and cut line in the design doc |
 
 This table changes as parts ship. Nothing is listed as built until it runs and is tested.
@@ -46,6 +46,13 @@ FOUNDRY_PROFILE=fork forge test     # settlement against Chainlink's live TSLA f
 ```
 
 The TypeScript signer ([`pricing/quote.ts`](pricing/quote.ts)) and the contract are checked against the same EIP-712 digest vector.
+
+[`evm/client/vault.ts`](evm/client/vault.ts) buys with viem (approve TestUSD, then `buy` with the signed quote), using ABIs generated from forge's build (`npm run evm:abi`). The quote endpoint signs Robinhood Chain quotes once `evm/deployments/robinhood.json` exists. On a local fork of Robinhood Chain mainnet, against the live Chainlink feed, a purchase went through both ways: with a quote signed locally, and with one the app's endpoint signed.
+
+```bash
+anvil --fork-url https://rpc.mainnet.chain.robinhood.com                  # a local fork, then deploy with anvil's test keys
+BUYER_PRIVATE_KEY=0x… QUOTE_URL=http://localhost:3000/api/quote npx tsx evm/scripts/smoke-buy.ts
+```
 
 ## Solana vault
 
