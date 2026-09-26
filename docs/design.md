@@ -2,7 +2,7 @@
 
 Protection for tokenized stocks until the next open, sold on the chain where you hold them, hedged on Hyperliquid.
 
-Status (26 Sep): the Solana vault is live on devnet, with the app, quote endpoint, faucet, Blink, keeper and MCP server built on it. The EVM vault, its client and keeper are built and tested on a fork and a local chain, waiting on a mainnet deploy. The hedger and a track record page are planned. The README keeps the built/planned split current.
+Status (26 Sep): the Solana vault is live on devnet, with the app, quote endpoint, faucet, Blink, keeper and MCP server built on it. The EVM vault, its client, its keeper and the app's Robinhood Chain flow are built and tested on a fork and a local chain, waiting on a mainnet deploy. The app's track record covers both vaults. The hedger is planned. The README keeps the built/planned split current.
 
 ## Problem
 
@@ -25,9 +25,9 @@ Customers, in order:
 | Pricing engine and quote service | TypeScript | Prices the put spread from the stock's history of openings (Weekend Markets' kernel model, backtested) until the next open, signs quotes for either vault |
 | EVM vault | Robinhood Chain, Solidity | Sells protection against a signed quote (EIP-712), locks the maximum payout, settles on Chainlink's round in force at the open, pays claims |
 | Solana vault | Solana, Anchor | The same against an ed25519-signed quote, settled on the first Pyth print at or after the open |
-| Keepers | TypeScript | Permissionless: settle each due series (Pyth's first print posted through its receiver; Chainlink's round in force found by binary search), void the unsettleable, claim every position to its buyer |
+| Keepers | TypeScript | Permissionless: settle each due series (Pyth's first print posted through its receiver; Chainlink's round in force found by binary search), void the unsettleable, claim every position to its buyer. The Solana keeper can also plan a run: what it would settle on and pay, sending nothing |
 | Hedger (planned) | TypeScript, Hyperliquid | Sums open protection across vaults, shorts the matching `xyz:` perp at the close, closes the hedge at the open |
-| App | Next.js | Protect (live pricing, payoff, backtest, "protect what I hold"), My protection, Vault, a devnet faucet and a Solana Action. Planned: Robinhood Chain buying, the live hedge, a track record |
+| App | Next.js | Protect with a Solana / Robinhood Chain switch (live pricing, payoff, backtest, "protect what I hold"); My protection, Vault and Track record for both chains; a devnet faucet and a Solana Action. Planned: the live hedge |
 | MCP server | TypeScript | Hosted (no keys, returns unsigned transactions) and local (the agent's own devnet wallet, capped spend): `protect_portfolio`, `quote_protection` and read tools |
 
 ### Why a vault and fixed quotes (not Weekend Markets' pools)
@@ -64,7 +64,7 @@ Design consequences: price protection from the history of openings, centred on t
 | Hyperliquid stock perps | Mainnet `xyz:TSLA` (~$48M open interest), testnet `x:TSLA` and `felix:TSLA` exist |
 | Hyperliquid testnet funds | The faucet only pays addresses that have deposited on Hyperliquid mainnet |
 
-So a Robinhood Chain vault that settles on a real oracle has to live on mainnet. Plan: deploy it there with a valueless test token as collateral, so settlement is real and no real money is at stake. This needs the user's decision and a deploy wallet the user funds with gas.
+So a Robinhood Chain vault that settles on a real oracle has to live on mainnet. Plan: deploy it there with a valueless test token as collateral, so settlement is real and no real money is at stake. Decided; it waits on a deploy wallet the user funds with gas.
 
 ## Chains and tracks
 
@@ -79,9 +79,9 @@ Colosseum's form asks for every chain integrated. We select only chains that are
 
 | Dates | Work |
 |---|---|
-| Sep 26 (done) | Repo, research proof, infrastructure checks; pricing engine and quote signing (EIP-712, ed25519); EVM vault (Foundry and fork tests); Solana vault (LiteSVM tests); Solana devnet deploy; quote service; app (Protect, My protection, Vault), faucet, Solana Action; keepers for both vaults; MCP server |
+| Sep 26 (done) | Repo, research proof, infrastructure checks; pricing engine and quote signing (EIP-712, ed25519); EVM vault (Foundry and fork tests); Solana vault (LiteSVM tests); Solana devnet deploy; quote service; app (Protect, My protection, Vault, Track record), faucet, Solana Action; Robinhood Chain buying and claiming in the app (against a local chain); keepers for both vaults, with a read-only plan for the Solana one; MCP server |
 | Sep 28 | First devnet settlement and claims by the keeper after Monday's open; week-2 update video |
-| Sep 27 to Oct 1 | Robinhood Chain mainnet deploy with test collateral (waits on the deploy wallet) and its buy flow in the app; hosting; track record page |
+| Sep 27 to Oct 1 | Robinhood Chain mainnet deploy with test collateral (waits on the deploy wallet); hosting |
 | Oct 2 to 6 | Hedger on Hyperliquid, inside the Perps hackathon window; exposure across vaults; tests |
 | Oct 6 to 8 | Hedge shown in the app; Perps submission Oct 8 |
 | Oct 9 | Buffer, traction push |
