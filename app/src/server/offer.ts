@@ -12,7 +12,7 @@ import {
   type SignedSolanaQuote,
 } from "@root/quoter/quoter";
 import type { Stock } from "@root/quoter/stocks";
-import { buyInstructions, getProgram } from "@root/solana/client/vault";
+import { buyInstructions, getProgram } from "@root/solana/client/v1";
 
 import { SOLANA_DEPLOYMENT } from "./deployment";
 import { keypairFromEnv } from "./env";

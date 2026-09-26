@@ -1,6 +1,6 @@
 import { Connection, PublicKey } from "@solana/web3.js";
 
-import { getProgram, parseVaultEvents, seriesAddress } from "@root/solana/client/vault";
+import { getProgram, parseVaultEvents, seriesAddress } from "@root/solana/client/v1";
 import type { SeriesState } from "@root/solana/keeper/plan";
 
 import { readOnly, RPC, vaultState } from "./chain";

@@ -17,7 +17,7 @@ import { z } from "zod";
 import { backtest } from "../pricing/backtest";
 import type { SolanaQuote } from "../pricing/solanaQuote";
 import { priceQuote, type PricedProtection } from "../quoter/quoter";
-import { buyInstructions, getProgram } from "../solana/client/vault";
+import { buyInstructions, getProgram } from "../solana/client/v1";
 import { AfterbellApi, toMarket, type MarketInfo, type PriceSource, type SolanaQuoteResponse } from "./api";
 
 export const SOLANA_RPC = process.env.SOLANA_RPC || "https://api.devnet.solana.com";

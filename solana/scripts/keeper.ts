@@ -1,6 +1,8 @@
 /**
  * Runs the keeper once over a vault: settle due series on Pyth's first print
- * after the open, void what can't settle, and claim every finished position.
+ * after the open, void what can't settle, pay every finished position to
+ * whoever holds its NFT (the vault tips the keeper), and roll the pool once
+ * the round is paid.
  *
  *   PYTH_API_KEY=<your key> npm run solana:keeper
  *   PYTH_API_KEY=<your key> npm run solana:keeper -- --plan   # read-only: what it would do, and pay
@@ -34,13 +36,15 @@ function printPlan(p: KeeperPlan) {
     if (s.print) console.log(`  on $${s.print.price} published ${iso(s.print.publishTime)}, ${s.print.publishTime - s.openTs}s after the open`);
     if (s.note) console.log(`  ${s.note}`);
     for (const x of s.positions) {
-      console.log(`  ${x.position} to ${x.buyer}: ${x.units === undefined ? `up to ${amount(x.maxUnits)}` : `${amount(x.units)} (at most ${amount(x.maxUnits)})`}`);
+      const to = x.holder ? `to its holder ${x.holder}` : "forfeited (its NFT was burned)";
+      console.log(`  ${x.position} ${to}: ${x.units === undefined ? `up to ${amount(x.maxUnits)}` : `${amount(x.units)} (at most ${amount(x.maxUnits)})`}`);
     }
     const max = s.positions.reduce((a, x) => a + x.maxUnits, 0n);
     const known = s.positions.every((x) => x.units !== undefined);
     const pays = known ? `pays ${amount(s.positions.reduce((a, x) => a + x.units!, 0n))}` : "pays unknown until the print";
     console.log(`  ${s.positions.length} position(s): ${pays}, at most ${amount(max)}`);
   }
+  console.log(`\nROLL ${p.rollBlocked === null ? "the pool rolls into its next round after this run" : `not yet: ${p.rollBlocked}`}`);
   console.log("\nplan only: nothing was sent");
 }
 
@@ -63,7 +67,8 @@ async function main() {
   const payer = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(readFileSync(walletPath, "utf8"))));
   const report = await runKeeper({ connection, payer, vault, hermes: hermesFromEnv, log: (line) => console.log(line) });
   for (const w of report.waiting) console.log(`waiting ${w.series}: ${w.reason}`);
-  if (report.settled.length + report.voided.length + report.claimed.length === 0) console.log("nothing to do");
+  if (report.tips > 0n) console.log(`tips earned ${report.tips} units`);
+  if (report.settled.length + report.voided.length + report.paid.length === 0 && !report.rolled) console.log("nothing to do");
 }
 
 // Exit explicitly so a scheduled run never lingers on an open websocket.

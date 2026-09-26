@@ -1,11 +1,18 @@
 import { describe, expect, it } from "vitest";
 
-import { claimUnits, plan, settlementError, settlementTimingError, toPrice8, type PositionView, type SeriesView } from "./plan";
+import { claimUnits, plan, rollBlocked, settlementError, settlementTimingError, toPrice8, type PositionView, type SeriesView } from "./plan";
 
 const OPEN = 1_790_602_200; // Monday 28 Sep 2026, 09:30 EDT
 const VAULT = { settleWindowSecs: 60, voidDelaySecs: 86_400 };
-const series = (address: string, state: SeriesView["state"], openTs = OPEN): SeriesView => ({ address, feedId: "0x16", openTs, state });
-const position = (address: string, s: string): PositionView => ({ address, series: s, buyer: "B" });
+const series = (address: string, state: SeriesView["state"], openTs = OPEN): SeriesView => ({
+  address,
+  feedId: "0x16",
+  openTs,
+  state,
+  lowestLower: 34_000_000_000n,
+  highestUpper: 37_000_000_000n,
+});
+const position = (address: string, s: string): PositionView => ({ address, series: s, mint: "M" });
 
 describe("keeper plan", () => {
   it("waits for the open, then settles", () => {
@@ -21,10 +28,27 @@ describe("keeper plan", () => {
     expect(p.settle).toEqual([]);
   });
 
-  it("claims every position in settled and voided series, and only those", () => {
+  it("pays every unpaid position in settled and voided series, and only those", () => {
     const s = [series("SETTLED", "settled"), series("VOIDED", "voided"), series("OPEN", "open")];
     const positions = [position("P1", "SETTLED"), position("P2", "VOIDED"), position("P3", "OPEN"), position("P4", "SETTLED")];
-    expect(plan(OPEN + 10, VAULT, s, positions).claim.map((p) => p.address)).toEqual(["P1", "P2", "P4"]);
+    expect(plan(OPEN + 10, VAULT, s, positions).pay.map((p) => p.address)).toEqual(["P1", "P2", "P4"]);
+  });
+});
+
+describe("rolling the pool, as handle_roll", () => {
+  const round = { roundOpenTs: OPEN, roundUnpaid: 0, pendingDepositAssets: 0n, pendingRedeemShares: 0n };
+
+  it("rolls a round that sold nothing only when a request is waiting", () => {
+    const empty = { ...round, roundOpenTs: 0 };
+    expect(rollBlocked(OPEN, empty)).toBe("the round sold nothing and no deposit or redemption is waiting");
+    expect(rollBlocked(OPEN, { ...empty, pendingDepositAssets: 1n })).toBeNull();
+    expect(rollBlocked(OPEN, { ...empty, pendingRedeemShares: 1n })).toBeNull();
+  });
+
+  it("rolls a round that sold once its open has passed and every position is closed", () => {
+    expect(rollBlocked(OPEN, round)).toBe("the round sells until its open at 2026-09-28T13:30:00.000Z");
+    expect(rollBlocked(OPEN + 1, { ...round, roundUnpaid: 2 })).toBe("2 position(s) still to pay out");
+    expect(rollBlocked(OPEN + 1, round)).toBeNull();
   });
 });
 
@@ -54,6 +78,15 @@ describe("every settle check, as handle_settle", () => {
   it("rejects a confidence interval wider than the vault's limit, which the timing check alone let through", () => {
     expect(settlementError({ ...print, conf: 383_829n }, OPEN, vault)).toBe("the first print's confidence is ±100.0 bps, wider than the vault's 100");
     expect(settlementError({ ...print, conf: 767_657n }, OPEN, vault)).toBe("the first print's confidence is ±200.0 bps, wider than the vault's 100");
+  });
+
+  it("refuses a print more than ten times from the strikes, as math::plausible_price", () => {
+    const strikes = { lowestLower: 34_000_000_000n, highestUpper: 37_000_000_000n };
+    expect(settlementError(print, OPEN, vault, strikes)).toBeNull();
+    // $3,700 is exactly ten times the highest upper strike; a cent more is a broken feed.
+    expect(settlementError({ ...print, price: 370_000_000n, conf: 0n }, OPEN, vault, strikes)).toBeNull();
+    expect(settlementError({ ...print, price: 370_000_001n, conf: 0n }, OPEN, vault, strikes)).toMatch("more than ten times");
+    expect(settlementError({ ...print, price: 3_399_999n, conf: 0n }, OPEN, vault, strikes)).toMatch("more than ten times");
   });
 
   it("checks timing first, then the price, as the program does", () => {

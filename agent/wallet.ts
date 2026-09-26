@@ -10,7 +10,7 @@ import { dirname, join } from "node:path";
 import { createAssociatedTokenAccountIdempotentInstruction, getAssociatedTokenAddressSync } from "@solana/spl-token";
 import { Connection, Keypair, LAMPORTS_PER_SOL, PublicKey, sendAndConfirmTransaction, Transaction } from "@solana/web3.js";
 
-import { claimInstruction, getProgram } from "../solana/client/vault";
+import { claimInstruction, getProgram } from "../solana/client/v1";
 import type { AfterbellApi } from "./api";
 import { describe, protectionFor, purchase, SOLANA_RPC, type AgentWalletTools } from "./tools";
 

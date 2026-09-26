@@ -3,7 +3,7 @@ import { getAccount, getAssociatedTokenAddressSync } from "@solana/spl-token";
 import { Connection, PublicKey, Transaction } from "@solana/web3.js";
 
 import type { SolanaQuote } from "@root/pricing/solanaQuote";
-import { buyInstructions, getProgram, positionAddress } from "@root/solana/client/vault";
+import { buyInstructions, getProgram, positionAddress } from "@root/solana/client/v1";
 
 import type { QuoteResponse } from "./api";
 

@@ -1,5 +1,5 @@
 import { DEFAULT_QUOTER_CONFIG } from "@root/quoter/quoter";
-import { DEFAULT_CONFIG } from "@root/solana/client/vault";
+import { DEFAULT_CONFIG } from "@root/solana/client/v1";
 
 import { SOLANA_DEPLOYMENT } from "@/server/deployment";
 import { evmDeployment } from "@/server/evmDeployment";

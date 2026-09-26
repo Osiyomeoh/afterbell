@@ -2,7 +2,7 @@ import type { AnchorWallet } from "@solana/wallet-adapter-react";
 import { createAssociatedTokenAccountIdempotentInstruction, getAssociatedTokenAddressSync } from "@solana/spl-token";
 import { Connection, PublicKey, Transaction } from "@solana/web3.js";
 
-import { claimInstruction, getProgram } from "@root/solana/client/vault";
+import { claimInstruction, getProgram } from "@root/solana/client/v1";
 
 /** Claims a finished position into the buyer's own TestUSD account (created if missing). Anyone may; here the buyer does. */
 export async function claimPosition(

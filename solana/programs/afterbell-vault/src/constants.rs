@@ -55,8 +55,22 @@ mod tests {
         Pubkey::find_program_address(seeds, &crate::ID).0
     }
 
-    // Every address here is derived the same way by solana/client/vault.ts; its
-    // tests pin the same seeds against the same inputs.
+    // solana/client/vault.test.ts pins the same addresses, so the client and the
+    // program derive every account alike. They depend on the program id: when
+    // `declare_id!` changes, both lists change together.
+    const PINNED: [&str; 10] = [
+        "4SNGem1v12XZkASk7QhYfP3GYDPFNBcjC9d5kHQGJnqW",
+        "5aFQv22J7Td3KSSmLRFGsCiVwmWpgwQMa1QrcGp1JZ34",
+        "8mu5FxnH7yoyexe73RgdrA8DyWY55Vhoeho3AVaV71By",
+        "7PAosiVEmy5TRjMAj1mBWjkuVjVrwGRcyuCZ2bbCMzTh",
+        "EEMXtkpgeZZzH6SZRk9Yy2U9iF5A8gqKLzqT6SKXssX1",
+        "GMp3zVa9vyGk2Kj3dvvbQWki753SEfeTCgjRwdHsRQVU",
+        "8c8ZCLuP7sR42CNwBdWVkZmFJxUr41kTk12zjeZs7pqp",
+        "29TV96XxMEvQjUcAPH7s33y2y5ti5g8cXfGh9mYbi8s6",
+        "J6TKLcwBUXyof4WbpQwWYH2hiDh34QW9ZqmNV3NPcYPf",
+        "BmLtxAyVtYptUHXmD9XS72C5D65E8vhgzJ5TrndGPsdg",
+    ];
+
     #[test]
     fn addresses_are_derived_from_their_seeds() {
         let (authority, mint) = ([1u8; 32], [2u8; 32]);
@@ -74,6 +88,8 @@ mod tests {
             pda(&[REQUEST_SEED, vault.as_ref(), &authority]),
             pda(&[RATE_SEED, vault.as_ref(), &1u64.to_le_bytes()]),
         ];
+        let got: Vec<String> = all.iter().map(|a| a.to_string()).collect();
+        assert_eq!(got, PINNED);
         // All distinct: no two kinds of account can collide.
         for (i, a) in all.iter().enumerate() {
             for b in &all[i + 1..] {

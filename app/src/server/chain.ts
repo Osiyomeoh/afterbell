@@ -2,7 +2,7 @@ import { getAccount } from "@solana/spl-token";
 import { Connection, PublicKey } from "@solana/web3.js";
 
 import { stockByFeedId } from "@root/quoter/stocks";
-import { getProgram } from "@root/solana/client/vault";
+import { getProgram } from "@root/solana/client/v1";
 import { claimUnits, type SeriesState } from "@root/solana/keeper/plan";
 
 import { SOLANA_DEPLOYMENT } from "./deployment";
