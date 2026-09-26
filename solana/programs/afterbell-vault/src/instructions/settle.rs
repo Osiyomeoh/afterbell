@@ -40,15 +40,20 @@ pub fn handle_settle(ctx: Context<Settle>) -> Result<()> {
         msg.publish_time,
         msg.prev_publish_time,
         series.open_ts,
-        vault.settle_window_secs,
+        vault.params.settle_window_secs,
     )?;
     require!(msg.price > 0, VaultError::NonPositivePrice);
     require!(
-        math::confidence_ok(msg.price, msg.conf, vault.max_conf_bps),
+        math::confidence_ok(msg.price, msg.conf, vault.params.max_conf_bps),
         VaultError::ConfidenceTooWide
     );
+    let price = math::to_price_8(msg.price, msg.exponent)?;
+    require!(
+        math::plausible_price(price, series.lowest_lower, series.highest_upper),
+        VaultError::ImplausiblePrice
+    );
 
-    series.price = math::to_price_8(msg.price, msg.exponent)?;
+    series.price = price;
     series.publish_time = msg.publish_time;
     series.state = SeriesState::Settled;
     emit!(SeriesSettled {
@@ -69,14 +74,14 @@ pub struct VoidSeries<'info> {
 }
 
 /// Permissionless: a series nobody settled within the void delay voids, and
-/// every premium in it is refunded.
+/// every premium in it is refunded in full, the keeper's tip included.
 pub fn handle_void_series(ctx: Context<VoidSeries>) -> Result<()> {
     let now = Clock::get()?.unix_timestamp;
     let series = &mut ctx.accounts.series;
     require!(series.state == SeriesState::Open, VaultError::SeriesNotOpen);
     let deadline = series
         .open_ts
-        .checked_add(ctx.accounts.vault.void_delay_secs as i64)
+        .checked_add(ctx.accounts.vault.params.void_delay_secs as i64)
         .ok_or(VaultError::MathOverflow)?;
     require!(now > deadline, VaultError::VoidTooEarly);
     series.state = SeriesState::Voided;

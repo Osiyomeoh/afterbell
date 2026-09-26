@@ -1,17 +1,33 @@
 //! LiteSVM harness: the compiled program, a 6-decimal collateral mint, funded
-//! users, a quoter that signs real ed25519 quotes, a controllable clock and
-//! forged Pyth price accounts.
+//! users, a quoter that signs real ed25519 quotes, a controllable clock, forged
+//! Pyth price accounts, and a pool seeded by the authority.
 #![allow(dead_code, clippy::result_large_err)]
+
+use std::collections::HashMap;
 
 use {
     afterbell_vault::{
-        constants::*, error::VaultError, quote::quote_message, FeedConfig, Position, QuoteArgs, Series, Vault,
-        VaultConfig,
+        constants::*, error::VaultError, quote::quote_message, FeedConfig, Params, Position, QuoteArgs, Request,
+        RoundRate, Series, Vault,
     },
     anchor_lang::{
         prelude::{Clock, Pubkey},
         solana_program::{instruction::Instruction, system_program},
         AccountDeserialize, AccountSerialize, InstructionData, ToAccountMetas,
+    },
+    anchor_spl::{
+        associated_token::{
+            self, get_associated_token_address, get_associated_token_address_with_program_id,
+            spl_associated_token_account::instruction::create_associated_token_account_idempotent,
+        },
+        token_2022::{
+            self,
+            spl_token_2022::{
+                self,
+                extension::{BaseStateWithExtensions, StateWithExtensions},
+            },
+        },
+        token_interface::spl_token_metadata_interface::state::TokenMetadata,
     },
     litesvm::{types::TransactionResult, LiteSVM},
     litesvm_token::{get_spl_account, spl_token, CreateAssociatedTokenAccount, CreateMint, MintTo, TOKEN_ID},
@@ -26,15 +42,28 @@ use {
 pub const T0: i64 = 1_790_000_000;
 pub const OPEN: i64 = T0 + 86_400;
 pub const FEED: [u8; 32] = [7u8; 32];
+pub const FEED2: [u8; 32] = [8u8; 32];
 pub const USD: u64 = 1_000_000;
 pub const SETTLE_WINDOW: u32 = 60;
 pub const VOID_DELAY: u32 = 86_400;
 pub const MAX_CONF_BPS: u16 = 100;
 pub const SEED: u64 = 100_000 * USD;
+pub const ART: &str = "https://afterbell.test/art/";
+pub const COMPUTE_BUDGET: Pubkey = anchor_lang::pubkey!("ComputeBudget111111111111111111111111111111");
 
 pub struct User {
     pub kp: Keypair,
+    /// The user's collateral account.
     pub ata: Pubkey,
+}
+
+impl User {
+    pub fn key(&self) -> Pubkey {
+        self.kp.pubkey()
+    }
+    pub fn clone(&self) -> User {
+        User { kp: self.kp.insecure_clone(), ata: self.ata }
+    }
 }
 
 pub struct Env {
@@ -45,21 +74,49 @@ pub struct Env {
     pub authority: User,
     pub quoter: Keypair,
     pub buyer: User,
+    pub keeper: User,
     pub vault: Pubkey,
     pub vault_token: Pubkey,
-    nonce: u8,
+    pub share_mint: Pubkey,
+    pub share_escrow: Pubkey,
+    /// Who holds each position's NFT, as the tests move them.
+    pub holders: HashMap<Pubkey, Pubkey>,
+    /// Compute units the last successful transaction used.
+    pub last_cu: u64,
+    nonce: u16,
+}
+
+pub fn params() -> Params {
+    Params {
+        settle_window_secs: SETTLE_WINDOW,
+        void_delay_secs: VOID_DELAY,
+        max_conf_bps: MAX_CONF_BPS,
+        max_utilization_bps: 5_000,
+        max_feed_bps: 2_000,
+        keeper_tip_bps: 200,
+    }
 }
 
 impl Env {
-    /// A vault with SEED collateral deposited and FEED allowed.
+    /// A vault with FEED (and FEED2) allowed and SEED in the pool, owned by the authority.
     pub fn new() -> Self {
+        let mut env = Self::empty();
+        let authority = env.authority.clone();
+        env.request_deposit(&authority, SEED).unwrap();
+        env.roll().unwrap();
+        env.claim_deposit(&authority).unwrap();
+        env
+    }
+
+    /// A vault with nothing in its pool.
+    pub fn empty() -> Self {
         let program_id = afterbell_vault::id();
         let mut svm = LiteSVM::new();
         let bytes = include_bytes!(concat!(env!("CARGO_TARGET_TMPDIR"), "/../deploy/afterbell_vault.so"));
         svm.add_program(program_id, bytes).unwrap();
 
         let payer = Keypair::new();
-        svm.airdrop(&payer.pubkey(), 100_000_000_000).unwrap();
+        svm.airdrop(&payer.pubkey(), 1_000_000_000_000).unwrap();
         let mint = CreateMint::new(&mut svm, &payer).decimals(6).send().unwrap();
 
         let mut env = Env {
@@ -70,32 +127,32 @@ impl Env {
             authority: User { kp: Keypair::new(), ata: Pubkey::default() },
             quoter: Keypair::new(),
             buyer: User { kp: Keypair::new(), ata: Pubkey::default() },
+            keeper: User { kp: Keypair::new(), ata: Pubkey::default() },
             vault: Pubkey::default(),
             vault_token: Pubkey::default(),
+            share_mint: Pubkey::default(),
+            share_escrow: Pubkey::default(),
+            holders: HashMap::new(),
+            last_cu: 0,
             nonce: 0,
         };
         env.set_time(T0);
         env.authority = env.new_user(SEED);
         env.buyer = env.new_user(1_000 * USD);
-        env.vault = env.vault_pda(&env.authority.kp.pubkey());
-        env.vault_token = env.vault_token_pda(&env.vault);
+        env.keeper = env.new_user(0);
+        env.vault = env.pda(&[VAULT_SEED, env.authority.key().as_ref(), env.mint.as_ref()]);
+        env.vault_token = env.pda(&[VAULT_TOKEN_SEED, env.vault.as_ref()]);
+        env.share_mint = env.pda(&[SHARE_MINT_SEED, env.vault.as_ref()]);
+        env.share_escrow = env.pda(&[SHARE_ESCROW_SEED, env.vault.as_ref()]);
 
-        let ix = env.ix_initialize(env.config());
-        env.send(&[ix], &[&env.authority.kp.insecure_clone()]).unwrap();
-        let ix = env.ix_allow_feed(FEED, true);
-        env.send(&[ix], &[&env.authority.kp.insecure_clone()]).unwrap();
-        let ix = env.ix_deposit(&env.authority.kp.pubkey(), &env.authority.ata, SEED);
-        env.send(&[ix], &[&env.authority.kp.insecure_clone()]).unwrap();
-        env
-    }
-
-    pub fn config(&self) -> VaultConfig {
-        VaultConfig {
-            quoter: self.quoter.pubkey(),
-            settle_window_secs: SETTLE_WINDOW,
-            void_delay_secs: VOID_DELAY,
-            max_conf_bps: MAX_CONF_BPS,
+        let authority = env.authority.clone();
+        let ix = env.ix_initialize(env.quoter.pubkey(), params(), ART.to_string());
+        env.send(&[ix], &[&authority.kp]).unwrap();
+        for (feed, symbol) in [(FEED, "TSLA"), (FEED2, "QQQ")] {
+            let ix = env.ix_allow_feed(feed, symbol, true);
+            env.send(&[ix], &[&authority.kp]).unwrap();
         }
+        env
     }
 
     pub fn new_user(&mut self, balance: u64) -> User {
@@ -111,168 +168,278 @@ impl Env {
         User { kp, ata }
     }
 
+    pub fn fund(&mut self, user: &User, amount: u64) {
+        MintTo::new(&mut self.svm, &self.payer, &self.mint, &user.ata, amount).send().unwrap();
+    }
+
     pub fn set_time(&mut self, ts: i64) {
         let mut clock: Clock = self.svm.get_sysvar();
         clock.unix_timestamp = ts;
         self.svm.set_sysvar(&clock);
     }
 
-    pub fn send(&mut self, ixs: &[Instruction], signers: &[&Keypair]) -> TransactionResult {
+    pub fn now(&self) -> i64 {
+        self.svm.get_sysvar::<Clock>().unix_timestamp
+    }
+
+    /// A legacy transaction; its first signer pays.
+    pub fn tx(&mut self, ixs: &[Instruction], signers: &[&Keypair]) -> VersionedTransaction {
         self.svm.expire_blockhash();
         let blockhash = self.svm.latest_blockhash();
         let msg = Message::new_with_blockhash(ixs, Some(&signers[0].pubkey()), &blockhash);
-        let tx = VersionedTransaction::try_new(VersionedMessage::Legacy(msg), signers).unwrap();
-        self.svm.send_transaction(tx)
+        VersionedTransaction::try_new(VersionedMessage::Legacy(msg), signers).unwrap()
+    }
+
+    pub fn send(&mut self, ixs: &[Instruction], signers: &[&Keypair]) -> TransactionResult {
+        let tx = self.tx(ixs, signers);
+        let res = self.svm.send_transaction(tx);
+        if let Ok(meta) = &res {
+            self.last_cu = meta.compute_units_consumed;
+        }
+        res
+    }
+
+    pub fn pda(&self, seeds: &[&[u8]]) -> Pubkey {
+        Pubkey::find_program_address(seeds, &self.program_id).0
     }
 
     // ------------------------------------------------------------------- PDAs
 
-    pub fn vault_pda(&self, authority: &Pubkey) -> Pubkey {
-        Pubkey::find_program_address(&[VAULT_SEED, authority.as_ref(), self.mint.as_ref()], &self.program_id).0
-    }
-    pub fn vault_token_pda(&self, vault: &Pubkey) -> Pubkey {
-        Pubkey::find_program_address(&[VAULT_TOKEN_SEED, vault.as_ref()], &self.program_id).0
-    }
     pub fn feed_pda(&self, feed_id: [u8; 32]) -> Pubkey {
-        Pubkey::find_program_address(&[FEED_SEED, self.vault.as_ref(), feed_id.as_ref()], &self.program_id).0
+        self.pda(&[FEED_SEED, self.vault.as_ref(), feed_id.as_ref()])
     }
     pub fn series_pda(&self, feed_id: [u8; 32], open_ts: i64) -> Pubkey {
-        Pubkey::find_program_address(
-            &[SERIES_SEED, self.vault.as_ref(), feed_id.as_ref(), &open_ts.to_le_bytes()],
-            &self.program_id,
-        )
-        .0
+        self.pda(&[SERIES_SEED, self.vault.as_ref(), feed_id.as_ref(), &open_ts.to_le_bytes()])
     }
     pub fn position_pda(&self, nonce: [u8; 32]) -> Pubkey {
-        Pubkey::find_program_address(&[POSITION_SEED, self.vault.as_ref(), nonce.as_ref()], &self.program_id).0
+        self.pda(&[POSITION_SEED, self.vault.as_ref(), nonce.as_ref()])
+    }
+    pub fn position_mint_pda(&self, nonce: [u8; 32]) -> Pubkey {
+        self.pda(&[POSITION_MINT_SEED, self.vault.as_ref(), nonce.as_ref()])
+    }
+    pub fn request_pda(&self, owner: &Pubkey) -> Pubkey {
+        self.pda(&[REQUEST_SEED, self.vault.as_ref(), owner.as_ref()])
+    }
+    pub fn rate_pda(&self, round: u64) -> Pubkey {
+        self.pda(&[RATE_SEED, self.vault.as_ref(), &round.to_le_bytes()])
+    }
+    pub fn nft_account(owner: &Pubkey, mint: &Pubkey) -> Pubkey {
+        get_associated_token_address_with_program_id(owner, mint, &token_2022::ID)
+    }
+    pub fn share_account(&self, owner: &Pubkey) -> Pubkey {
+        get_associated_token_address_with_program_id(owner, &self.share_mint, &token_2022::ID)
+    }
+    pub fn collateral_account(&self, owner: &Pubkey) -> Pubkey {
+        get_associated_token_address(owner, &self.mint)
     }
 
     // ---------------------------------------------------- instruction builders
 
-    pub fn ix_initialize(&self, config: VaultConfig) -> Instruction {
-        Instruction::new_with_bytes(
-            self.program_id,
-            &afterbell_vault::instruction::InitializeVault { config }.data(),
+    fn ix(&self, data: Vec<u8>, accounts: impl ToAccountMetas) -> Instruction {
+        Instruction::new_with_bytes(self.program_id, &data, accounts.to_account_metas(None))
+    }
+
+    pub fn ix_initialize(&self, quoter: Pubkey, params: Params, art_uri: String) -> Instruction {
+        self.ix(
+            afterbell_vault::instruction::InitializeVault { quoter, params, art_uri }.data(),
             afterbell_vault::accounts::InitializeVault {
-                authority: self.authority.kp.pubkey(),
+                authority: self.authority.key(),
                 vault: self.vault,
                 collateral_mint: self.mint,
                 vault_token: self.vault_token,
+                share_mint: self.share_mint,
+                share_escrow: self.share_escrow,
                 token_program: TOKEN_ID,
+                share_token_program: token_2022::ID,
                 system_program: system_program::ID,
-            }
-            .to_account_metas(None),
+            },
         )
     }
 
-    pub fn ix_set_config(&self, authority: &Pubkey, config: VaultConfig) -> Instruction {
-        Instruction::new_with_bytes(
-            self.program_id,
-            &afterbell_vault::instruction::SetConfig { config }.data(),
-            afterbell_vault::accounts::SetConfig { authority: *authority, vault: self.vault }.to_account_metas(None),
-        )
+    fn configure(&self, authority: &Pubkey) -> afterbell_vault::accounts::Configure {
+        afterbell_vault::accounts::Configure { authority: *authority, vault: self.vault }
     }
 
-    pub fn ix_allow_feed(&self, feed_id: [u8; 32], allowed: bool) -> Instruction {
-        Instruction::new_with_bytes(
-            self.program_id,
-            &afterbell_vault::instruction::AllowFeed { feed_id, allowed }.data(),
+    pub fn ix_set_params(&self, authority: &Pubkey, params: Params) -> Instruction {
+        self.ix(afterbell_vault::instruction::SetParams { params }.data(), self.configure(authority))
+    }
+
+    pub fn ix_set_quoter(&self, authority: &Pubkey, quoter: Pubkey) -> Instruction {
+        self.ix(afterbell_vault::instruction::SetQuoter { quoter }.data(), self.configure(authority))
+    }
+
+    pub fn ix_set_art_uri(&self, authority: &Pubkey, art_uri: &str) -> Instruction {
+        self.ix(afterbell_vault::instruction::SetArtUri { art_uri: art_uri.to_string() }.data(), self.configure(authority))
+    }
+
+    pub fn ix_allow_feed(&self, feed_id: [u8; 32], symbol: &str, allowed: bool) -> Instruction {
+        self.ix(
+            afterbell_vault::instruction::AllowFeed { feed_id, symbol: symbol.to_string(), allowed }.data(),
             afterbell_vault::accounts::AllowFeed {
-                authority: self.authority.kp.pubkey(),
+                authority: self.authority.key(),
                 vault: self.vault,
                 feed_config: self.feed_pda(feed_id),
                 system_program: system_program::ID,
-            }
-            .to_account_metas(None),
-        )
-    }
-
-    pub fn ix_deposit(&self, depositor: &Pubkey, depositor_token: &Pubkey, amount: u64) -> Instruction {
-        Instruction::new_with_bytes(
-            self.program_id,
-            &afterbell_vault::instruction::Deposit { amount }.data(),
-            afterbell_vault::accounts::Deposit {
-                depositor: *depositor,
-                vault: self.vault,
-                collateral_mint: self.mint,
-                depositor_token: *depositor_token,
-                vault_token: self.vault_token,
-                token_program: TOKEN_ID,
-            }
-            .to_account_metas(None),
-        )
-    }
-
-    pub fn ix_withdraw(&self, authority: &Pubkey, to: &Pubkey, amount: u64) -> Instruction {
-        Instruction::new_with_bytes(
-            self.program_id,
-            &afterbell_vault::instruction::Withdraw { amount }.data(),
-            afterbell_vault::accounts::Withdraw {
-                authority: *authority,
-                vault: self.vault,
-                collateral_mint: self.mint,
-                vault_token: self.vault_token,
-                to: *to,
-                token_program: TOKEN_ID,
-            }
-            .to_account_metas(None),
+            },
         )
     }
 
     pub fn ix_buy(&self, buyer: &User, q: QuoteArgs) -> Instruction {
-        Instruction::new_with_bytes(
-            self.program_id,
-            &afterbell_vault::instruction::Buy { q }.data(),
+        let position_mint = self.position_mint_pda(q.nonce);
+        self.ix(
+            afterbell_vault::instruction::Buy { q }.data(),
             afterbell_vault::accounts::Buy {
-                buyer: buyer.kp.pubkey(),
+                buyer: buyer.key(),
                 vault: self.vault,
                 feed_config: self.feed_pda(q.feed_id),
                 series: self.series_pda(q.feed_id, q.open_ts),
                 position: self.position_pda(q.nonce),
+                position_mint,
+                buyer_nft: Self::nft_account(&buyer.key(), &position_mint),
                 collateral_mint: self.mint,
                 buyer_token: buyer.ata,
                 vault_token: self.vault_token,
                 instructions: solana_sdk_ids::sysvar::instructions::ID,
                 token_program: TOKEN_ID,
+                nft_token_program: token_2022::ID,
+                associated_token_program: associated_token::ID,
                 system_program: system_program::ID,
-            }
-            .to_account_metas(None),
+            },
         )
     }
 
     pub fn ix_settle(&self, series: &Pubkey, price_update: &Pubkey) -> Instruction {
-        Instruction::new_with_bytes(
-            self.program_id,
-            &afterbell_vault::instruction::Settle {}.data(),
-            afterbell_vault::accounts::Settle { vault: self.vault, series: *series, price_update: *price_update }
-                .to_account_metas(None),
+        self.ix(
+            afterbell_vault::instruction::Settle {}.data(),
+            afterbell_vault::accounts::Settle { vault: self.vault, series: *series, price_update: *price_update },
         )
     }
 
     pub fn ix_void(&self, series: &Pubkey) -> Instruction {
-        Instruction::new_with_bytes(
-            self.program_id,
-            &afterbell_vault::instruction::VoidSeries {}.data(),
-            afterbell_vault::accounts::VoidSeries { vault: self.vault, series: *series }.to_account_metas(None),
+        self.ix(
+            afterbell_vault::instruction::VoidSeries {}.data(),
+            afterbell_vault::accounts::VoidSeries { vault: self.vault, series: *series },
         )
     }
 
-    pub fn ix_claim(&self, position: &Pubkey, series: &Pubkey, buyer: &Pubkey, buyer_token: &Pubkey) -> Instruction {
-        Instruction::new_with_bytes(
-            self.program_id,
-            &afterbell_vault::instruction::Claim {}.data(),
-            afterbell_vault::accounts::Claim {
+    /// `process` for positions given as (position, NFT token account, payee collateral account).
+    pub fn ix_process(&self, series: &Pubkey, keeper: &Pubkey, keeper_token: &Pubkey, triples: &[[Pubkey; 3]]) -> Instruction {
+        let mut ix = self.ix(
+            afterbell_vault::instruction::Process {}.data(),
+            afterbell_vault::accounts::Process {
+                keeper: *keeper,
                 vault: self.vault,
                 series: *series,
-                position: *position,
-                buyer: *buyer,
                 collateral_mint: self.mint,
-                buyer_token: *buyer_token,
+                vault_token: self.vault_token,
+                keeper_token: *keeper_token,
+                token_program: TOKEN_ID,
+            },
+        );
+        for [position, nft, payee] in triples {
+            ix.accounts.push(anchor_lang::solana_program::instruction::AccountMeta::new(*position, false));
+            ix.accounts.push(anchor_lang::solana_program::instruction::AccountMeta::new_readonly(*nft, false));
+            ix.accounts.push(anchor_lang::solana_program::instruction::AccountMeta::new(*payee, false));
+        }
+        ix
+    }
+
+    /// The rate a request's `side` needs filled with, if it has one from a rolled round.
+    fn rate_for(&self, owner: &Pubkey, deposit: bool) -> Option<Pubkey> {
+        let r = self.request(owner)?;
+        let (amount, round) = if deposit { (r.deposit_assets, r.deposit_round) } else { (r.redeem_shares, r.redeem_round) };
+        let v = self.vault_state();
+        (amount > 0 && round < v.round).then(|| self.rate_pda(round))
+    }
+
+    pub fn ix_request_deposit(&self, owner: &User, assets: u64) -> Instruction {
+        self.ix(
+            afterbell_vault::instruction::RequestDeposit { assets }.data(),
+            afterbell_vault::accounts::RequestDeposit {
+                owner: owner.key(),
+                vault: self.vault,
+                request: self.request_pda(&owner.key()),
+                rate: self.rate_for(&owner.key(), true),
+                collateral_mint: self.mint,
+                owner_token: owner.ata,
                 vault_token: self.vault_token,
                 token_program: TOKEN_ID,
-            }
-            .to_account_metas(None),
+                system_program: system_program::ID,
+            },
         )
+    }
+
+    pub fn ix_request_redeem(&self, owner: &User, shares: u64) -> Instruction {
+        self.ix(
+            afterbell_vault::instruction::RequestRedeem { shares }.data(),
+            afterbell_vault::accounts::RequestRedeem {
+                owner: owner.key(),
+                vault: self.vault,
+                request: self.request_pda(&owner.key()),
+                rate: self.rate_for(&owner.key(), false),
+                share_mint: self.share_mint,
+                owner_shares: self.share_account(&owner.key()),
+                share_escrow: self.share_escrow,
+                share_token_program: token_2022::ID,
+                system_program: system_program::ID,
+            },
+        )
+    }
+
+    pub fn ix_claim_deposit(&self, owner: &User) -> Instruction {
+        self.ix(
+            afterbell_vault::instruction::ClaimDeposit {}.data(),
+            afterbell_vault::accounts::ClaimDeposit {
+                owner: owner.key(),
+                vault: self.vault,
+                request: self.request_pda(&owner.key()),
+                rate: self.rate_for(&owner.key(), true),
+                share_mint: self.share_mint,
+                owner_shares: self.share_account(&owner.key()),
+                share_escrow: self.share_escrow,
+                share_token_program: token_2022::ID,
+                associated_token_program: associated_token::ID,
+                system_program: system_program::ID,
+            },
+        )
+    }
+
+    pub fn ix_claim_redemption(&self, owner: &User) -> Instruction {
+        self.ix(
+            afterbell_vault::instruction::ClaimRedemption {}.data(),
+            afterbell_vault::accounts::ClaimRedemption {
+                owner: owner.key(),
+                vault: self.vault,
+                request: self.request_pda(&owner.key()),
+                rate: self.rate_for(&owner.key(), false),
+                collateral_mint: self.mint,
+                owner_token: owner.ata,
+                vault_token: self.vault_token,
+                token_program: TOKEN_ID,
+            },
+        )
+    }
+
+    pub fn ix_roll(&self, payer: &Pubkey) -> Instruction {
+        self.ix(
+            afterbell_vault::instruction::Roll {}.data(),
+            afterbell_vault::accounts::Roll {
+                payer: *payer,
+                vault: self.vault,
+                rate: self.rate_pda(self.vault_state().round),
+                vault_token: self.vault_token,
+                share_mint: self.share_mint,
+                share_escrow: self.share_escrow,
+                share_token_program: token_2022::ID,
+                system_program: system_program::ID,
+            },
+        )
+    }
+
+    pub fn compute_limit(units: u32) -> Instruction {
+        let mut data = vec![2u8];
+        data.extend_from_slice(&units.to_le_bytes());
+        Instruction { program_id: COMPUTE_BUDGET, accounts: vec![], data }
     }
 
     // ---------------------------------------------------------------- quotes
@@ -280,6 +447,8 @@ impl Env {
     /// 10 shares, protection from $360 down to $340 (max $200), $20 premium, a fresh nonce.
     pub fn quote(&mut self) -> QuoteArgs {
         self.nonce += 1;
+        let mut nonce = [0u8; 32];
+        nonce[..2].copy_from_slice(&self.nonce.to_le_bytes());
         QuoteArgs {
             feed_id: FEED,
             open_ts: OPEN,
@@ -287,8 +456,8 @@ impl Env {
             upper: 36_000_000_000,
             lower: 34_000_000_000,
             premium: 20 * USD,
-            expiry: T0 + 120,
-            nonce: [self.nonce; 32],
+            expiry: self.now() + 120,
+            nonce,
         }
     }
 
@@ -310,16 +479,87 @@ impl Env {
         quote_message(&self.program_id, &self.vault, buyer, q)
     }
 
-    /// Buy with the quoter's signature, as a real client would.
+    /// The instructions a real client sends to buy: the quoter's signature, then buy.
+    pub fn buy_ixs(&self, buyer: &User, q: QuoteArgs) -> Vec<Instruction> {
+        vec![Self::ed25519_ix(&self.quoter, &self.message(&buyer.key(), &q)), self.ix_buy(buyer, q)]
+    }
+
     pub fn buy_as(&mut self, buyer: &User, q: QuoteArgs) -> TransactionResult {
-        let sig_ix = Self::ed25519_ix(&self.quoter, &self.message(&buyer.kp.pubkey(), &q));
-        let ix = self.ix_buy(buyer, q);
-        self.send(&[sig_ix, ix], &[&buyer.kp.insecure_clone()])
+        let ixs = self.buy_ixs(buyer, q);
+        let res = self.send(&ixs, &[&buyer.kp]);
+        if res.is_ok() {
+            self.holders.insert(self.position_pda(q.nonce), buyer.key());
+        }
+        res
     }
 
     pub fn buy(&mut self, q: QuoteArgs) -> TransactionResult {
-        let buyer = User { kp: self.buyer.kp.insecure_clone(), ata: self.buyer.ata };
+        let buyer = self.buyer.clone();
         self.buy_as(&buyer, q)
+    }
+
+    // -------------------------------------------------------------- NFTs
+
+    /// Moves a position's NFT to `to`, creating their account for it.
+    pub fn transfer_nft(&mut self, position: &Pubkey, from: &User, to: &Pubkey) -> TransactionResult {
+        let mint = self.position(position).unwrap().mint;
+        let dest = Self::nft_account(to, &mint);
+        let create = create_associated_token_account_idempotent(&from.key(), to, &mint, &token_2022::ID);
+        let transfer = spl_token_2022::instruction::transfer_checked(
+            &token_2022::ID,
+            &Self::nft_account(&from.key(), &mint),
+            &mint,
+            &dest,
+            &from.key(),
+            &[],
+            1,
+            0,
+        )
+        .unwrap();
+        let res = self.send(&[create, transfer], &[&from.kp]);
+        if res.is_ok() {
+            self.holders.insert(*position, *to);
+        }
+        res
+    }
+
+    /// The (position, NFT account, payee) triple for a position's current holder.
+    pub fn triple(&self, position: &Pubkey) -> [Pubkey; 3] {
+        let holder = self.holders[position];
+        let mint = self.position(position).unwrap().mint;
+        [*position, Self::nft_account(&holder, &mint), self.collateral_account(&holder)]
+    }
+
+    /// The keeper processes these positions of a series.
+    pub fn process(&mut self, series: &Pubkey, positions: &[Pubkey]) -> TransactionResult {
+        let triples: Vec<_> = positions.iter().map(|p| self.triple(p)).collect();
+        let keeper = self.keeper.clone();
+        let ix = self.ix_process(series, &keeper.key(), &keeper.ata, &triples);
+        self.send(&[ix], &[&keeper.kp])
+    }
+
+    // ------------------------------------------------------------------ pool
+
+    pub fn request_deposit(&mut self, owner: &User, assets: u64) -> TransactionResult {
+        let ix = self.ix_request_deposit(owner, assets);
+        self.send(&[ix], &[&owner.kp])
+    }
+    pub fn request_redeem(&mut self, owner: &User, shares: u64) -> TransactionResult {
+        let ix = self.ix_request_redeem(owner, shares);
+        self.send(&[ix], &[&owner.kp])
+    }
+    pub fn claim_deposit(&mut self, owner: &User) -> TransactionResult {
+        let ix = self.ix_claim_deposit(owner);
+        self.send(&[ix], &[&owner.kp])
+    }
+    pub fn claim_redemption(&mut self, owner: &User) -> TransactionResult {
+        let ix = self.ix_claim_redemption(owner);
+        self.send(&[ix], &[&owner.kp])
+    }
+    pub fn roll(&mut self) -> TransactionResult {
+        let payer = self.payer.insecure_clone();
+        let ix = self.ix_roll(&payer.pubkey());
+        self.send(&[ix], &[&payer])
     }
 
     // ------------------------------------------------------------------ Pyth
@@ -339,17 +579,25 @@ impl Env {
         self.put_price_update(pyth_solana_receiver_sdk::ID, spec.build())
     }
 
-    /// Settle the default series at `price` (expo -5), published at the open.
-    pub fn settle_at(&mut self, price: i64) -> TransactionResult {
-        self.set_time(OPEN + 30);
-        let update = self.price(PriceSpec { price, ..Default::default() });
-        let ix = self.ix_settle(&self.series_pda(FEED, OPEN), &update);
-        self.send(&[ix], &[&self.payer.insecure_clone()])
+    /// Settle a feed's series for OPEN at `price` (expo -5), published at the open.
+    pub fn settle_feed_at(&mut self, feed: [u8; 32], price: i64) -> TransactionResult {
+        if self.now() < OPEN + 30 {
+            self.set_time(OPEN + 30);
+        }
+        let update = self.price(PriceSpec { feed_id: feed, price, ..Default::default() });
+        let ix = self.ix_settle(&self.series_pda(feed, OPEN), &update);
+        let payer = self.payer.insecure_clone();
+        self.send(&[ix], &[&payer])
     }
 
-    pub fn claim(&mut self, q: &QuoteArgs, buyer: &User) -> TransactionResult {
-        let ix = self.ix_claim(&self.position_pda(q.nonce), &self.series_pda(q.feed_id, q.open_ts), &buyer.kp.pubkey(), &buyer.ata);
-        self.send(&[ix], &[&self.payer.insecure_clone()])
+    pub fn settle_at(&mut self, price: i64) -> TransactionResult {
+        self.settle_feed_at(FEED, price)
+    }
+
+    pub fn void(&mut self, feed: [u8; 32]) -> TransactionResult {
+        let ix = self.ix_void(&self.series_pda(feed, OPEN));
+        let payer = self.payer.insecure_clone();
+        self.send(&[ix], &[&payer])
     }
 
     // ----------------------------------------------------------------- reads
@@ -360,27 +608,57 @@ impl Env {
     pub fn series(&self, feed_id: [u8; 32], open_ts: i64) -> Series {
         read(&self.svm, &self.series_pda(feed_id, open_ts))
     }
-    pub fn position(&self, nonce: [u8; 32]) -> Option<Position> {
-        let acc = self.svm.get_account(&self.position_pda(nonce))?;
-        if acc.data.is_empty() {
-            return None;
-        }
-        Some(Position::try_deserialize(&mut acc.data.as_slice()).unwrap())
+    pub fn position(&self, address: &Pubkey) -> Option<Position> {
+        try_read(&self.svm, address)
+    }
+    pub fn request(&self, owner: &Pubkey) -> Option<Request> {
+        try_read(&self.svm, &self.request_pda(owner))
+    }
+    pub fn rate(&self, round: u64) -> RoundRate {
+        read(&self.svm, &self.rate_pda(round))
     }
     pub fn feed_config(&self, feed_id: [u8; 32]) -> FeedConfig {
         read(&self.svm, &self.feed_pda(feed_id))
     }
+    /// A token account's balance, classic or Token-2022 (same base layout); 0 if it doesn't exist.
     pub fn balance(&self, token_account: &Pubkey) -> u64 {
-        get_spl_account::<spl_token::state::Account>(&self.svm, token_account).unwrap().amount
+        get_spl_account::<spl_token::state::Account>(&self.svm, token_account).map(|a| a.amount).unwrap_or(0)
+    }
+    pub fn shares_of(&self, owner: &Pubkey) -> u64 {
+        self.balance(&self.share_account(owner))
+    }
+    pub fn share_supply(&self) -> u64 {
+        get_spl_account::<spl_token::state::Mint>(&self.svm, &self.share_mint).unwrap().supply
     }
     pub fn lamports(&self, address: &Pubkey) -> u64 {
         self.svm.get_account(address).map(|a| a.lamports).unwrap_or(0)
     }
+    /// A Token-2022 mint's base state and the metadata stored on it.
+    pub fn mint_with_metadata(&self, mint: &Pubkey) -> (spl_token_2022::state::Mint, TokenMetadata) {
+        let acc = self.svm.get_account(mint).expect("mint");
+        let state = StateWithExtensions::<spl_token_2022::state::Mint>::unpack(&acc.data).unwrap();
+        let metadata = state.get_variable_len_extension::<TokenMetadata>().unwrap();
+        (state.base, metadata)
+    }
+
+    /// The pool's assets as the program counts them.
+    pub fn total_assets(&self) -> u64 {
+        let v = self.vault_state();
+        afterbell_vault::math::total_assets(self.balance(&self.vault_token), v.pending_deposit_assets, v.reserved_assets, v.tips_owed, v.locked)
+            .unwrap()
+    }
 }
 
-fn read<T: AccountDeserialize>(svm: &LiteSVM, address: &Pubkey) -> T {
-    let acc = svm.get_account(address).expect("account");
-    T::try_deserialize(&mut acc.data.as_slice()).unwrap()
+pub fn read<T: AccountDeserialize>(svm: &LiteSVM, address: &Pubkey) -> T {
+    try_read(svm, address).expect("account")
+}
+
+pub fn try_read<T: AccountDeserialize>(svm: &LiteSVM, address: &Pubkey) -> Option<T> {
+    let acc = svm.get_account(address)?;
+    if acc.data.is_empty() {
+        return None;
+    }
+    T::try_deserialize(&mut acc.data.as_slice()).ok()
 }
 
 /// A settlement price at OPEN for FEED, overridable field by field.
@@ -451,4 +729,12 @@ pub fn assert_vault_error(res: TransactionResult, e: VaultError) {
 
 pub fn assert_fails(res: TransactionResult) {
     assert!(res.is_err(), "expected the transaction to fail");
+}
+
+/// Unwraps a transaction, printing its logs if it failed.
+pub fn ok(res: TransactionResult) -> litesvm::types::TransactionMetadata {
+    match res {
+        Ok(meta) => meta,
+        Err(failed) => panic!("transaction failed: {:?}\nlogs:\n{}", failed.err, failed.meta.logs.join("\n")),
+    }
 }

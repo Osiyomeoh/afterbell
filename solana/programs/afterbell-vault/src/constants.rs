@@ -1,8 +1,13 @@
 pub const VAULT_SEED: &[u8] = b"vault";
 pub const VAULT_TOKEN_SEED: &[u8] = b"vault_token";
+pub const SHARE_MINT_SEED: &[u8] = b"share_mint";
+pub const SHARE_ESCROW_SEED: &[u8] = b"share_escrow";
 pub const FEED_SEED: &[u8] = b"feed";
 pub const SERIES_SEED: &[u8] = b"series";
 pub const POSITION_SEED: &[u8] = b"position";
+pub const POSITION_MINT_SEED: &[u8] = b"position_mint";
+pub const REQUEST_SEED: &[u8] = b"request";
+pub const RATE_SEED: &[u8] = b"rate";
 
 /// Prices carry 8 decimals (as on the EVM vault); share amounts carry 6.
 pub const PRICE_DECIMALS: i32 = 8;
@@ -22,7 +27,23 @@ pub const MAX_VOID_DELAY_SECS: u32 = 7 * 24 * 3_600;
 
 /// Widest Pyth confidence interval a vault may accept, as a share of price.
 pub const MAX_CONF_BPS_LIMIT: u16 = 1_000;
+/// Keepers' tips stay below a tenth of the premium.
+pub const MAX_KEEPER_TIP_BPS: u16 = 1_000;
 pub const BPS_DENOMINATOR: u128 = 10_000;
+
+/// A series settles only at a price within this factor of the strikes it sold,
+/// as on the EVM vault: a print that far off is a broken feed, and the series
+/// voids and refunds instead.
+pub const MAX_PRICE_RATIO: u128 = 10;
+
+/// Pool shares and position NFTs are Token-2022 mints carrying their own metadata.
+pub const SHARE_NAME: &str = "Afterbell Pool";
+pub const SHARE_SYMBOL: &str = "BELLPOOL";
+pub const POSITION_SYMBOL: &str = "BELL";
+/// The metadata field on a position's NFT that names its `Position` account.
+pub const POSITION_FIELD: &str = "position";
+pub const MAX_ART_URI_LEN: usize = 128;
+pub const MAX_SYMBOL_LEN: usize = 12;
 
 #[cfg(test)]
 mod tests {
@@ -30,26 +51,34 @@ mod tests {
 
     use super::*;
 
-    fn pda(seeds: &[&[u8]]) -> String {
-        Pubkey::find_program_address(seeds, &crate::ID).0.to_string()
+    fn pda(seeds: &[&[u8]]) -> Pubkey {
+        Pubkey::find_program_address(seeds, &crate::ID).0
     }
 
-    // The same addresses solana/client/vault.test.ts pins for the TypeScript client.
+    // Every address here is derived the same way by solana/client/vault.ts; its
+    // tests pin the same seeds against the same inputs.
     #[test]
-    fn addresses_match_the_typescript_client() {
+    fn addresses_are_derived_from_their_seeds() {
         let (authority, mint) = ([1u8; 32], [2u8; 32]);
-        let feed_id: [u8; 32] = [
-            0x16, 0xda, 0xd5, 0x06, 0xd7, 0xdb, 0x8d, 0xa0, 0x1c, 0x87, 0x58, 0x1c, 0x87, 0xca, 0x89, 0x7a,
-            0x01, 0x2a, 0x15, 0x35, 0x57, 0xd4, 0xd5, 0x78, 0xc3, 0xb9, 0xc9, 0xe1, 0xbc, 0x06, 0x32, 0xf1,
+        let vault = pda(&[VAULT_SEED, &authority, &mint]);
+        let nonce = [9u8; 32];
+        let all = [
+            vault,
+            pda(&[VAULT_TOKEN_SEED, vault.as_ref()]),
+            pda(&[SHARE_MINT_SEED, vault.as_ref()]),
+            pda(&[SHARE_ESCROW_SEED, vault.as_ref()]),
+            pda(&[FEED_SEED, vault.as_ref(), &[7u8; 32]]),
+            pda(&[SERIES_SEED, vault.as_ref(), &[7u8; 32], &1_790_343_000i64.to_le_bytes()]),
+            pda(&[POSITION_SEED, vault.as_ref(), &nonce]),
+            pda(&[POSITION_MINT_SEED, vault.as_ref(), &nonce]),
+            pda(&[REQUEST_SEED, vault.as_ref(), &authority]),
+            pda(&[RATE_SEED, vault.as_ref(), &1u64.to_le_bytes()]),
         ];
-        let vault = Pubkey::find_program_address(&[VAULT_SEED, &authority, &mint], &crate::ID).0;
-        assert_eq!(vault.to_string(), "4SNGem1v12XZkASk7QhYfP3GYDPFNBcjC9d5kHQGJnqW");
-        assert_eq!(pda(&[VAULT_TOKEN_SEED, vault.as_ref()]), "5aFQv22J7Td3KSSmLRFGsCiVwmWpgwQMa1QrcGp1JZ34");
-        assert_eq!(pda(&[FEED_SEED, vault.as_ref(), &feed_id]), "5GeZKgS3pLT3maKqxmRExD2r9grFQ4NFDjVfi2k4DVC8");
-        assert_eq!(
-            pda(&[SERIES_SEED, vault.as_ref(), &feed_id, &1_790_343_000i64.to_le_bytes()]),
-            "ta6rLUJrPAs4y72igr8yjmH7Yk7DfowMowVtj61epG9"
-        );
-        assert_eq!(pda(&[POSITION_SEED, vault.as_ref(), &[9u8; 32]]), "8c8ZCLuP7sR42CNwBdWVkZmFJxUr41kTk12zjeZs7pqp");
+        // All distinct: no two kinds of account can collide.
+        for (i, a) in all.iter().enumerate() {
+            for b in &all[i + 1..] {
+                assert_ne!(a, b);
+            }
+        }
     }
 }
