@@ -2,12 +2,12 @@ use anchor_lang::prelude::*;
 use anchor_spl::{
     token::{Mint, Token, TokenAccount},
     token_2022,
-    token_interface::TokenAccount as NftAccount,
+    token_interface::{Mint as NftMint, TokenAccount as NftAccount},
 };
 
 use crate::{
     error::VaultError,
-    events::{Paid, Processed},
+    events::{Forfeited, Paid, Processed},
     instructions::admin::transfer_from_vault,
     math,
     state::*,
@@ -37,6 +37,12 @@ pub struct Process<'info> {
 /// comes as three remaining accounts: the position, the token account holding
 /// its NFT, and that holder's collateral account. The first two prove who the
 /// holder is; the payout can only go to the holder's own account.
+///
+/// Token-2022 lets a holder burn their NFT. Then nobody holds the position and
+/// nobody can be paid, but the round can't end until every position is closed.
+/// So in place of the holder's account, the position's own mint may be passed:
+/// with a supply of zero (and no way to mint more), the position is forfeited
+/// and its payout stays in the pool. The third account is then unused.
 pub fn handle_process<'info>(ctx: Context<'info, Process<'info>>) -> Result<()> {
     let series = &mut ctx.accounts.series;
     require!(series.state != SeriesState::Open, VaultError::SeriesStillOpen);
@@ -48,7 +54,7 @@ pub fn handle_process<'info>(ctx: Context<'info, Process<'info>>) -> Result<()> 
     let mut count: u32 = 0;
     for three in rest.chunks(3) {
         let (position_info, nft_info, payee_info) = (&three[0], &three[1], &three[2]);
-        require!(position_info.is_writable && payee_info.is_writable, VaultError::BadPositionAccounts);
+        require!(position_info.is_writable, VaultError::BadPositionAccounts);
         // Owned by this program with the Position discriminator.
         let mut position: Account<Position> = Account::try_from(position_info)?;
         require_keys_eq!(position.series, series.key(), VaultError::WrongSeries);
@@ -57,16 +63,6 @@ pub fn handle_process<'info>(ctx: Context<'info, Process<'info>>) -> Result<()> 
             continue;
         }
 
-        // The NFT's supply is one, so the account holding it names the holder.
-        require_keys_eq!(*nft_info.owner, token_2022::ID, VaultError::NotHolder);
-        let nft: InterfaceAccount<NftAccount> = InterfaceAccount::try_from(nft_info)?;
-        require!(nft.mint == position.mint && nft.amount == 1, VaultError::NotHolder);
-        let payee: Account<TokenAccount> = Account::try_from(payee_info)?;
-        require!(
-            payee.mint == ctx.accounts.vault.collateral_mint && payee.owner == nft.owner,
-            VaultError::WrongPayee
-        );
-
         let vault = &mut ctx.accounts.vault;
         // A voided position gets its whole premium back, the tip included.
         let amount = if refund {
@@ -74,18 +70,39 @@ pub fn handle_process<'info>(ctx: Context<'info, Process<'info>>) -> Result<()> 
         } else {
             math::payout_at(position.shares, position.upper, position.lower, series.price, vault.collateral_unit)?
         };
+        require_keys_eq!(*nft_info.owner, token_2022::ID, VaultError::NotHolder);
+        // The holder, or nobody if the NFT was burned.
+        let holder = if nft_info.key() == position.mint {
+            let mint: InterfaceAccount<NftMint> = InterfaceAccount::try_from(nft_info)?;
+            require!(mint.supply == 0, VaultError::NotHolder);
+            None
+        } else {
+            // The NFT's supply is one, so the account holding it names the holder.
+            let nft: InterfaceAccount<NftAccount> = InterfaceAccount::try_from(nft_info)?;
+            require!(nft.mint == position.mint && nft.amount == 1, VaultError::NotHolder);
+            require!(payee_info.is_writable, VaultError::BadPositionAccounts);
+            let payee: Account<TokenAccount> = Account::try_from(payee_info)?;
+            require!(payee.mint == vault.collateral_mint && payee.owner == nft.owner, VaultError::WrongPayee);
+            Some(nft.owner)
+        };
+
         let tip = if refund { 0 } else { position.tip };
         vault.locked = vault.locked.checked_sub(position.max_payout).ok_or(VaultError::MathOverflow)?;
         vault.tips_owed = vault.tips_owed.checked_sub(position.tip).ok_or(VaultError::MathOverflow)?;
-        vault.round_unpaid -= 1;
+        vault.round_unpaid = vault.round_unpaid.checked_sub(1).ok_or(VaultError::MathOverflow)?;
         series.locked = series.locked.checked_sub(position.max_payout).ok_or(VaultError::MathOverflow)?;
         series.paid += 1;
         position.closed = true;
-        position.paid = amount;
-        position.paid_to = nft.owner;
+        position.paid = if holder.is_some() { amount } else { 0 };
+        position.paid_to = holder.unwrap_or_default();
         position.exit(&crate::ID)?;
         tips += tip;
         count += 1;
+
+        let Some(holder) = holder else {
+            emit!(Forfeited { position: position.key(), amount });
+            continue;
+        };
 
         if amount > 0 {
             transfer_from_vault(
@@ -97,7 +114,7 @@ pub fn handle_process<'info>(ctx: Context<'info, Process<'info>>) -> Result<()> 
                 amount,
             )?;
         }
-        emit!(Paid { position: position.key(), holder: nft.owner, amount, refund });
+        emit!(Paid { position: position.key(), holder, amount, refund });
     }
 
     if tips > 0 {

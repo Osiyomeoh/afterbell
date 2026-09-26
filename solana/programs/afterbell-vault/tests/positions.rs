@@ -188,3 +188,27 @@ fn a_keeper_pays_a_batch_in_one_transaction() {
     assert_eq!(env.balance(&keeper.ata), 8 * 400_000);
     assert_eq!(env.vault_state().round_unpaid, 0);
 }
+
+#[test]
+fn a_burned_nft_forfeits_its_payout_to_the_pool_so_the_round_can_end() {
+    let (mut env, q, position, series) = settled(35_500_000); // would pay 10 x $5
+    let buyer = env.buyer.clone();
+    // Passing the mint while someone still holds the NFT proves nothing.
+    let keeper = env.keeper.clone();
+    let mint = env.position(&position).unwrap().mint;
+    let ix = env.ix_process(&series, &keeper.key(), &keeper.ata, &[[position, mint, mint]]);
+    assert_vault_error(env.send(&[ix], &[&keeper.kp]), VaultError::NotHolder);
+
+    ok(env.burn_nft(&position, &buyer));
+    ok(env.process(&series, &[position]));
+    let p = env.position(&position).unwrap();
+    assert_eq!((p.closed, p.paid, p.paid_to), (true, 0, Pubkey::default()));
+    assert_eq!(env.balance(&buyer.ata), 980 * USD, "nobody is paid");
+    assert_eq!(env.balance(&env.keeper.ata), 400_000, "the keeper is still tipped for closing it");
+    let v = env.vault_state();
+    assert_eq!((v.locked, v.tips_owed, v.round_unpaid), (0, 0, 0));
+    // The pool keeps the premium and the payout nobody could take, less the tip.
+    assert_eq!(env.total_assets(), SEED + q.premium - 400_000);
+    env.set_time(OPEN + 60);
+    ok(env.roll());
+}

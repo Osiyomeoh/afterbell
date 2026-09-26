@@ -523,11 +523,34 @@ impl Env {
         res
     }
 
-    /// The (position, NFT account, payee) triple for a position's current holder.
-    pub fn triple(&self, position: &Pubkey) -> [Pubkey; 3] {
-        let holder = self.holders[position];
+    /// Burns a position's NFT, as Token-2022 lets any holder do: nobody holds it after.
+    pub fn burn_nft(&mut self, position: &Pubkey, from: &User) -> TransactionResult {
         let mint = self.position(position).unwrap().mint;
-        [*position, Self::nft_account(&holder, &mint), self.collateral_account(&holder)]
+        let burn = spl_token_2022::instruction::burn_checked(
+            &token_2022::ID,
+            &Self::nft_account(&from.key(), &mint),
+            &mint,
+            &from.key(),
+            &[],
+            1,
+            0,
+        )
+        .unwrap();
+        let res = self.send(&[burn], &[&from.kp]);
+        if res.is_ok() {
+            self.holders.remove(position);
+        }
+        res
+    }
+
+    /// The (position, NFT account, payee) triple for a position's current holder,
+    /// or (position, its mint, its mint) once its NFT is burned.
+    pub fn triple(&self, position: &Pubkey) -> [Pubkey; 3] {
+        let mint = self.position(position).unwrap().mint;
+        match self.holders.get(position) {
+            Some(holder) => [*position, Self::nft_account(holder, &mint), self.collateral_account(holder)],
+            None => [*position, mint, mint],
+        }
     }
 
     /// The keeper processes these positions of a series.

@@ -1,7 +1,8 @@
 //! Randomized sequences: the nine things anyone can do to the vault, in random
 //! order with random amounts, and after every step the four properties the
 //! Foundry invariant suite checks on the EVM vault. Seeded, so a failure names
-//! the run and step that reproduce it.
+//! the run and step that reproduce it. Moving a position sometimes burns its
+//! NFT instead, which Token-2022 lets any holder do: the round must still end.
 
 mod common;
 
@@ -24,7 +25,7 @@ const ACTIONS: [&str; 9] = [
     "request_redeem",
     "claim_deposit",
     "claim_redemption",
-    "transfer_position",
+    "move_position",
 ];
 
 /// xorshift64*: small, deterministic, good enough to pick actions and amounts.
@@ -56,6 +57,7 @@ struct Handler {
     /// The opening the current round sells.
     open: i64,
     done: [u32; 9],
+    burned: u32,
 }
 
 impl Handler {
@@ -71,7 +73,7 @@ impl Handler {
         let auth = env.authority.clone();
         lps.push(auth.key());
         users.insert(auth.key(), auth);
-        Handler { env, rng: Rng(seed * 0x9E37_79B9 + 1), users, buyers, lps, positions: vec![], open: OPEN, done: [0; 9] }
+        Handler { env, rng: Rng(seed * 0x9E37_79B9 + 1), users, buyers, lps, positions: vec![], open: OPEN, done: [0; 9], burned: 0 }
     }
 
     fn user(&self, key: &Pubkey) -> User {
@@ -92,7 +94,7 @@ impl Handler {
             5 => self.request_redeem(),
             6 => self.claim_deposit(),
             7 => self.claim_redemption(),
-            _ => self.transfer_position(),
+            _ => self.move_position(),
         }
     }
 
@@ -170,7 +172,9 @@ impl Handler {
         let payable: Vec<_> = self
             .unpaid()
             .into_iter()
-            .filter(|(_, p)| read::<afterbell_vault::Series>(&self.env.svm, &p.series).state != SeriesState::Open)
+            .filter(|(a, p)| {
+                self.env.holders.contains_key(a) && read::<afterbell_vault::Series>(&self.env.svm, &p.series).state != SeriesState::Open
+            })
             .collect();
         if payable.is_empty() {
             return false;
@@ -262,13 +266,19 @@ impl Handler {
         }
     }
 
-    fn transfer_position(&mut self) -> bool {
-        let unpaid = self.unpaid();
-        if unpaid.is_empty() {
+    /// Sells a position's NFT to someone else, or now and then burns it.
+    fn move_position(&mut self) -> bool {
+        let held: Vec<Pubkey> = self.unpaid().into_iter().map(|(a, _)| a).filter(|a| self.env.holders.contains_key(a)).collect();
+        if held.is_empty() {
             return false;
         }
-        let address = self.rng.pick(&unpaid).0;
+        let address = *self.rng.pick(&held);
         let from = self.user(&self.env.holders[&address]);
+        if self.rng.range(0, 7) == 0 {
+            ok(self.env.burn_nft(&address, &from));
+            self.burned += 1;
+            return true;
+        }
         let everyone: Vec<Pubkey> = self.users.keys().copied().collect();
         let to = *self.rng.pick(&everyone);
         if to == from.key() {
@@ -305,7 +315,9 @@ impl Handler {
                     SeriesState::Settled => math::payout_at(p.shares, p.upper, p.lower, s.price, USD).unwrap(),
                     SeriesState::Open => panic!("{at}: paid before its series closed"),
                 };
-                assert_eq!(p.paid, owed, "{at}: position {address}");
+                // Forfeited (its NFT burned): paid nothing, to nobody.
+                let forfeited = p.paid_to == Pubkey::default();
+                assert_eq!(p.paid, if forfeited { 0 } else { owed }, "{at}: position {address}");
                 assert!(p.paid <= p.max_payout);
             } else {
                 locked += p.max_payout;
@@ -364,7 +376,7 @@ fn series_locked(env: &Env, feed: [u8; 32], open: i64) -> u64 {
 
 #[test]
 fn every_property_holds_after_every_step() {
-    let mut done = [0u32; 9];
+    let (mut done, mut burned) = ([0u32; 9], 0);
     for run in 0..RUNS {
         let mut h = Handler::new(run);
         h.check(run, 0, "setup");
@@ -378,10 +390,13 @@ fn every_property_holds_after_every_step() {
         for (d, n) in done.iter_mut().zip(h.done) {
             *d += n;
         }
+        burned += h.burned;
     }
     println!("{RUNS} runs x {STEPS} steps; done per action:");
     for (name, n) in ACTIONS.iter().zip(done) {
         println!("  {name}: {n}");
         assert!(n > 0, "{name} never happened");
     }
+    println!("  of which burned: {burned}");
+    assert!(burned > 0, "no NFT was ever burned");
 }

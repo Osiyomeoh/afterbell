@@ -39,6 +39,14 @@ pub struct Paid {
     pub refund: bool,
 }
 
+/// A position whose NFT was burned: nobody holds it, so its payout stays in the pool.
+#[event]
+pub struct Forfeited {
+    pub position: Pubkey,
+    /// What it would have paid.
+    pub amount: u64,
+}
+
 #[event]
 pub struct Processed {
     pub series: Pubkey,
