@@ -6,6 +6,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { signForEvm } from "@root/quoter/quoter";
 
 import { SOLANA_DEPLOYMENT } from "@/server/deployment";
+import { evmSaleError } from "@/server/evmChain";
 import { evmDeployment } from "@/server/evmDeployment";
 import { pricedStock } from "@/server/market";
 import { OfferError, priceOffer, signedOffer } from "@/server/offer";
@@ -85,12 +86,15 @@ async function robinhoodQuote(stock: Stock, buyer: string | undefined, protectio
   try {
     const priced = await priceOffer(stock, protection);
     const { quote, signature } = await signForEvm(priced, buyer, { chainId: d.chainId, vault: d.vault, feed }, key);
+    const refused = await evmSaleError(quote);
+    if (refused) return bad(refused, 409);
     return Response.json({
       priced,
       evm: {
         chainId: d.chainId,
         vault: d.vault,
         testUsd: d.testUsd,
+        positions: d.positions,
         quoter: d.quoter,
         quote: Object.fromEntries(Object.entries(quote).map(([k, v]) => [k, typeof v === "bigint" ? v.toString() : v])),
         signature,

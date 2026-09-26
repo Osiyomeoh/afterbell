@@ -6,6 +6,8 @@ import { fetchVault, type Chain, type VaultResponse } from "@/lib/api";
 import { evmAddressUrl } from "@/lib/evm";
 import { explorer, nyTime, usd } from "@/lib/format";
 
+import { Pool } from "./Underwrite";
+
 const CHAINS: { id: Chain; label: string }[] = [
   { id: "solana", label: "Solana devnet" },
   { id: "robinhood", label: "Robinhood Chain" },
@@ -52,11 +54,21 @@ function ChainVault({ chain }: { chain: Chain }) {
   const settled = v.series.filter((s) => s.state !== "open");
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Stat label="Collateral (TestUSD)" value={usd(v.collateral)} />
-        <Stat label="Locked for open protection" value={usd(v.locked)} />
-        <Stat label="Free to sell against" value={usd(v.collateral - v.locked)} />
-      </div>
+      {v.pool ? (
+        <div className="grid gap-4 sm:grid-cols-3">
+          {/* While protection is open, the contract values the pool as if every position pays its maximum. */}
+          <Stat label={v.locked > 0 ? "Pool value if every position pays in full" : "Pool value (TestUSD)"} value={usd(v.pool.nav)} />
+          <Stat label={v.locked > 0 ? "Share price, same worst case" : "Share price"} value={usd(v.pool.sharePrice, 6)} />
+          <Stat label="Locked for open protection" value={usd(v.locked)} />
+        </div>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-3">
+          <Stat label="Collateral (TestUSD)" value={usd(v.collateral)} />
+          <Stat label="Locked for open protection" value={usd(v.locked)} />
+          <Stat label="Free to sell against" value={usd(v.collateral - v.locked)} />
+        </div>
+      )}
+      {v.pool && <Pool pool={v.pool} />}
 
       <section className="rounded-2xl border border-line bg-surface">
         <h2 className="border-b border-line px-4 py-3 font-medium">Series</h2>

@@ -64,6 +64,7 @@ export type EvmQuoteResponse = {
     chainId: number;
     vault: string;
     testUsd: string;
+    positions: string;
     quoter: string;
     quote: Record<"buyer" | "feed" | "openTs" | "shares" | "upper" | "lower" | "premium" | "expiry" | "nonce", string>;
     signature: string;
@@ -104,10 +105,45 @@ export type PositionRow = {
   maxPayout: number;
   claimable: number | null;
   settlementPrice: number | null;
+  /** Robinhood Chain positions: the NFT's image, drawn on-chain. */
+  art?: string;
 };
+
+export type PoolState = {
+  round: number;
+  roundOpenTs: number | null;
+  nav: number;
+  roundNav: number;
+  shares: number;
+  sharePrice: number;
+  pendingDeposits: number;
+  pendingRedeemShares: number;
+  reserved: number;
+  tipsOwed: number;
+  room: number;
+  perStock: number;
+  maxUtilizationBps: number;
+  maxFeedBps: number;
+  keeperTipBps: number;
+};
+
+export type UnderwriterStake = {
+  shares: number;
+  value: number;
+  testUsd: number;
+  pendingDeposit: number;
+  pendingRedeemShares: number;
+  claimableDeposit: number;
+  claimableShares: number;
+  claimableRedeemShares: number;
+  claimableAssets: number;
+};
+
+export const fetchUnderwriter = (owner: string) => fetch(`/api/underwriter?owner=${owner}`, { cache: "no-store" }).then((r) => json<UnderwriterStake>(r));
 
 export type VaultResponse = {
   chainId?: number;
+  pool?: PoolState;
   vault: string;
   collateralMint: string;
   collateral: number;

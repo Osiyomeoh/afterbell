@@ -1,7 +1,8 @@
 /**
  * Buys protection end to end on a deployed EVM vault: a quote signed by the
- * quote service (or here), TestUSD minted if the buyer is short, approve and
- * `buy`, then the position read back.
+ * quote service (or here), TestUSD minted if the buyer is short, a permit
+ * and `buyWithPermit` in one transaction, then the position and its NFT read
+ * back.
  *
  *   BUYER_PRIVATE_KEY=0x… QUOTER_PRIVATE_KEY=0x… npx tsx evm/scripts/smoke-buy.ts
  *   BUYER_PRIVATE_KEY=0x… QUOTE_URL=http://localhost:3000/api/quote npx tsx evm/scripts/smoke-buy.ts
@@ -21,8 +22,8 @@ import data from "../../research/data/pyth-tsla-gaps.json" with { type: "json" }
 import type { Opening } from "../../pricing/model";
 import type { EvmQuote } from "../../pricing/quote";
 import { priceQuote, signForEvm, type PricedProtection } from "../../quoter/quoter";
-import { afterbellVaultAbi, testUsdAbi } from "../client/abi";
-import { buyProtection, mintTestUsd, robinhoodChain, type EvmDeployment } from "../client/vault";
+import { afterbellPositionsAbi, afterbellVaultAbi, testUsdAbi } from "../client/abi";
+import { buyProtection, mintTestUsd, robinhoodChain, type EvmDeployment, type EvmPosition } from "../client/vault";
 
 function required(name: string): string {
   const v = process.env[name];
@@ -72,10 +73,13 @@ async function main() {
 
   const { id, hash } = await buyProtection(wallet, client, d, quote, signature);
   console.log(`bought           position ${id} in ${hash}`);
-  const p = await client.readContract({ address: d.vault, abi: afterbellVaultAbi, functionName: "positions", args: [id] });
+  const p = (await client.readContract({ address: d.vault, abi: afterbellVaultAbi, functionName: "position", args: [id] })) as EvmPosition;
   const locked = await client.readContract({ address: d.vault, abi: afterbellVaultAbi, functionName: "locked" });
-  console.log(`position         premium ${p[6]} units, max payout ${p[7]} units; the vault has ${Number(locked) / 1e6} TestUSD locked`);
-  if (p[6] !== quote.premium) throw new Error("the position's premium differs from the quote");
+  const holder = await client.readContract({ address: d.positions, abi: afterbellPositionsAbi, functionName: "ownerOf", args: [id] });
+  console.log(`position         premium ${p.premium} units, max payout ${p.maxPayout} units; the vault has ${Number(locked) / 1e6} TestUSD locked`);
+  console.log(`NFT              token ${id} of ${d.positions}, held by ${holder}`);
+  if (p.premium !== quote.premium) throw new Error("the position's premium differs from the quote");
+  if (holder !== buyer.address) throw new Error("the buyer doesn't hold the position's NFT");
 }
 
 main().catch((e) => {

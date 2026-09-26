@@ -20,6 +20,8 @@ export const ANVIL_KEYS = [
   "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a",
   "0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6",
   "0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a",
+  "0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba",
+  "0x92db14e403b83dfe3df233f83dfa3a0d7096f21ca9b0d6d6b8d88b2b4ec1564e",
 ] as const;
 
 export const mockFeedAbi = [
@@ -50,7 +52,8 @@ export async function startAnvil(port: number): Promise<{ anvil: ChildProcess; c
 
 /**
  * Deploys a MockFeed, TestUSD and the vault (owned by `ownerKey`, quoted by
- * `quoter`), allows the feed and seeds 100,000 TestUSD, as Deploy.s.sol does.
+ * `quoter`), allows the feed as TSLA and underwrites the pool with 100,000
+ * TestUSD (request, roll, claim the shares), as Deploy.s.sol does.
  */
 export async function deployLocalVault(chain: Chain, client: PublicClient, rpc: string, ownerKey: Hex, quoter: Address): Promise<EvmDeployment> {
   const owner = createWalletClient({ chain, transport: http(rpc), account: privateKeyToAccount(ownerKey) });
@@ -65,9 +68,15 @@ export async function deployLocalVault(chain: Chain, client: PublicClient, rpc: 
   const feed = await deploy(artifact("MockFeed.sol", "MockFeed"), [8]);
   const usd = await deploy(artifact("TestUSD.sol", "TestUSD"));
   const vault = await deploy(artifact("AfterbellVault.sol", "AfterbellVault"), [usd, owner.account.address, quoter, 3n * 86_400n, 86_400n]);
-  await mined(await owner.writeContract({ address: vault, abi: afterbellVaultAbi, functionName: "allowFeed", args: [feed, true] }));
-  for (let i = 0; i < 10; i++) await mined(await owner.writeContract({ address: usd, abi: testUsdAbi, functionName: "mint", args: [owner.account.address, 10_000_000_000n] }));
+  const me = owner.account.address;
+  const call = async (functionName: string, args: unknown[] = []) =>
+    mined(await owner.writeContract({ address: vault, abi: afterbellVaultAbi, functionName, args } as never));
+  await call("allowFeed", [feed, "TSLA"]);
+  for (let i = 0; i < 10; i++) await mined(await owner.writeContract({ address: usd, abi: testUsdAbi, functionName: "mint", args: [me, 10_000_000_000n] }));
   await mined(await owner.writeContract({ address: usd, abi: testUsdAbi, functionName: "approve", args: [vault, 100_000_000_000n] }));
-  await mined(await owner.writeContract({ address: vault, abi: afterbellVaultAbi, functionName: "deposit", args: [100_000_000_000n] }));
-  return { chainId: chain.id, rpc, vault, testUsd: usd, owner: owner.account.address, quoter, feeds: { TSLA: feed } };
+  await call("requestDeposit", [100_000_000_000n, me, me]);
+  await call("roll");
+  await call("deposit", [100_000_000_000n, me, me]);
+  const positions = await client.readContract({ address: vault, abi: afterbellVaultAbi, functionName: "positionToken" });
+  return { chainId: chain.id, rpc, vault, positions, testUsd: usd, owner: me, quoter, feeds: { TSLA: feed } };
 }

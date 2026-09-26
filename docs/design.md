@@ -2,7 +2,7 @@
 
 Protection for tokenized stocks until the next open, sold on the chain where you hold them, hedged on Hyperliquid.
 
-Status (26 Sep): the Solana vault is live on devnet, with the app, quote endpoint, faucet, Blink, keeper and MCP server built on it. The EVM vault, its client, its keeper and the app's Robinhood Chain flow are built and tested on a fork and a local chain, waiting on a mainnet deploy. The app's track record covers both vaults. The hedger is planned. The README keeps the built/planned split current.
+Status (26 Sep): the Solana vault is live on devnet, with the app, quote endpoint, faucet, Blink, keeper and MCP server built on it. The EVM vault is at v2: an underwriters' pool, positions as NFTs, risk limits, keeper tips and one-transaction buys. It, its client, its keeper and the app's Robinhood Chain flow are built and tested on a local chain, and its settlement against the live feed in fork tests; it waits on a mainnet deploy. The Solana vault gets the same after Monday's first settlement. The app's track record covers both vaults. The hedger is planned. The README keeps the built/planned split current.
 
 ## Problem
 
@@ -23,16 +23,30 @@ Customers, in order:
 | Component | Where | Role |
 |---|---|---|
 | Pricing engine and quote service | TypeScript | Prices the put spread from the stock's history of openings (Weekend Markets' kernel model, backtested) until the next open, signs quotes for either vault |
-| EVM vault | Robinhood Chain, Solidity | Sells protection against a signed quote (EIP-712), locks the maximum payout, settles on Chainlink's round in force at the open, pays claims |
-| Solana vault | Solana, Anchor | The same against an ed25519-signed quote, settled on the first Pyth print at or after the open |
-| Keepers | TypeScript | Permissionless: settle each due series (Pyth's first print posted through its receiver; Chainlink's round in force found by binary search), void the unsettleable, claim every position to its buyer. The Solana keeper can also plan a run: what it would settle on and pay, sending nothing |
-| Hedger (planned) | TypeScript, Hyperliquid | Sums open protection across vaults, shorts the matching `xyz:` perp at the close, closes the hedge at the open |
-| App | Next.js | Protect with a Solana / Robinhood Chain switch (live pricing, payoff, backtest, "protect what I hold"); My protection, Vault and Track record for both chains; a devnet faucet and a Solana Action. Planned: the live hedge |
+| EVM vault | Robinhood Chain, Solidity | Sells protection against a signed quote (EIP-712; with a permit, in one transaction) as an NFT, within the pool's risk limits; locks the maximum payout, settles on Chainlink's round in force at the open, pays each NFT's holder. Underwritten by a pool anyone can join (ERC-7540) |
+| Solana vault | Solana, Anchor | The same sale and settlement against an ed25519-signed quote, settled on the first Pyth print at or after the open. Still v1: collateral without pool shares, positions as accounts; v2 follows |
+| Keepers | TypeScript | Permissionless: settle each due series (Pyth's first print posted through its receiver; Chainlink's round in force found by binary search), void the unsettleable, pay every position out (on Robinhood Chain to its NFT's holder, earning the keeper's tip, then roll the pool). Both can plan a run: what they would settle on and pay, sending nothing |
+| Hedger (planned) | TypeScript, Hyperliquid | Reads open protection from the vaults (the EVM vault lists each round's series and their positions), shorts the matching `xyz:` perp at the close, closes the hedge at the open |
+| App | Next.js | Protect with a Solana / Robinhood Chain switch (live pricing, payoff, backtest, "protect what I hold"); My protection, Vault and Track record for both chains; the Robinhood pool (deposit, withdraw) and each position's NFT; a devnet faucet and a Solana Action. Planned: the live hedge |
 | MCP server | TypeScript | Hosted (no keys, returns unsigned transactions) and local (the agent's own devnet wallet, capped spend): `protect_portfolio`, `quote_protection` and read tools |
 
 ### Why a vault and fixed quotes (not Weekend Markets' pools)
 
-Weekend Markets sold cover as stakes in parimutuel YES/NO pools. The payout was an estimate until betting closed, and liquidity came from operator seeding. A vault that sells against a signed quote gives the buyer a fixed price and payout, and its capacity comes from collateral plus the hedge, not from seeded pools. Settlement keeps Weekend Markets' rule.
+Weekend Markets sold cover as stakes in parimutuel YES/NO pools. The payout was an estimate until betting closed, and liquidity came from operator seeding. A vault that sells against a signed quote gives the buyer a fixed price and payout, and its capacity comes from what underwriters deposit (and later the hedge), not from an operator seeding each market. Settlement keeps Weekend Markets' rule.
+
+### Underwriting: the pool, rounds and risk limits (vault v2)
+
+Built on Robinhood Chain; the Solana vault follows.
+
+- **A pool anyone can join.** Underwriters deposit collateral for shares (the vault's own ERC-20) and earn the premiums net of payouts. The owner can't withdraw it; an owner who deposited leaves like anyone else.
+- **Deposits and withdrawals wait for the roll (ERC-7540).** The pool's liability during a round depends on the coming open. If shares were priced continuously, an underwriter could join on a night that looks quiet, or leave ahead of a gap they see coming on Hyperliquid, and take value from the others. So deposits and withdrawals are requests, filled at the next roll and then claimed. The pool rolls once the round's opening has passed and every position it sold is paid out (or at any time if it sold nothing). Nothing is at risk then, so a share's price is exactly what the pool holds: a deposit never dilutes the underwriters already in. During a round, `totalAssets()` counts every open position at its maximum payout, so it errs low.
+- **One opening per round.** The first sale after a roll fixes the round's opening, and every later sale must be for the same one. The contract can't know the exchange's holidays; the quoter's signature vouches that the opening is real.
+- **Risk limits, fixed for the round.** A round may lock at most 50% of the pool's value at its roll, and at most 20% of it on any one stock. Both are measured against the value at the roll, so they can't move within a round, and changes to them (and to the settlement timings) wait for the next roll. So even a night on which every position pays its maximum costs the pool at most half its value, spread over at least three stocks. `capacity(feed)` gives the room left, and the quote endpoint won't sign a sale beyond it.
+- **Positions are NFTs.** Each sale mints an ERC-721 to the buyer, and the payout goes to whoever holds it when it's paid, so protection can be sold, lent against or held by another contract. The image is drawn on-chain from the vault's record and keeps the outcome after payment.
+- **Keepers are paid.** `process` pays a settled or voided series' positions out in batches, to each NFT's holder, and pays the caller 2% of each premium, set aside at the sale. A voided position gets its whole premium back, with no tip. Anyone can settle, pay out and roll, so none of it depends on our keeper running.
+- **One transaction.** The collateral takes EIP-2612 permits, so buying and requesting a deposit need no approval first.
+- **No upgrades.** The vault is immutable: no proxy and no diamond, so the rules can't change under an open position. It is 20,967 bytes, built with Solidity's IR pipeline (the limit is 24,576).
+- **Checked by invariants.** Random sequences of every action (sales, NFT transfers, settlements and voids, payouts, deposits and withdrawals, rolls) must keep the vault holding everything it owes, every unpaid position locked, every payout within its maximum and every round within its limit. Slither runs in CI.
 
 ### Pricing reference: protecting against informed buyers
 
@@ -80,13 +94,13 @@ Colosseum's form asks for every chain integrated. We select only chains that are
 
 | Dates | Work |
 |---|---|
-| Sep 26 (done) | Repo, research proof, infrastructure checks; pricing engine and quote signing (EIP-712, ed25519); EVM vault (Foundry and fork tests); Solana vault (LiteSVM tests); Solana devnet deploy; quote service; app (Protect, My protection, Vault, Track record), faucet, Solana Action; Robinhood Chain buying and claiming in the app (against a local chain); keepers for both vaults, with a read-only plan for the Solana one; MCP server |
+| Sep 26 (done) | Repo, research proof, infrastructure checks; pricing engine and quote signing (EIP-712, ed25519); EVM vault (Foundry and fork tests); Solana vault (LiteSVM tests); Solana devnet deploy; quote service; app (Protect, My protection, Vault, Track record), faucet, Solana Action; Robinhood Chain buying and claiming in the app (against a local chain); keepers for both vaults, each with a read-only plan; MCP server; all 34 Chainlink stocks priced; EVM vault v2 (pool, NFT positions, risk limits, keeper tips, permit buys) with invariant tests and Slither, run in the app against a local chain |
 | Sep 28 | First devnet settlement and claims by the keeper after Monday's open; week-2 update video |
-| Sep 27 to Oct 1 | Robinhood Chain mainnet deploy with test collateral (waits on the deploy wallet); hosting |
+| Sep 28 to Oct 1 | Vault v2 on Solana; Robinhood Chain mainnet deploy with test collateral (when the deploy wallet is funded); hosting |
 | Oct 2 to 6 | Hedger on Hyperliquid, inside the Perps hackathon window; exposure across vaults; tests |
 | Oct 6 to 8 | Hedge shown in the app; Perps submission Oct 8 |
 | Oct 9 | Buffer, traction push |
-| **cut line** | Below: Arbitrum, vault shares for outside depositors, Solana stocks beyond TSLA and QQQ (Pyth entitlement), Solami side track |
+| **cut line** | Below: Arbitrum, Solana stocks beyond TSLA and QQQ (Pyth entitlement), Solami side track. Vault shares for outside depositors started below the line and are now built on Robinhood Chain (the pool) |
 | Oct 10 to 11 | Video, deck, README, form, submit |
 
 Running alongside: weekly update videos (Sep 28, Oct 5), Superteam Nigeria sessions, users and letters of intent, a teammate.
