@@ -1,6 +1,7 @@
 /**
  * Sets up a Solana vault after the program is deployed: a TestUSD mint with
- * no value (6 decimals), the vault, the TSLA feed, and collateral. Safe to
+ * no value (6 decimals), the vault, a feed for each stock in quoter/stocks.ts,
+ * and collateral. Safe to
  * re-run: each step is skipped when it's already done, and the addresses are
  * kept in a deployments file.
  *
@@ -26,11 +27,11 @@ import {
   feedIdBytes,
   getProgram,
   PROGRAM_ID,
-  TSLA_FEED_ID,
   vaultAddress,
   vaultTokenAddress,
   type VaultConfig,
 } from "../client/vault";
+import { STOCKS } from "../../quoter/stocks";
 
 const DECIMALS = 6;
 
@@ -111,18 +112,20 @@ async function main() {
     log(`vault            ${vault.toBase58()} (existing)`);
   }
 
-  // 3. The TSLA feed.
-  const feedId = feedIdBytes(TSLA_FEED_ID);
-  const feedConfig = feedConfigAddress(vault, feedId);
-  const feed = await program.account.feedConfig.fetchNullable(feedConfig);
-  if (!feed?.allowed) {
-    await program.methods
-      .allowFeed(Array.from(feedId), true)
-      .accountsPartial({ authority: payer.publicKey, vault, feedConfig, systemProgram: SystemProgram.programId })
-      .rpc();
-    log(`TSLA feed        ${feedConfig.toBase58()} (allowed)`);
-  } else {
-    log(`TSLA feed        ${feedConfig.toBase58()} (existing)`);
+  // 3. A feed for each stock the quote service sells.
+  const feeds: Deployment["feeds"] = {};
+  for (const stock of STOCKS) {
+    const feedId = feedIdBytes(stock.feedId);
+    const feedConfig = feedConfigAddress(vault, feedId);
+    const feed = await program.account.feedConfig.fetchNullable(feedConfig);
+    if (!feed?.allowed) {
+      await program.methods
+        .allowFeed(Array.from(feedId), true)
+        .accountsPartial({ authority: payer.publicKey, vault, feedConfig, systemProgram: SystemProgram.programId })
+        .rpc();
+    }
+    log(`${`${stock.symbol} feed`.padEnd(17)}${feedConfig.toBase58()} (${feed?.allowed ? "existing" : "allowed"})`);
+    feeds[stock.symbol] = { feedId: stock.feedId, feedConfig: feedConfig.toBase58() };
   }
 
   // 4. Collateral, on the first run only.
@@ -153,7 +156,7 @@ async function main() {
     collateralMint: mint.toBase58(),
     vault: vault.toBase58(),
     vaultToken: vaultToken.toBase58(),
-    feeds: { TSLA: { feedId: TSLA_FEED_ID, feedConfig: feedConfig.toBase58() } },
+    feeds,
   };
   mkdirSync(dirname(out), { recursive: true });
   writeFileSync(out, JSON.stringify(deployment, null, 2) + "\n");

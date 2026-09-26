@@ -7,11 +7,13 @@ import { signForEvm } from "@root/quoter/quoter";
 
 import { SOLANA_DEPLOYMENT } from "@/server/deployment";
 import { evmDeployment } from "@/server/evmDeployment";
+import { pricedStock } from "@/server/market";
 import { OfferError, priceOffer, signedOffer } from "@/server/offer";
+import type { Stock } from "@root/quoter/stocks";
 
 export const dynamic = "force-dynamic";
 
-type Body = { chain?: string; buyer?: string; shares?: number; upper?: number; lower?: number };
+type Body = { chain?: string; symbol?: string; buyer?: string; shares?: number; upper?: number; lower?: number };
 
 const bad = (error: string, status = 400) => Response.json({ error }, { status });
 const finite = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
@@ -30,7 +32,9 @@ export async function POST(req: Request) {
   }
   if (!finite(body.shares) || !finite(body.upper) || !finite(body.lower)) return bad("shares, upper and lower must be numbers");
   const protection = { shares: body.shares, upper: body.upper, lower: body.lower };
-  if (body.chain === "robinhood") return robinhoodQuote(body.buyer, protection);
+  const stock = pricedStock(body.symbol);
+  if (!stock) return bad(`unknown stock: ${body.symbol}`);
+  if (body.chain === "robinhood") return robinhoodQuote(stock, body.buyer, protection);
   if (body.chain !== "solana") return bad("chain must be solana or robinhood");
   let buyer: PublicKey;
   try {
@@ -40,7 +44,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const { priced, signed } = await signedOffer(buyer, protection);
+    const { priced, signed } = await signedOffer(stock, buyer, protection);
     const d = SOLANA_DEPLOYMENT;
     const q = signed.quote;
     return Response.json({
@@ -69,16 +73,18 @@ export async function POST(req: Request) {
 }
 
 /** The same protection, signed as EIP-712 typed data for the Robinhood Chain vault. */
-async function robinhoodQuote(buyer: string | undefined, protection: { shares: number; upper: number; lower: number }) {
+async function robinhoodQuote(stock: Stock, buyer: string | undefined, protection: { shares: number; upper: number; lower: number }) {
   const d = evmDeployment();
   if (!d) return bad("the Robinhood Chain vault isn't deployed yet", 503);
+  const feed = d.feeds[stock.symbol];
+  if (!feed) return bad(`Robinhood Chain has no Chainlink feed for ${stock.symbol}`, 422);
   if (!buyer || !isAddress(buyer)) return bad("buyer must be an EVM address");
   const key = process.env.QUOTER_EVM_KEY as Hex | undefined;
   if (!key) return bad("the quote service has no Robinhood Chain quoter key configured", 503);
   if (privateKeyToAccount(key).address.toLowerCase() !== d.quoter.toLowerCase()) return bad("the configured quoter key isn't this vault's quoter", 503);
   try {
-    const priced = await priceOffer(protection);
-    const { quote, signature } = await signForEvm(priced, buyer, { chainId: d.chainId, vault: d.vault, feed: d.feeds.TSLA }, key);
+    const priced = await priceOffer(stock, protection);
+    const { quote, signature } = await signForEvm(priced, buyer, { chainId: d.chainId, vault: d.vault, feed }, key);
     return Response.json({
       priced,
       evm: {

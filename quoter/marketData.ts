@@ -8,6 +8,7 @@ import type { HermesClient } from "@pythnetwork/hermes-client";
 import type { Opening } from "../pricing/model";
 import { lastClose, scheduleEarlyCloses, scheduleHolidays, sessionSecsLeft, type EarlyCloses } from "./calendar";
 import type { Market } from "./quoter";
+import type { Stock } from "./stocks";
 
 const BENCHMARKS = "https://benchmarks.pyth.network/v1/price_feeds/";
 const HYPERLIQUID_INFO = "https://api.hyperliquid.xyz/info";
@@ -32,7 +33,14 @@ export async function pythCalendar(symbol: string, feedId: string, now: number):
 
 /** The first print at or after `ts`, or null if none came within MAX_PRINT_LAG_SECS. */
 export async function pythPrintAt(hermes: HermesClient, feedId: string, ts: number): Promise<Print | null> {
-  const r = await hermes.getPriceUpdatesAtTimestamp(ts, [feedId], { parsed: true });
+  let r;
+  try {
+    r = await hermes.getPriceUpdatesAtTimestamp(ts, [feedId], { parsed: true });
+  } catch (e) {
+    // Hermes answers 404 when nothing was published at or after `ts`: a day the exchange was shut.
+    if (e instanceof Error && /status: 404\b/.test(e.message)) return null;
+    throw e;
+  }
   const p = (r.parsed ?? [])[0] as ParsedPrice | undefined;
   if (!p || p.price.publish_time < ts || p.price.publish_time - ts > MAX_PRINT_LAG_SECS) return null;
   return toPrint(p);
@@ -79,14 +87,6 @@ export async function hyperliquidPriceAt(coin: string, ts: number): Promise<numb
   return Number(last.c);
 }
 
-export type Stock = { symbol: string; feedId: string; hyperliquid: string; annualVol: number };
-
-export const TSLA: Stock = {
-  symbol: "TSLA",
-  feedId: "0x16dad506d7db8da01c87581c87ca897a012a153557d4d578c3b9c9e1bc0632f1",
-  hyperliquid: "xyz:TSLA",
-  annualVol: 0.6,
-};
 
 export type MarketSnapshot = {
   market: Market;
@@ -96,6 +96,8 @@ export type MarketSnapshot = {
   closeSource: "pyth" | "hyperliquid";
   /** Where `market.live` came from. */
   liveSource: "pyth" | "hyperliquid";
+  /** For an index perp: the stock's price per unit of the perp's, measured at the close. */
+  hyperliquidRatio?: number;
   inSession: boolean;
 };
 
@@ -112,8 +114,15 @@ export async function loadMarket(stock: Stock, history: readonly Opening[], herm
   const pythClose = hermes ? pythPrintAt(hermes, stock.feedId, closeTs).catch(() => null) : Promise.resolve(null);
   const pythLive = hermes && inSession ? pythLatest(hermes, stock.feedId).then((p) => p.price).catch(() => null) : Promise.resolve(null);
   const [pc, pl] = await Promise.all([pythClose, pythLive]);
+  // An index perp trades at the index's level, not the stock's: its price becomes
+  // the stock's by their ratio at the close, which needs Pyth's close.
+  let ratio: number | undefined;
+  if (stock.hyperliquidTracks === "index") {
+    if (!pc) throw new Error(`${stock.symbol} needs Pyth's close to read ${stock.hyperliquid}`);
+    if (pl === null) ratio = pc.price / (await hyperliquidPriceAt(stock.hyperliquid, closeTs));
+  }
   const close = pc ? { price: pc.price, source: "pyth" as const } : { price: await hyperliquidPriceAt(stock.hyperliquid, closeTs), source: "hyperliquid" as const };
-  const live = pl !== null ? { price: pl, source: "pyth" as const } : { price: await hyperliquidMid(stock.hyperliquid), source: "hyperliquid" as const };
+  const live = pl !== null ? { price: pl, source: "pyth" as const } : { price: (await hyperliquidMid(stock.hyperliquid)) * (ratio ?? 1), source: "hyperliquid" as const };
 
   const market: Market = {
     symbol: stock.symbol,
@@ -124,5 +133,5 @@ export async function loadMarket(stock: Stock, history: readonly Opening[], herm
     holidays,
     earlyCloses: earlyCloses as EarlyCloses,
   };
-  return { market, closeTs, closeSource: close.source, liveSource: live.source, inSession };
+  return { market, closeTs, closeSource: close.source, liveSource: live.source, inSession, ...(ratio !== undefined && { hyperliquidRatio: ratio }) };
 }

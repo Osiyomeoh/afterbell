@@ -33,7 +33,8 @@ export type EvmDeployment = {
   testUsd: Address;
   owner: Address;
   quoter: Address;
-  feeds: { TSLA: Address };
+  /** Chainlink feed per stock symbol; Robinhood Chain sells only the stocks listed. */
+  feeds: { TSLA: Address } & Partial<Record<string, Address>>;
 };
 
 type Wallet = WalletClient<Transport, Chain, Account>;

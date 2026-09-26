@@ -11,19 +11,20 @@ import {
   type QuoterConfig,
   type SignedSolanaQuote,
 } from "@root/quoter/quoter";
+import type { Stock } from "@root/quoter/stocks";
 import { buyInstructions, getProgram } from "@root/solana/client/vault";
 
 import { SOLANA_DEPLOYMENT } from "./deployment";
 import { keypairFromEnv } from "./env";
-import { marketSnapshot } from "./market";
+import { marketSnapshot, onSolanaVault } from "./market";
 
 export class OfferError extends Error {}
 
 export type SignedOffer = { priced: PricedProtection; signed: SignedSolanaQuote };
 
 /** Prices protection with the server's market data. Pricing problems (a pause, bad strikes) are OfferErrors. */
-export async function priceOffer(protection: Protection, cfg: QuoterConfig = DEFAULT_QUOTER_CONFIG): Promise<PricedProtection> {
-  const snap = await marketSnapshot();
+export async function priceOffer(stock: Stock, protection: Protection, cfg: QuoterConfig = DEFAULT_QUOTER_CONFIG): Promise<PricedProtection> {
+  const snap = await marketSnapshot(stock);
   try {
     return priceQuote(Math.floor(Date.now() / 1000), snap.market, protection, cfg);
   } catch (e) {
@@ -32,19 +33,20 @@ export async function priceOffer(protection: Protection, cfg: QuoterConfig = DEF
 }
 
 /** Prices protection with the server's market data and signs it for `buyer` with the Solana vault's quoter key. */
-export async function signedOffer(buyer: PublicKey, protection: Protection, cfg: QuoterConfig = DEFAULT_QUOTER_CONFIG): Promise<SignedOffer> {
+export async function signedOffer(stock: Stock, buyer: PublicKey, protection: Protection, cfg: QuoterConfig = DEFAULT_QUOTER_CONFIG): Promise<SignedOffer> {
+  if (!onSolanaVault(stock)) throw new OfferError(`the Solana vault doesn't sell ${stock.symbol} yet`);
   const quoter = keypairFromEnv("QUOTER_SOLANA_KEY");
   if (!quoter) throw new Error("the quote service has no quoter key configured");
   const d = SOLANA_DEPLOYMENT;
   if (quoter.publicKey.toBase58() !== d.quoter) throw new Error("the configured quoter key isn't this vault's quoter");
-  const priced = await priceOffer(protection, cfg);
-  const signed = signForSolana(priced, buyer.toBase58(), { programId: d.programId, vault: d.vault, feedId: d.feeds.TSLA.feedId }, quoter.secretKey.slice(0, 32));
+  const priced = await priceOffer(stock, protection, cfg);
+  const signed = signForSolana(priced, buyer.toBase58(), { programId: d.programId, vault: d.vault, feedId: stock.feedId }, quoter.secretKey.slice(0, 32));
   return { priced, signed };
 }
 
 /** Protection from `start` to `depth` below the price protection is priced from, as fractions (0.02 = 2%). */
-export async function protectionBelow(shares: number, start: number, depth: number): Promise<Protection> {
-  const snap = await marketSnapshot();
+export async function protectionBelow(stock: Stock, shares: number, start: number, depth: number): Promise<Protection> {
+  const snap = await marketSnapshot(stock);
   const now = Math.floor(Date.now() / 1000);
   let reference: number;
   try {

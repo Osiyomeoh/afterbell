@@ -2,12 +2,14 @@ import { Connection, LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
 import { getAssociatedTokenAddressSync } from "@solana/spl-token";
 
 import { DEFAULT_QUOTER_CONFIG } from "@root/quoter/quoter";
+import type { Stock } from "@root/quoter/stocks";
 
 import { nyTime, usd } from "@/lib/format";
 import { SOLANA_DEPLOYMENT } from "@/server/deployment";
 import { keypairFromEnv } from "@/server/env";
 import { drip } from "@/server/faucet";
 import { tslaHoldings } from "@/server/holdings";
+import { pricedStock, pricedStocks } from "@/server/market";
 import { OfferError, protectionBelow, purchaseTransaction, signedOffer, type SignedOffer } from "@/server/offer";
 
 export const dynamic = "force-dynamic";
@@ -17,8 +19,8 @@ export const maxDuration = 60;
  * Protection as a Solana Action (a Blink): GET describes it with a live
  * price, POST returns a transaction any wallet, or any agent with a wallet,
  * can sign. The Blink sells one shape, protection from 2% to 10% below the
- * price, and a fresh devnet wallet is sent test money first, so one click
- * works from nothing.
+ * price, on the stock in `?symbol=` (TSLA by default), and a fresh devnet
+ * wallet is sent test money first, so one click works from nothing.
  */
 
 const START = 0.02;
@@ -41,12 +43,20 @@ const HEADERS = {
 
 const json = (body: unknown, status = 200) => Response.json(body, { status, headers: HEADERS });
 
-function summary(o: SignedOffer): string {
+function summary(stock: Stock, o: SignedOffer): string {
   const p = o.priced;
   return (
-    `Protection for ${p.protection.shares} TSLA until ${nyTime(p.openTs)} costs ${usd(p.premium)} and pays up to ${usd(p.maxPayout)} ` +
-    `if TSLA opens below ${usd(p.protection.upper)}.`
+    `Protection for ${p.protection.shares} ${stock.symbol} until ${nyTime(p.openTs)} costs ${usd(p.premium)} and pays up to ${usd(p.maxPayout)} ` +
+    `if ${stock.symbol} opens below ${usd(p.protection.upper)}.`
   );
+}
+
+/** The stock the Action's URL names; only TSLA can be sized to what a wallet holds. */
+function stockOf(request: Request): Stock {
+  const symbol = new URL(request.url).searchParams.get("symbol");
+  const stock = pricedStock(symbol);
+  if (!stock) throw new OfferError(`Unknown stock ${symbol}; one of ${pricedStocks().map((s) => s.symbol).join(", ")}.`);
+  return stock;
 }
 
 export async function OPTIONS() {
@@ -55,24 +65,32 @@ export async function OPTIONS() {
 
 export async function GET(request: Request) {
   const base = new URL(request.url).origin;
+  let stock: Stock;
+  try {
+    stock = stockOf(request);
+  } catch (e) {
+    return json({ message: (e as Error).message }, 404);
+  }
+  const s = stock.symbol === "TSLA" ? "" : `symbol=${stock.symbol}&`;
   const actions = [
-    { type: "transaction", label: "Protect what I hold", href: "/api/actions/protect?shares=held" },
-    { type: "transaction", label: `Protect ${EXAMPLE_SHARES} TSLA`, href: `/api/actions/protect?shares=${EXAMPLE_SHARES}` },
+    ...(stock.symbol === "TSLA" ? [{ type: "transaction", label: "Protect what I hold", href: "/api/actions/protect?shares=held" }] : []),
+    { type: "transaction", label: `Protect ${EXAMPLE_SHARES} ${stock.symbol}`, href: `/api/actions/protect?${s}shares=${EXAMPLE_SHARES}` },
     {
       type: "transaction",
       label: "Protect",
-      href: "/api/actions/protect?shares={shares}",
-      parameters: [{ type: "number", name: "shares", label: "Shares of TSLA", required: true, min: 0.01, max: MAX_SHARES }],
+      href: `/api/actions/protect?${s}shares={shares}`,
+      parameters: [{ type: "number", name: "shares", label: `Shares of ${stock.symbol}`, required: true, min: 0.01, max: MAX_SHARES }],
     },
   ];
-  const common = { type: "action", icon: `${base}/opengraph-image`, title: "Protect TSLA until the opening bell", label: "Protect" };
+  const common = { type: "action", icon: `${base}/opengraph-image`, title: `Protect ${stock.symbol} until the opening bell`, label: "Protect" };
   try {
-    const example = await signedOffer(PublicKey.default, await protectionBelow(EXAMPLE_SHARES, START, DEPTH), ACTION_CONFIG);
+    const example = await signedOffer(stock, PublicKey.default, await protectionBelow(stock, EXAMPLE_SHARES, START, DEPTH), ACTION_CONFIG);
+    const held = stock.symbol === "TSLA" ? `"Protect what I hold" reads your TSLAx and TSLAon on mainnet. ` : "";
     return json({
       ...common,
       description:
-        `${summary(example)} Covers the fall from 2% to 10% below today's price, settled on-chain by the first Pyth price after 09:30 ET. ` +
-        `"Protect what I hold" reads your TSLAx and TSLAon on mainnet. Solana devnet with TestUSD: a new wallet gets test money first.`,
+        `${summary(stock, example)} Covers the fall from 2% to 10% below today's price, settled on-chain by the first Pyth price after 09:30 ET. ` +
+        `${held}Solana devnet with TestUSD: a new wallet gets test money first.`,
       links: { actions },
     });
   } catch (e) {
@@ -92,9 +110,11 @@ export async function POST(request: Request) {
 
   const connection = new Connection(RPC, "confirmed");
   try {
+    const stock = stockOf(request);
     const param = new URL(request.url).searchParams.get("shares") ?? "";
     let shares: number;
     if (param === "held") {
+      if (stock.symbol !== "TSLA") throw new OfferError(`Protect what I hold works for TSLA only. Enter a number of shares.`);
       shares = (await tslaHoldings(owner)).reduce((a, h) => a + h.shares, 0);
       if (!(shares > 0)) throw new OfferError("This wallet holds no TSLAx or TSLAon on mainnet. Enter a number of shares.");
     } else {
@@ -103,7 +123,7 @@ export async function POST(request: Request) {
     }
     shares = Math.min(Math.round(shares * 10_000) / 10_000, MAX_SHARES);
 
-    const offer = await signedOffer(owner, await protectionBelow(shares, START, DEPTH), ACTION_CONFIG);
+    const offer = await signedOffer(stock, owner, await protectionBelow(stock, shares, START, DEPTH), ACTION_CONFIG);
 
     // One click from nothing: fund a fresh devnet wallet before handing it the transaction.
     const mint = new PublicKey(SOLANA_DEPLOYMENT.collateralMint);
@@ -131,7 +151,7 @@ export async function POST(request: Request) {
     return json({
       type: "transaction",
       transaction: tx.serialize({ requireAllSignatures: false, verifySignatures: false }).toString("base64"),
-      message: `${funded}${summary(offer)}`,
+      message: `${funded}${summary(stock, offer)}`,
     });
   } catch (e) {
     if (e instanceof OfferError) return json({ message: e.message }, 422);

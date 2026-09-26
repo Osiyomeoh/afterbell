@@ -12,7 +12,7 @@ Built for Colosseum's Crypto World's Fair (September to October 2026). Design: [
 
 - `research/`: the evidence the design rests on (below).
 - `pricing/`: put-spread pricing from the history of openings (exact under the model), an out-of-sample backtest, and signed quotes for both vaults (EIP-712 and ed25519).
-- `quoter/`: the quote service's core. It prices protection until the next open from New York's calendar and Pyth's holidays, and signs it for either vault.
+- `quoter/`: the quote service's core. It prices protection until the next open from New York's calendar and Pyth's holidays, and signs it for either vault. Stocks are data (`quoter/stocks.ts`): TSLA, and QQQ (the Nasdaq-100), priced from its own 46 Pyth openings and, outside the session, from Hyperliquid's `xyz:XYZ100` through the ratio of the two at the close. QQQ is priced in the app now and goes on sale on devnet once its feed is allowed on the vault.
 - `solana/`: the Solana vault (buy against an ed25519-signed quote, settle on the first Pyth print at or after the open, claim, void), its TypeScript client, setup script and keeper. **Live on devnet** (addresses below), with purchases through the app's endpoint, the Blink and an MCP agent. A full cycle (sell, open, settle, claim) passes on a local validator.
 - `evm/`: the Robinhood Chain vault (the same, settled on Chainlink's round in force at the open), its viem client and keeper. Purchases are verified on a fork of Robinhood Chain mainnet, and a full cycle passes on a local chain. Not deployed yet.
 - `app/`: the web app, for both chains. Protect prices live with the quoter's own code, My protection lists and claims positions, Vault shows collateral and every series, and Track record shows what each series took in, settled on and paid out. It also has a devnet faucet and the Blink. The Robinhood Chain side (any injected EVM wallet) has bought, settled and claimed end to end against a local chain; it goes live when the vault is deployed.
@@ -42,7 +42,7 @@ npm run proof                     # Hyperliquid vs Pyth on every TSLA opening
 npx tsx research/proof-multi.ts   # six markets, Hyperliquid prices only
 npx tsx research/chainlink.ts     # Chainlink's TSLA feed on Robinhood Chain vs Pyth's open
 npx tsx pricing/report.ts         # protection backtest on every TSLA opening
-PYTH_API_KEY=<key> npx tsx research/refresh-openings.ts   # append the latest TSLA openings from Pyth
+PYTH_API_KEY=<key> npx tsx research/refresh-openings.ts [QQQ]   # append a stock's latest openings from Pyth (--from YYYY-MM-DD builds a new one)
 ```
 
 The app extends the recorded openings with any since, from Pyth, every hour, so it never prices from a stale history.
