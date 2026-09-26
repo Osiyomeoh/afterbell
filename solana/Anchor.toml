@@ -7,10 +7,10 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-afterbell_vault = "6J5BHSf1yWup7SXae5xS2nzNUbtz7Bq3VpfJTtxr7Dsc"
+afterbell_vault = "J6n3JUafVkx4MpKTnAnZSwTcGFueRrjxgiXWMC4L7RGG"
 
 [programs.devnet]
-afterbell_vault = "6J5BHSf1yWup7SXae5xS2nzNUbtz7Bq3VpfJTtxr7Dsc"
+afterbell_vault = "J6n3JUafVkx4MpKTnAnZSwTcGFueRrjxgiXWMC4L7RGG"
 
 [provider]
 cluster = "localnet"

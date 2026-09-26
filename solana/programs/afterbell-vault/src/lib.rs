@@ -24,7 +24,7 @@ pub use instructions::*;
 pub use quote::QuoteArgs;
 pub use state::*;
 
-declare_id!("6J5BHSf1yWup7SXae5xS2nzNUbtz7Bq3VpfJTtxr7Dsc");
+declare_id!("J6n3JUafVkx4MpKTnAnZSwTcGFueRrjxgiXWMC4L7RGG");
 
 #[program]
 pub mod afterbell_vault {

@@ -40,16 +40,16 @@ describe("Solana vault client", () => {
       rateAddress(vault, 1n),
     ].map((a) => a.toBase58());
     expect(all).toEqual([
-      "4SNGem1v12XZkASk7QhYfP3GYDPFNBcjC9d5kHQGJnqW",
-      "5aFQv22J7Td3KSSmLRFGsCiVwmWpgwQMa1QrcGp1JZ34",
-      "8mu5FxnH7yoyexe73RgdrA8DyWY55Vhoeho3AVaV71By",
-      "7PAosiVEmy5TRjMAj1mBWjkuVjVrwGRcyuCZ2bbCMzTh",
-      "EEMXtkpgeZZzH6SZRk9Yy2U9iF5A8gqKLzqT6SKXssX1",
-      "GMp3zVa9vyGk2Kj3dvvbQWki753SEfeTCgjRwdHsRQVU",
-      "8c8ZCLuP7sR42CNwBdWVkZmFJxUr41kTk12zjeZs7pqp",
-      "29TV96XxMEvQjUcAPH7s33y2y5ti5g8cXfGh9mYbi8s6",
-      "J6TKLcwBUXyof4WbpQwWYH2hiDh34QW9ZqmNV3NPcYPf",
-      "BmLtxAyVtYptUHXmD9XS72C5D65E8vhgzJ5TrndGPsdg",
+      "2Yndw292SNiRxCNVuhzUusKhx6DGonAbSSp2wvmUTZGh",
+      "EoSnmdiaitMdk2MFbpbQ9E1paBugxr7zJAho4zJqtK2s",
+      "3FM2HAwZQ2hFqSrFCEVhPQ1uWD1TXRp9DJD4FrZPvkUi",
+      "H2mvcZ8s1N6TVLrNqk2QpWm27hv1KKxDDcrDgXuqmSSJ",
+      "Dy6wAkUMiHQkTG1Egf6Hjpb4F4dVoy33Lffav2qzdvc1",
+      "CDJS5qSKH6c8eNrR5LBcGZAfXyckJ25MJDyWyPTkwsw8",
+      "4DN2BEQC36chkEc2QAwBvHqYDq8x2oNL5p6LVe8H7c92",
+      "H1VeuHyzQumaW9nLmzkK6ZH4yhpMSjVL8ngQpdDCiX9V",
+      "Bv19GFVkiEA3VKKrxEYgPd2Fu9JKkxptzXgYwXrFRMM8",
+      "G38qdSNeT2xQMx2Mq2HLgyRzKGAtcBNMQzp4ryNvQaFB",
     ]);
   });
 

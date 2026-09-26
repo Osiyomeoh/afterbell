@@ -5,7 +5,7 @@
  * IDL can be found at `target/idl/afterbell_vault.json`.
  */
 export type AfterbellVault = {
-  "address": "6J5BHSf1yWup7SXae5xS2nzNUbtz7Bq3VpfJTtxr7Dsc",
+  "address": "J6n3JUafVkx4MpKTnAnZSwTcGFueRrjxgiXWMC4L7RGG",
   "metadata": {
     "name": "afterbellVault",
     "version": "0.1.0",
