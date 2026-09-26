@@ -1,3 +1,4 @@
 target/
 .anchor/
 test-ledger/
+/deployments/local.json
