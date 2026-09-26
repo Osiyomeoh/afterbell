@@ -88,3 +88,8 @@ export type VaultResponse = {
 export const fetchVault = () => fetch("/api/vault", { cache: "no-store" }).then((r) => json<VaultResponse>(r));
 export const fetchPositions = (owner: string) =>
   fetch(`/api/positions?owner=${owner}`, { cache: "no-store" }).then((r) => json<{ positions: PositionRow[] }>(r));
+
+export type DripResponse = { signature: string | null; testUsd: number; sol: number; alreadyFunded: boolean };
+
+export const requestTestFunds = (owner: string) =>
+  fetch("/api/faucet", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ owner }) }).then((r) => json<DripResponse>(r));

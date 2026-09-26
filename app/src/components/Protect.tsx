@@ -12,6 +12,7 @@ import { buyProtection, NotEnoughTestUsd } from "@/lib/buy";
 import { countdown, explorer, nyTime, pct, usd } from "@/lib/format";
 
 import { PayoffChart } from "./PayoffChart";
+import { TestFunds } from "./TestFunds";
 
 const round2 = (v: number) => Math.round(v * 100) / 100;
 
@@ -152,7 +153,7 @@ export function Protect() {
           {status.kind === "error" && (
             <p className="mt-3 text-sm text-loss">
               {status.message}
-              {status.needsFunds && " Get some from the faucet (coming next) or ask the team."}
+              {status.needsFunds && " Use “Get test money” below."}
             </p>
           )}
           {status.kind === "done" && (
@@ -164,6 +165,8 @@ export function Protect() {
             </p>
           )}
         </div>
+
+        <TestFunds mint={market.solana.collateralMint} refreshKey={status.kind} />
 
         <div className="rounded-2xl border border-line bg-surface p-5 text-sm">
           <div className="text-muted">TSLA</div>
