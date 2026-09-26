@@ -1,10 +1,7 @@
 import { PublicKey } from "@solana/web3.js";
 
-import { priceQuote, signForSolana } from "@root/quoter/quoter";
-
 import { SOLANA_DEPLOYMENT } from "@/server/deployment";
-import { keypairFromEnv } from "@/server/env";
-import { marketSnapshot } from "@/server/market";
+import { OfferError, signedOffer } from "@/server/offer";
 
 export const dynamic = "force-dynamic";
 
@@ -34,15 +31,9 @@ export async function POST(req: Request) {
     return bad("buyer must be a Solana address");
   }
 
-  const quoter = keypairFromEnv("QUOTER_SOLANA_KEY");
-  if (!quoter) return bad("the quote service has no quoter key configured", 503);
-  if (quoter.publicKey.toBase58() !== SOLANA_DEPLOYMENT.quoter) return bad("the configured quoter key isn't this vault's quoter", 503);
-
   try {
-    const snap = await marketSnapshot();
-    const priced = priceQuote(Math.floor(Date.now() / 1000), snap.market, { shares: body.shares, upper: body.upper, lower: body.lower });
+    const { priced, signed } = await signedOffer(buyer, { shares: body.shares, upper: body.upper, lower: body.lower });
     const d = SOLANA_DEPLOYMENT;
-    const signed = signForSolana(priced, buyer.toBase58(), { programId: d.programId, vault: d.vault, feedId: d.feeds.TSLA.feedId }, quoter.secretKey.slice(0, 32));
     const q = signed.quote;
     return Response.json({
       priced,
@@ -65,6 +56,6 @@ export async function POST(req: Request) {
       },
     });
   } catch (e) {
-    return bad((e as Error).message, 422);
+    return bad((e as Error).message, e instanceof OfferError ? 422 : 503);
   }
 }
