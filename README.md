@@ -63,7 +63,7 @@ The TypeScript signer ([`pricing/quote.ts`](pricing/quote.ts)) and the contract 
 
 The app buys and claims on Robinhood Chain from any injected EVM wallet (MetaMask, Rabby…), with viem and no wallet library: it switches the wallet to Robinhood Chain (adding it if needed), mints TestUSD if the buyer is short, then approves and buys. `npm run evm:local` stands in for the chain until the vault is deployed: anvil with the vault on a mock feed, recorded in `evm/deployments/local.json`. Against it, the app sold 10 shares of protection from $364.41 to $334.66 for 8.61 TestUSD; after the mock feed published $350 before the open and the series settled, My protection showed $144.10 due and claimed it to the buyer.
 
-The EVM keeper ([`evm/keeper`](evm/keeper)) settles each due series on Chainlink's round in force at the open. It finds that round by binary search over the feed's current phase, then checks it as the contract will. It voids series nobody could settle within the settle window and claims every finished position. On the live feed it picks round 1341 ($383.8284, published 09:26:48 ET) for Friday 25 September's open, the round the fork tests settle on. `npm run evm:cycle` runs a whole cycle on a local chain, with a feed that replays that morning's rounds, and checks every payout.
+The EVM keeper ([`evm/keeper`](evm/keeper)) settles each due series on Chainlink's round in force at the open. It finds that round by binary search over the feed's current phase, then checks it as the contract will. It voids series nobody could settle within the settle window and claims every finished position. On the live feed it picks round 1341 ($383.8284, published 09:26:48 ET) for Friday 25 September's open, the round the fork tests settle on. With `--plan` it sends nothing and needs no key: it lists what it would settle (on which round), void or leave waiting, and what each position would be paid by the contract's own `payoutAt`, and it simulates each settlement so the contract itself confirms it would accept it. `npm run evm:cycle` runs a whole cycle on a local chain, with a feed that replays that morning's rounds, and checks every payout, and that the keeper pays exactly what the plan said.
 
 ```bash
 anvil --fork-url https://rpc.mainnet.chain.robinhood.com                  # a local fork, then deploy with anvil's test keys
@@ -72,6 +72,7 @@ npx tsx evm/scripts/check-round.ts [open]                                  # the
 npm run evm:cycle                                                         # sell, open, settle, claim on a local chain
 npm run evm:local                                                         # a local chain for the app's Robinhood flow (then EVM_DEPLOYMENT_FILE, QUOTER_EVM_KEY)
 KEEPER_PRIVATE_KEY=0x… npm run evm:keeper                                 # settle, void and claim on the deployed vault
+npm run evm:keeper -- --plan                                              # read-only, no key: what it would settle on and pay
 ```
 
 ## Solana vault

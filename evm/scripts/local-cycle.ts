@@ -19,7 +19,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { signForEvm, type PricedProtection } from "../../quoter/quoter";
 import { afterbellVaultAbi, testUsdAbi } from "../client/abi";
 import { buyProtection } from "../client/vault";
-import { runEvmKeeper } from "../keeper/keeper";
+import { planEvmKeeper, runEvmKeeper } from "../keeper/keeper";
 import { ANVIL_KEYS as KEYS, deployLocalVault, mockFeedAbi, startAnvil } from "./local-chain";
 
 const PORT = 8546;
@@ -65,10 +65,23 @@ async function main() {
     const balance = (who: typeof alice) => client.readContract({ address: usd, abi: testUsdAbi, functionName: "balanceOf", args: [who!.account.address] });
     const [aliceBefore, bobBefore] = [await balance(alice), await balance(bob)];
 
+    // Before the bell, the plan waits and knows only each position's cap.
+    const early = (await planEvmKeeper({ client, deployment: d })).series;
+    check(early.length === 1 && early[0]!.action === "wait" && early[0]!.positions.every((p) => p.units === undefined), "before the open, the plan waits");
+    check(early[0]!.positions.reduce((a, p) => a + p.maxUnits, 0n) === 60_000_000n, "the plan caps the payouts at 60 TestUSD: 2 × $20 + 1 × $20");
+
     // The bell rings, and 2:18 later the feed publishes its next round.
     await test.setNextBlockTimestamp({ timestamp: open + 138n });
     await mined(await owner!.writeContract({ address: feed, abi: mockFeedAbi, functionName: "push", args: [38_076_000_000n, open + 138n] }));
     await test.mine({ blocks: 1 });
+
+    // After it, the plan names the round and each payout, the contract accepts the settle in simulation, and nothing is sent.
+    const [planned] = (await planEvmKeeper({ client, deployment: d })).series;
+    check(planned?.action === "settle" && planned.round?.price === 383.8284 && planned.note === undefined, "the plan would settle on the round in force ($383.8284), and the contract accepts it in simulation");
+    const plannedUnits = new Map(planned!.positions.map((p) => [p.id, p.units]));
+    const keyBefore = await client.readContract({ address: vault, abi: afterbellVaultAbi, functionName: "seriesKey", args: [feed, open] });
+    const [stateBefore] = await client.readContract({ address: vault, abi: afterbellVaultAbi, functionName: "series", args: [keyBefore] });
+    check(stateBefore === 0 && (await balance(alice)) === aliceBefore, "planning sent nothing: the series is open, Alice unpaid");
 
     const report = await runEvmKeeper({ client, wallet: keeper!, deployment: d, log: (l) => console.log(`    keeper: ${l}`) });
     check(report.settled.length === 1 && report.settled[0]!.price === 383.8284, "the keeper settled on the round in force at the open ($383.8284), not the one after it");
@@ -77,6 +90,7 @@ async function main() {
     check(state === 1 && price === 38_382_840_000n, "the contract recorded the series settled at $383.8284");
     check((await balance(alice)) - aliceBefore === 12_343_200n, "Alice received exactly 12.3432 TestUSD: 2 shares × ($390 − $383.8284)");
     check((await balance(bob)) - bobBefore === 0n, "Bob received nothing: $383.83 is above his $380 strike");
+    check(report.claimed.length === plannedUnits.size && report.claimed.every((c) => plannedUnits.get(c.id) === c.units), "the keeper paid exactly what the plan said it would");
     check((await client.readContract({ address: vault, abi: afterbellVaultAbi, functionName: "locked" })) === 0n, "nothing is locked any more");
     const again = await runEvmKeeper({ client, wallet: keeper!, deployment: d });
     check(again.settled.length + again.claimed.length + again.voided.length === 0, "a second keeper run finds nothing to do");
