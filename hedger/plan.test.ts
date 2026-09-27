@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import { openingModel, type Opening } from "../pricing/model";
 import type { Market } from "./hyperliquid";
 import type { HedgeAccount } from "./info";
-import { planHedge, type HedgeInputs } from "./plan";
+import { AFTER_OPEN_MS, nextRunMs, planHedge, type HedgeInputs } from "./plan";
 import type { OpenPosition } from "./target";
 
 const TSLA: Opening[] = JSON.parse(readFileSync(join(import.meta.dirname, "..", "research", "data", "pyth-tsla-gaps.json"), "utf8")).gaps;
@@ -85,5 +85,22 @@ describe("planHedge", () => {
   it("rounds to the market's own size step", () => {
     const p = planHedge(inputs({ market: { ...testnet, szDecimals: 2 } }));
     expect(p.rebalance.target).toBe(Number(p.exposure.hedge.toFixed(2)));
+  });
+});
+
+describe("nextRunMs", () => {
+  const now = OPEN * 1000 - 10 * 60_000;
+
+  it("runs again after the interval when no open comes sooner", () => {
+    expect(nextRunMs(now, 5 * 60_000, [])).toBe(now + 5 * 60_000);
+    expect(nextRunMs(now, 5 * 60_000, [OPEN + 86_400])).toBe(now + 5 * 60_000);
+  });
+
+  it("runs just after an open that comes before the interval ends, to buy back at the opening price", () => {
+    expect(nextRunMs(now, 15 * 60_000, [OPEN + 86_400, OPEN])).toBe(OPEN * 1000 + AFTER_OPEN_MS);
+  });
+
+  it("ignores an open already passed", () => {
+    expect(nextRunMs(OPEN * 1000 + 5_000, 60_000, [OPEN])).toBe(OPEN * 1000 + 65_000);
   });
 });

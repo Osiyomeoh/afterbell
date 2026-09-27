@@ -1,4 +1,7 @@
-/** What the hedger's and the quoter's scripts share: settings from the environment, and how they print. */
+/** What the hedger's and the quoter's scripts share: settings, API wallet keys, the run loop, and how they print. */
+import type { Address, Hex, LocalAccount } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
+
 import type { Network } from "../hyperliquid";
 
 export const iso = (secs: number) => new Date(secs * 1000).toISOString().replace(".000Z", "Z");
@@ -17,6 +20,68 @@ export function maxNotional(): number {
   const x = Number(process.env.HEDGE_MAX_NOTIONAL ?? 1500);
   if (!(x > 0)) throw new Error("HEDGE_MAX_NOTIONAL must be a positive number of dollars");
   return x;
+}
+
+/**
+ * The key of an API wallet the account has approved, from the environment
+ * (set in the shell, never in a file). Refused when it's the account's own
+ * key: the scripts hold only keys that trade for the account. The key is
+ * never printed.
+ */
+export function agentKey(name: string, account: Address): LocalAccount {
+  const key = process.env[name];
+  if (!key) throw new Error(`set ${name} to the API wallet's private key, in your shell`);
+  if (!/^0x[0-9a-fA-F]{64}$/.test(key)) throw new Error(`${name} isn't a private key (0x and 64 hex digits)`);
+  const signer = privateKeyToAccount(key as Hex);
+  if (signer.address.toLowerCase() === account.toLowerCase()) {
+    throw new Error(`${name} is the account's own key: approve an API wallet for ${account} and use its key instead`);
+  }
+  return signer;
+}
+
+/** `--every <seconds>` from the command line, in ms; null runs once. */
+export function everyMs(): number | null {
+  const i = process.argv.indexOf("--every");
+  if (i < 0) return null;
+  const secs = Number(process.argv[i + 1]);
+  if (!(secs >= 5)) throw new Error("--every takes a number of seconds, at least 5");
+  return secs * 1000;
+}
+
+/**
+ * Runs `tick` now and again at the time it returns, until SIGINT or SIGTERM,
+ * then resolves once the tick in flight is done. A tick that fails is
+ * reported and retried after `retryMs`: one failed read mustn't stop the
+ * runs after it.
+ */
+export async function loop(tick: () => Promise<number>, retryMs: number): Promise<void> {
+  let stopped = false;
+  let wake = () => {};
+  const stop = () => {
+    stopped = true;
+    wake();
+  };
+  process.once("SIGINT", stop);
+  process.once("SIGTERM", stop);
+  while (!stopped) {
+    let next: number;
+    try {
+      next = await tick();
+    } catch (e) {
+      console.error(`${iso(Math.floor(Date.now() / 1000))} failed: ${e instanceof Error ? e.message : e}`);
+      next = Date.now() + retryMs;
+    }
+    if (stopped) break;
+    await new Promise<void>((resolve) => {
+      const timer = setTimeout(resolve, Math.max(0, next - Date.now()));
+      wake = () => {
+        clearTimeout(timer);
+        resolve();
+      };
+    });
+  }
+  process.off("SIGINT", stop);
+  process.off("SIGTERM", stop);
 }
 
 /** A number, at least 0, from the environment, or the default when it's unset. */

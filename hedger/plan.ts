@@ -31,6 +31,19 @@ export type HedgePlan = {
   order: OrderWire | null;
 };
 
+/** How long after an open the hedger runs: by then the positions for that open no longer count, so it buys the short back. */
+export const AFTER_OPEN_MS = 1_000;
+
+/**
+ * When to run next: `everyMs` from now, or just after the soonest open still
+ * to come if that's sooner, so the short is closed at the opening price
+ * rather than up to a whole interval later.
+ */
+export function nextRunMs(nowMs: number, everyMs: number, openTs: readonly number[]): number {
+  const soonest = Math.min(...openTs.map((t) => t * 1000 + AFTER_OPEN_MS).filter((t) => t > nowMs));
+  return Math.min(nowMs + everyMs, soonest);
+}
+
 export function planHedge(i: HedgeInputs): HedgePlan {
   const e = exposure(i.now, i.symbol, i.positions, i.mid, i.modelFor);
   const current = i.account?.position?.short ?? 0;

@@ -1,40 +1,83 @@
 /**
- * The hedger, once: the short in xyz:TSLA that offsets what the vaults have
- * sold, against the short held now. Only --plan is built so far: it reads,
- * prints and sends nothing. Sending waits for the API wallet (docs/hedger.md,
- * step 6).
+ * The hedger: the short in xyz:TSLA that offsets what the vaults have sold,
+ * against the short held now, and the order that closes the gap.
  *
- *   npm run hedger -- --plan
+ *   npm run hedger -- --plan              reads and prints; sends nothing, needs no key
+ *   npm run hedger                        sends the order, once
+ *   npm run hedger -- --every 300         runs every 5 minutes, and just after each open
  *
  * RPC_URL              Solana RPC, defaults to devnet
  * DEPLOYMENTS          vault v2, defaults to solana/deployments/devnet.json
  * DEPLOYMENTS_V1       vault v1, defaults to solana/deployments/devnet-v1.json (skipped if missing)
- * HYPERLIQUID_NETWORK  where the hedge trades: testnet (default) or mainnet
- * HEDGE_ACCOUNT        the hedge account's address; without it the short held is taken as none
+ * HYPERLIQUID_NETWORK  where the hedge trades: testnet (default) or mainnet (plan only)
+ * HEDGE_ACCOUNT        the hedge account's address; for --plan without it, the short held is taken as none
  * HEDGE_MAX_NOTIONAL   the most the short may be worth, in dollars (default 1500:
  *                      about what 500 mock USDC of margin carries at 3×)
+ * HEDGE_LEVERAGE       the position's isolated leverage, set when it opens (default 3)
+ * HEDGER_AGENT_KEY     to send: the private key of an API wallet the hedge account approved,
+ *                      set in the shell; never the account's own key
  *
  * Every read is public and needs no key: both vaults' accounts on Solana,
  * Pyth's market-hours schedule (holidays, for the model), mainnet's xyz:TSLA
  * mid, and the hedge network's market list and the account's position.
+ * Sending is on testnet only for now (docs/hedger.md: no real money).
  */
 import { existsSync, readFileSync } from "node:fs";
 
 import { Connection } from "@solana/web3.js";
-import { getAddress } from "viem";
+import { getAddress, type Address } from "viem";
 
 import type { Opening } from "../../pricing/model";
 import { hyperliquidMid, pythCalendar } from "../../quoter/marketData";
 import { modelFor } from "../../quoter/quoter";
 import { TSLA } from "../../quoter/stocks";
 import tslaGaps from "../../research/data/pyth-tsla-gaps.json" with { type: "json" };
-import { DEFAULT_SLIPPAGE, type Network } from "../hyperliquid";
+import { createExchange, type Exchange, type OrderResult } from "../exchange";
+import { DEFAULT_SLIPPAGE, type Market, type Network } from "../hyperliquid";
 import { dexOf, fetchHedgeAccount, fetchMarket, postInfo, type HedgeAccount } from "../info";
-import { planHedge, type HedgePlan } from "../plan";
+import { nextRunMs, planHedge, type HedgePlan } from "../plan";
+import { sendHedge, type SentHedge } from "../send";
 import { openPositions, readVault, type VaultVersion } from "../solana";
-import { hedgeNetwork, iso, maxNotional, sh, usd } from "./common";
+import type { OpenPosition } from "../target";
+import { agentKey, envNumber, everyMs, hedgeNetwork, iso, loop, maxNotional, sh, usd } from "./common";
 
-function printAccount(account: HedgeAccount | null, network: Network, coin: string) {
+const stock = TSLA;
+const coin = stock.hyperliquid!;
+const history = tslaGaps.gaps as Opening[];
+
+type Settings = { network: Network; cap: number; address: Address | null; connection: Connection };
+
+type Book = { label: string; vault: string; positions: OpenPosition[] };
+
+type State = { now: number; mid: number; market: Market; account: HedgeAccount | null; books: Book[]; positions: OpenPosition[]; plan: HedgePlan };
+
+/** Everything the hedger reads, and the plan from it. Any read that fails fails the whole run: it never trades on half a book. */
+async function readState(s: Settings): Promise<State> {
+  const vaults = [
+    { label: "Solana v2", version: "v2" as VaultVersion, file: process.env.DEPLOYMENTS ?? "solana/deployments/devnet.json" },
+    { label: "Solana v1", version: "v1" as VaultVersion, file: process.env.DEPLOYMENTS_V1 ?? "solana/deployments/devnet-v1.json" },
+  ].filter((v) => existsSync(v.file));
+  const now = Math.floor(Date.now() / 1000);
+  const [books, mid, market, account, calendar] = await Promise.all([
+    Promise.all(
+      vaults.map(async (v) => {
+        const d = JSON.parse(readFileSync(v.file, "utf8")) as { programId: string; vault: string };
+        const { series, positions } = await readVault(s.connection, v.version, d);
+        return { label: v.label, vault: d.vault, positions: openPositions(series, positions).filter((p) => p.openTs > now) };
+      }),
+    ),
+    hyperliquidMid(coin),
+    fetchMarket(postInfo, s.network, coin),
+    s.address ? fetchHedgeAccount(postInfo, s.network, s.address, coin) : null,
+    pythCalendar(stock.symbol, stock.feedId, now),
+  ]);
+  const positions = books.flatMap((b) => b.positions);
+  const inputs = { history, annualVol: stock.annualVol, holidays: calendar.holidays, earlyCloses: calendar.earlyCloses };
+  const plan = planHedge({ now, symbol: stock.symbol, positions, mid, modelFor: (openTs) => modelFor(now, openTs, inputs), market, account, maxNotional: s.cap });
+  return { now, mid, market, account, books, positions, plan };
+}
+
+function printAccount(account: HedgeAccount | null, network: Network) {
   console.log("\nHEDGE ACCOUNT");
   if (!account) {
     console.log("  none given (HEDGE_ACCOUNT): the short held is taken as 0");
@@ -54,78 +97,101 @@ function printAccount(account: HedgeAccount | null, network: Network, coin: stri
   console.log(`  ${usd(p.marginUsed)} margin used; ${funds}`);
 }
 
-function printPlan(plan: HedgePlan, coin: string, mid: number) {
-  const r = plan.rebalance;
-  console.log(`\nTARGET  short ${sh(r.target)} (${usd(r.target * mid)})${r.capped ? `, capped: the hedge is ${sh(plan.exposure.hedge)}` : ""}`);
-  console.log(`ACTION  ${r.note}`);
+function orderLine(plan: HedgePlan, mid: number): string | null {
   const o = plan.order;
-  if (!o) return;
+  if (!o) return null;
   const pct = (Math.abs(Number(o.p) / mid - 1) * 100).toFixed(2);
   const side = o.b ? `buy back ${o.s} ${coin}, limit $${o.p} (${pct}% above the mid)` : `sell ${o.s} ${coin}, limit $${o.p} (${pct}% below the mid)`;
-  console.log(`ORDER   ${side}, immediate-or-cancel${o.r ? ", reduce-only" : ""}; at most ${DEFAULT_SLIPPAGE * 100}% from the mid`);
-  console.log(`        ${JSON.stringify(o)}`);
+  return `${side}, immediate-or-cancel${o.r ? ", reduce-only" : ""}; at most ${DEFAULT_SLIPPAGE * 100}% from the mid`;
 }
 
-async function main() {
-  if (!process.argv.includes("--plan")) {
-    throw new Error("only --plan is built: the hedger sends orders once its API wallet is approved (docs/hedger.md, step 6)");
-  }
-  const network = hedgeNetwork();
-  const cap = maxNotional();
-  const address = process.env.HEDGE_ACCOUNT ? getAddress(process.env.HEDGE_ACCOUNT) : null;
-  const stock = TSLA;
-  const coin = stock.hyperliquid!;
-  const history = tslaGaps.gaps as Opening[];
-
-  const connection = new Connection(process.env.RPC_URL ?? "https://api.devnet.solana.com", "confirmed");
-  const vaults = [
-    { label: "Solana v2", version: "v2" as VaultVersion, file: process.env.DEPLOYMENTS ?? "solana/deployments/devnet.json" },
-    { label: "Solana v1", version: "v1" as VaultVersion, file: process.env.DEPLOYMENTS_V1 ?? "solana/deployments/devnet-v1.json" },
-  ].filter((v) => existsSync(v.file));
-  const now = Math.floor(Date.now() / 1000);
-
-  const [books, mid, market, account, calendar] = await Promise.all([
-    Promise.all(
-      vaults.map(async (v) => {
-        const d = JSON.parse(readFileSync(v.file, "utf8")) as { programId: string; vault: string };
-        const { series, positions } = await readVault(connection, v.version, d);
-        return { ...v, vault: d.vault, positions: openPositions(series, positions).filter((p) => p.openTs > now) };
-      }),
-    ),
-    hyperliquidMid(coin),
-    fetchMarket(postInfo, network, coin),
-    address ? fetchHedgeAccount(postInfo, network, address, coin) : null,
-    pythCalendar(stock.symbol, stock.feedId, now),
-  ]);
-  const positions = books.flatMap((b) => b.positions);
-  const inputs = { history, annualVol: stock.annualVol, holidays: calendar.holidays, earlyCloses: calendar.earlyCloses };
-  const plan = planHedge({ now, symbol: stock.symbol, positions, mid, modelFor: (openTs) => modelFor(now, openTs, inputs), market, account, maxNotional: cap });
-
-  console.log(`now           ${iso(now)}`);
-  console.log(`reference     ${coin} mid on mainnet: ${usd(mid)}`);
-  console.log(`hedge market  ${coin} on ${network}: asset ${market.asset}, size step ${10 ** -market.szDecimals}, up to ${market.maxLeverage}× leverage`);
+/** The whole picture, for a single run. */
+function printState(st: State, s: Settings) {
+  console.log(`now           ${iso(st.now)}`);
+  console.log(`reference     ${coin} mid on mainnet: ${usd(st.mid)}`);
+  console.log(`hedge market  ${coin} on ${s.network}: asset ${st.market.asset}, size step ${10 ** -st.market.szDecimals}, up to ${st.market.maxLeverage}× leverage`);
   console.log(`model         ${history.length} recorded openings to ${history.at(-1)?.to} (research/data/pyth-tsla-gaps.json), annual vol ${stock.annualVol * 100}%`);
-  console.log(`cap           ${usd(cap)} of notional (HEDGE_MAX_NOTIONAL)`);
+  console.log(`cap           ${usd(s.cap)} of notional (HEDGE_MAX_NOTIONAL)`);
 
   console.log("\nVAULTS");
-  for (const b of books) console.log(`  ${b.label}  ${b.vault}: ${b.positions.length} open position(s)`);
+  for (const b of st.books) console.log(`  ${b.label}  ${b.vault}: ${b.positions.length} open position(s)`);
   if (!existsSync("evm/deployments/robinhood.json")) console.log("  Robinhood Chain: not deployed, nothing to read");
   else console.log("  Robinhood Chain: deployed, but the hedger doesn't read it yet");
 
-  const e = plan.exposure;
-  console.log(`\n${stock.symbol} EXPOSURE at ${usd(mid)}`);
+  const e = st.plan.exposure;
+  console.log(`\n${stock.symbol} EXPOSURE at ${usd(st.mid)}`);
   if (e.opens.length === 0) console.log("  nothing open");
   for (const o of e.opens) {
     console.log(`  open ${iso(o.openTs)}: ${o.positions} position(s), ${o.shares} shares, pays at most ${usd(o.maxPayout)}; hedge ${sh(o.hedge)}`);
   }
-  console.log(`  hedge ${sh(e.hedge)} ${stock.symbol} (${usd(e.hedge * mid)})`);
+  console.log(`  hedge ${sh(e.hedge)} ${stock.symbol} (${usd(e.hedge * st.mid)})`);
   const others = new Map<string, number>();
-  for (const p of positions) if (p.symbol !== stock.symbol) others.set(p.symbol, (others.get(p.symbol) ?? 0) + 1);
+  for (const p of st.positions) if (p.symbol !== stock.symbol) others.set(p.symbol, (others.get(p.symbol) ?? 0) + 1);
   for (const [symbol, n] of others) console.log(`  not hedged: ${symbol}, ${n} open position(s) (the hedger trades ${coin} only)`);
 
-  printAccount(account, network, coin);
-  printPlan(plan, coin, mid);
-  console.log("\nplan only: nothing was sent");
+  printAccount(st.account, s.network);
+  const r = st.plan.rebalance;
+  console.log(`\nTARGET  short ${sh(r.target)} (${usd(r.target * st.mid)})${r.capped ? `, capped: the hedge is ${sh(e.hedge)}` : ""}`);
+  console.log(`ACTION  ${r.note}`);
+  const line = orderLine(st.plan, st.mid);
+  if (line) console.log(`ORDER   ${line}\n        ${JSON.stringify(st.plan.order)}`);
+}
+
+/** One line a run, for --every. */
+function printLine(st: State) {
+  const held = st.plan.current;
+  console.log(`${iso(st.now)}  mid ${usd(st.mid)}  hedge ${sh(st.plan.exposure.hedge)}  short ${sh(held)}  ${st.plan.rebalance.note}`);
+}
+
+function describeResult(r: OrderResult, asked: string): string {
+  if (r.kind === "filled") return `filled ${r.size}${String(r.size) === asked ? "" : ` of ${asked}`} at $${r.avgPx} (order ${r.oid})`;
+  if (r.kind === "resting") return `resting as order ${r.oid}`;
+  return `not filled: ${r.message}`;
+}
+
+function printSent(sent: SentHedge, plan: HedgePlan) {
+  if (sent.leverage !== null) console.log(`  set ${coin} to isolated ${sent.leverage}×`);
+  if (sent.result && plan.order) console.log(`  ${describeResult(sent.result, plan.order.s)}`);
+}
+
+async function main() {
+  const planOnly = process.argv.includes("--plan");
+  const every = everyMs();
+  const network = hedgeNetwork();
+  const address = process.env.HEDGE_ACCOUNT ? getAddress(process.env.HEDGE_ACCOUNT) : null;
+  const settings: Settings = { network, cap: maxNotional(), address, connection: new Connection(process.env.RPC_URL ?? "https://api.devnet.solana.com", "confirmed") };
+
+  let ex: Exchange | null = null;
+  let leverage = 0;
+  if (!planOnly) {
+    if (network !== "testnet") throw new Error("the hedger sends on testnet only for now; use --plan to read mainnet");
+    if (!address) throw new Error("set HEDGE_ACCOUNT: sending needs the short the account holds now");
+    leverage = envNumber("HEDGE_LEVERAGE", 3);
+    ex = createExchange(network, agentKey("HEDGER_AGENT_KEY", address));
+    console.log(`sending on ${network} as API wallet ${ex.signer} for ${address}\n`);
+  }
+
+  const tick = async () => {
+    const st = await readState(settings);
+    if (every === null) printState(st, settings);
+    else printLine(st);
+    if (ex && st.plan.order) {
+      if (!Number.isInteger(leverage) || leverage < 1 || leverage > st.market.maxLeverage) {
+        throw new Error(`HEDGE_LEVERAGE must be a whole number from 1 to ${st.market.maxLeverage}`);
+      }
+      if (st.account && st.account.accountValue === 0) console.log(`  note: the account holds nothing on the ${dexOf(coin)} dex; the order needs margin there`);
+      printSent(await sendHedge(ex, st.plan, st.account!, leverage), st.plan);
+    }
+    return nextRunMs(Date.now(), every ?? 0, st.plan.exposure.opens.map((o) => o.openTs));
+  };
+
+  if (every === null) {
+    await tick();
+    if (planOnly) console.log("\nplan only: nothing was sent");
+  } else {
+    console.log(`every ${every / 1000} s and just after each open; Ctrl-C stops${planOnly ? " (plan only: nothing is sent)" : ""}`);
+    await loop(tick, 60_000);
+  }
 }
 
 // Exit explicitly so a run never lingers on an open websocket.
