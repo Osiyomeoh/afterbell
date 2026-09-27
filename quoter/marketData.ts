@@ -84,6 +84,35 @@ export async function hyperliquidMid(coin: string): Promise<number> {
   return mid;
 }
 
+export type PricePoint = { t: number; price: number };
+
+/** Hyperliquid candles as candleSnapshot returns them: open time and close, in ms and a decimal string. */
+export type Candle = { t: number; c: string };
+
+/**
+ * The stock's price through a stretch of time from candles: each candle's
+ * close at its open time (unix seconds), from `from` on, oldest first. An
+ * index perp trades at the index's level, so `ratio` turns it into the stock's.
+ */
+export function candlePoints(candles: readonly Candle[], from: number, ratio = 1): PricePoint[] {
+  return candles
+    .map((k) => ({ t: Math.floor(k.t / 1000), price: Number(k.c) * ratio }))
+    .filter((p) => p.t >= from && p.price > 0)
+    .sort((a, b) => a.t - b.t);
+}
+
+/** Hyperliquid's `interval` candles for `coin` between two times (unix seconds). */
+export async function hyperliquidCandles(coin: string, from: number, to: number, interval: "5m" | "15m"): Promise<Candle[]> {
+  const res = await fetch(HYPERLIQUID_INFO, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ type: "candleSnapshot", req: { coin, interval, startTime: from * 1000, endTime: to * 1000 } }),
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (!res.ok) throw new Error(`Hyperliquid candleSnapshot returned ${res.status}`);
+  return (await res.json()) as Candle[];
+}
+
 /**
  * Hyperliquid's last trade before `ts`: the close of the last 1-minute candle
  * that ended before it. At 16:00 ET this is a median 2.7 bps from Pyth's close

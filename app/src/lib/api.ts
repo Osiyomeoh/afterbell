@@ -55,6 +55,12 @@ async function json<T>(res: Response): Promise<T> {
   return body;
 }
 
+/** A stock's price since the last close, from its Hyperliquid perp (no points for a stock without one). */
+export type OvernightResponse = { symbol: string; closeTs: number; close: number; coin: string | null; points: { t: number; price: number }[] };
+
+export const fetchOvernight = (symbol: string) =>
+  fetch(`/api/overnight?symbol=${encodeURIComponent(symbol)}`, { cache: "no-store" }).then((r) => json<OvernightResponse>(r));
+
 export const fetchMarket = (symbol = "TSLA") => fetch(`/api/market?symbol=${encodeURIComponent(symbol)}`, { cache: "no-store" }).then((r) => json<MarketResponse>(r));
 
 export const requestQuote = (args: { symbol: string; buyer: string; shares: number; upper: number; lower: number }) =>

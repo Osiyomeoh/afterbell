@@ -14,6 +14,7 @@ import { buyOnRobinhood, evmTxUrl, NeedsGas, useEvmWallet } from "@/lib/evm";
 import { nextEvent } from "@/lib/events";
 import { countdown, dayLabel, explorer, nyTime, pct, usd } from "@/lib/format";
 
+import { OvernightChart } from "./OvernightChart";
 import { PayoffChart } from "./PayoffChart";
 import { TestFunds } from "./TestFunds";
 
@@ -299,6 +300,7 @@ export function Protect() {
           <span className="num text-sm text-muted">opens in {countdown(openTs - now)}</span>
         </div>
         <EventNote symbol={market.symbol} now={now} openTs={openTs} />
+        {protection && <OvernightChart symbol={market.symbol} openTs={openTs} now={now} upper={protection.upper} lower={protection.lower} />}
 
         <div className="mt-5 flex flex-wrap gap-2" role="group" aria-label="Protection presets">
           {PRESETS.map((p) => {
