@@ -33,3 +33,9 @@ export function dayLabel(iso: string): string {
 export function nyClock(unix: number): string {
   return `${new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" }).format(new Date(unix * 1000))} ET`;
 }
+
+/**
+ * Past this, a payout multiple says "lottery ticket" more than it informs:
+ * protection priced at a cent because it almost never pays. The chance says it better.
+ */
+export const MAX_MULTIPLE = 200;

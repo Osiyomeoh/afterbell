@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { fetchBoard, type BoardRow } from "@/lib/api";
-import { nyTime, pct, usd } from "@/lib/format";
+import { MAX_MULTIPLE, nyTime, pct, usd } from "@/lib/format";
 
 /**
  * Every stock at a glance: standard cover (2% to 10% below) on one share, what
@@ -61,7 +61,7 @@ export function Board({ current, onPick }: { current: string; onPick: (symbol: s
                     <span>pays up to</span>
                   </div>
                   <div className="num mt-2 text-xs text-muted">
-                    {r.price.premium >= 0.01 ? `${Math.round(r.price.maxPayout / r.price.premium)}× · ` : ""}
+                    {r.price.premium >= 0.01 && r.price.maxPayout / r.price.premium <= MAX_MULTIPLE ? `${Math.round(r.price.maxPayout / r.price.premium)}× · ` : ""}
                     {pct(r.price.probabilityOfPayout)} chance
                   </div>
                 </>

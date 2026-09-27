@@ -12,7 +12,7 @@ import { fetchHoldings, fetchMarket, requestEvmQuote, requestQuote, toMarket, ty
 import { buyProtection, NotEnoughTestUsd } from "@/lib/buy";
 import { buyOnRobinhood, evmTxUrl, NeedsGas, useEvmWallet } from "@/lib/evm";
 import { nextEvent } from "@/lib/events";
-import { countdown, dayLabel, explorer, nyTime, pct, usd } from "@/lib/format";
+import { countdown, dayLabel, explorer, MAX_MULTIPLE, nyTime, pct, usd } from "@/lib/format";
 
 import { Board } from "./Board";
 import { OvernightChart } from "./OvernightChart";
@@ -246,7 +246,13 @@ export function Protect() {
       </div>
       {priced && priced.premium > 0 && (
         <p className="mt-2 text-sm text-muted">
-          Up to <span className="num text-text">{multiple(priced.maxPayout / priced.premium)}</span> what you pay, with a{" "}
+          {priced.maxPayout / priced.premium <= MAX_MULTIPLE ? (
+            <>
+              Up to <span className="num text-text">{multiple(priced.maxPayout / priced.premium)}</span> what you pay, with a{" "}
+            </>
+          ) : (
+            "A "
+          )}
           <span className="num text-text">{pct(priced.probabilityOfPayout)}</span> chance it pays anything.
         </p>
       )}
