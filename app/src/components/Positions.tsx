@@ -1,6 +1,6 @@
 "use client";
 
-import { useAnchorWallet, useConnection, useWallet } from "@solana/wallet-adapter-react";
+import { useAnchorWallet, useConnection } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
@@ -11,6 +11,7 @@ import { fetchMarket, fetchPositions, type MarketResponse, type PositionRow } fr
 import { claimPosition } from "@/lib/claim";
 import { claimOnRobinhood, evmTxUrl, useEvmWallet } from "@/lib/evm";
 import { explorer, nyTime, usd } from "@/lib/format";
+import { useSendTransaction } from "@/lib/send";
 
 type Claimed = { key: string; url: string | null };
 
@@ -45,7 +46,7 @@ export function Positions() {
 
 function SolanaPositions({ vault, nextOpen }: { vault: { vault: string; collateralMint: string }; nextOpen: number }) {
   const wallet = useAnchorWallet();
-  const { sendTransaction } = useWallet();
+  const sendTransaction = useSendTransaction();
   const { connection } = useConnection();
   const { setVisible } = useWalletModal();
   const [rows, setRows] = useState<PositionRow[] | null>(null);

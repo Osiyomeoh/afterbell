@@ -13,6 +13,7 @@ import { buyProtection, NotEnoughTestUsd } from "@/lib/buy";
 import { buyOnRobinhood, evmTxUrl, NeedsGas, useEvmWallet } from "@/lib/evm";
 import { nextEvent } from "@/lib/events";
 import { countdown, dayLabel, explorer, MAX_MULTIPLE, nyTime, pct, usd } from "@/lib/format";
+import { useSendTransaction } from "@/lib/send";
 
 import { Board } from "./Board";
 import { OvernightChart } from "./OvernightChart";
@@ -101,7 +102,8 @@ export function Protect() {
 
   const { connection } = useConnection();
   const wallet = useAnchorWallet();
-  const { sendTransaction, wallets } = useWallet();
+  const { wallets } = useWallet();
+  const sendTransaction = useSendTransaction();
   // Wallets register themselves a moment after the page loads; until then, don't say there are none.
   const [walletsSettled, setWalletsSettled] = useState(false);
   useEffect(() => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useAnchorWallet, useConnection, useWallet } from "@solana/wallet-adapter-react";
+import { useAnchorWallet, useConnection } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import { useCallback, useEffect, useState } from "react";
 
@@ -8,6 +8,7 @@ import { fetchMarket, fetchUnderwriter, type Chain, type MarketResponse, type Po
 import { claimPoolOnRobinhood, evmTxUrl, underwriteOnRobinhood, useEvmWallet, withdrawOnRobinhood } from "@/lib/evm";
 import { explorer, nyTime, usd } from "@/lib/format";
 import { claimPoolOnSolana, depositOnSolana, withdrawOnSolana } from "@/lib/pool";
+import { useSendTransaction } from "@/lib/send";
 
 type Status = { kind: "idle" } | { kind: "busy"; step: string } | { kind: "done"; text: string; url: string | null } | { kind: "error"; message: string };
 
@@ -45,7 +46,7 @@ export function Pool({ pool, chain }: { pool: PoolState; chain: Chain }) {
 
 function SolanaStake() {
   const wallet = useAnchorWallet();
-  const { sendTransaction } = useWallet();
+  const sendTransaction = useSendTransaction();
   const { connection } = useConnection();
   const { setVisible } = useWalletModal();
   const [d, setD] = useState<MarketResponse["solana"]>(null);
