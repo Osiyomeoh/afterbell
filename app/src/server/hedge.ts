@@ -1,12 +1,16 @@
 import { Connection } from "@solana/web3.js";
-import { getAddress } from "viem";
+import { createPublicClient, getAddress, http } from "viem";
 
+import { evmChain } from "@root/evm/client/vault";
+import { evmVault } from "@root/hedger/evm";
 import type { Network } from "@root/hedger/hyperliquid";
+import { solanaVault } from "@root/hedger/solana";
 import { readHedgeState, summarize, type HedgeSummary, type VaultSource } from "@root/hedger/state";
 import { TSLA } from "@root/quoter/stocks";
 
 import { RPC } from "./chain";
 import { SOLANA_DEPLOYMENT, SOLANA_V1_DEPLOYMENT } from "./deployment";
+import { evmDeployment } from "./evmDeployment";
 import { marketSnapshot } from "./market";
 
 /**
@@ -22,11 +26,13 @@ function settings(): { network: Network; address: `0x${string}` | null; maxNotio
   return { network, address: process.env.HEDGE_ACCOUNT ? getAddress(process.env.HEDGE_ACCOUNT) : null, maxNotional };
 }
 
-/** Solana's vaults: v2, and v1 while its record is kept (its last series is paid on Monday 28 Sep). */
+/** Solana's vaults, v2 and v1 while its record is kept (its last series is paid on Monday 28 Sep), and Robinhood Chain's once it's deployed. */
 function vaults(): VaultSource[] {
   const out: VaultSource[] = [];
-  if (SOLANA_DEPLOYMENT) out.push({ label: "the current vault", version: "v2", connection: new Connection(RPC, "confirmed"), deployment: SOLANA_DEPLOYMENT });
-  if (SOLANA_V1_DEPLOYMENT) out.push({ label: "the first version", version: "v1", connection: new Connection(SOLANA_V1_DEPLOYMENT.rpc, "confirmed"), deployment: SOLANA_V1_DEPLOYMENT });
+  if (SOLANA_DEPLOYMENT) out.push(solanaVault("the current vault", "v2", new Connection(RPC, "confirmed"), SOLANA_DEPLOYMENT));
+  if (SOLANA_V1_DEPLOYMENT) out.push(solanaVault("the first version", "v1", new Connection(SOLANA_V1_DEPLOYMENT.rpc, "confirmed"), SOLANA_V1_DEPLOYMENT));
+  const evm = evmDeployment();
+  if (evm) out.push(evmVault("the vault", createPublicClient({ chain: evmChain(evm), transport: http(evm.rpc) }), evm));
   return out;
 }
 

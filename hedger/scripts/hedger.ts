@@ -9,6 +9,8 @@
  * RPC_URL              Solana RPC, defaults to devnet
  * DEPLOYMENTS          vault v2, defaults to solana/deployments/devnet.json
  * DEPLOYMENTS_V1       vault v1, defaults to solana/deployments/devnet-v1.json (skipped if missing)
+ * EVM_DEPLOYMENTS      the Robinhood Chain vault, defaults to evm/deployments/robinhood.json
+ *                      (skipped if missing; read through the RPC the file names)
  * HYPERLIQUID_NETWORK  where the hedge trades: testnet (default) or mainnet (plan only)
  * HEDGE_ACCOUNT        the hedge account's address; for --plan without it, the short held is taken as none
  * HEDGE_MAX_NOTIONAL   the most the short may be worth, in dollars (default 1500:
@@ -18,6 +20,7 @@
  *                      set in the shell; never the account's own key
  *
  * Every read is public and needs no key: both vaults' accounts on Solana,
+ * the Robinhood Chain vault's positions once it's deployed,
  * Pyth's market-hours schedule (holidays, for the model), mainnet's xyz:TSLA
  * mid, and the hedge network's market list and the account's position.
  * Sending is on testnet only for now (docs/hedger.md: no real money).
@@ -25,17 +28,20 @@
 import { existsSync, readFileSync } from "node:fs";
 
 import { Connection } from "@solana/web3.js";
-import { getAddress, type Address } from "viem";
+import { createPublicClient, getAddress, http, type Address } from "viem";
 
+import { evmChain, type EvmDeployment } from "../../evm/client/vault";
 import type { Opening } from "../../pricing/model";
 import { pythCalendar } from "../../quoter/marketData";
 import { TSLA } from "../../quoter/stocks";
 import tslaGaps from "../../research/data/pyth-tsla-gaps.json" with { type: "json" };
+import { evmVault } from "../evm";
 import { createExchange, type Exchange, type OrderResult } from "../exchange";
 import { DEFAULT_SLIPPAGE, type Network } from "../hyperliquid";
 import { dexOf, type HedgeAccount } from "../info";
 import { nextRunMs, type HedgePlan } from "../plan";
 import { sendHedge, type SentHedge } from "../send";
+import { solanaVault } from "../solana";
 import { readHedgeState, type HedgeState, type ModelInputs, type VaultSource } from "../state";
 import { agentKey, envNumber, everyMs, hedgeNetwork, iso, loop, maxNotional, sh, usd } from "./common";
 
@@ -45,14 +51,19 @@ const history = tslaGaps.gaps as Opening[];
 
 type Settings = { network: Network; cap: number; address: Address | null; connection: Connection };
 
-/** Both Solana vaults whose deployment files exist: v2, and v1 until its last series is paid. */
+const readJson = <T>(file: string): T | null => (existsSync(file) ? (JSON.parse(readFileSync(file, "utf8")) as T) : null);
+
+/** The vaults whose deployment files exist: Solana's v2, and v1 until its last series is paid; Robinhood Chain's once it's deployed. */
 function vaultSources(connection: Connection): VaultSource[] {
+  type SolanaDeployment = { programId: string; vault: string };
+  const v2 = readJson<SolanaDeployment>(process.env.DEPLOYMENTS ?? "solana/deployments/devnet.json");
+  const v1 = readJson<SolanaDeployment>(process.env.DEPLOYMENTS_V1 ?? "solana/deployments/devnet-v1.json");
+  const evm = readJson<EvmDeployment>(process.env.EVM_DEPLOYMENTS ?? "evm/deployments/robinhood.json");
   return [
-    { label: "Solana v2", version: "v2" as const, file: process.env.DEPLOYMENTS ?? "solana/deployments/devnet.json" },
-    { label: "Solana v1", version: "v1" as const, file: process.env.DEPLOYMENTS_V1 ?? "solana/deployments/devnet-v1.json" },
-  ]
-    .filter((v) => existsSync(v.file))
-    .map((v) => ({ label: v.label, version: v.version, connection, deployment: JSON.parse(readFileSync(v.file, "utf8")) as { programId: string; vault: string } }));
+    ...(v2 ? [solanaVault("Solana v2", "v2", connection, v2)] : []),
+    ...(v1 ? [solanaVault("Solana v1", "v1", connection, v1)] : []),
+    ...(evm ? [evmVault("Robinhood Chain", createPublicClient({ chain: evmChain(evm), transport: http(evm.rpc) }), evm)] : []),
+  ];
 }
 
 /** The model from the recorded openings, with holidays and early closes from Pyth's public schedule. */
@@ -102,8 +113,7 @@ function printState(st: HedgeState, s: Settings) {
 
   console.log("\nVAULTS");
   for (const b of st.books) console.log(`  ${b.label}  ${b.vault}: ${b.positions.length} open position(s)`);
-  if (!existsSync("evm/deployments/robinhood.json")) console.log("  Robinhood Chain: not deployed, nothing to read");
-  else console.log("  Robinhood Chain: deployed, but the hedger doesn't read it yet");
+  if (!st.books.some((b) => b.chain === "robinhood")) console.log("  Robinhood Chain: no deployment file (EVM_DEPLOYMENTS), nothing to read");
 
   const e = st.plan.exposure;
   console.log(`\n${stock.symbol} EXPOSURE at ${usd(st.mid)}`);

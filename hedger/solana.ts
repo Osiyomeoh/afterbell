@@ -9,6 +9,7 @@ import { stockByFeedId } from "../quoter/stocks";
 import * as v1 from "../solana/client/v1";
 import * as v2 from "../solana/client/vault";
 import type { SeriesState } from "../solana/keeper/plan";
+import type { VaultSource } from "./state";
 import type { OpenPosition } from "./target";
 
 export type SeriesRecord = { address: string; feedId: string; openTs: number; state: SeriesState };
@@ -73,5 +74,18 @@ export async function readVault(connection: Connection, version: VaultVersion, d
       lower: BigInt(p.account.lower.toString()),
       ...(p.account.closed !== undefined && { closed: p.account.closed }),
     })),
+  };
+}
+
+/** A Solana vault, either version, as a source for the hedge. */
+export function solanaVault(label: string, version: VaultVersion, connection: Connection, deployment: { programId: string; vault: string }): VaultSource {
+  return {
+    chain: "solana",
+    label,
+    vault: deployment.vault,
+    read: async () => {
+      const { series, positions } = await readVault(connection, version, deployment);
+      return openPositions(series, positions);
+    },
   };
 }

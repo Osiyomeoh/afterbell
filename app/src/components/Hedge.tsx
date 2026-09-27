@@ -125,12 +125,26 @@ function HedgeView({ h }: { h: HedgeResponse }) {
           </p>
         )}
         <p>
-          It counts the protection sold on Solana ({h.vaults.map((v) => `${v.label}: ${v.positions} open`).join("; ")}). Robinhood Chain&apos;s vault isn&apos;t
-          counted yet: it isn&apos;t deployed.
+          {counted(h.vaults)}
+          {!h.vaults.some((v) => v.chain === "robinhood") && <> Robinhood Chain&apos;s vault isn&apos;t counted yet: it isn&apos;t deployed.</>}
         </p>
       </div>
     </div>
   );
+}
+
+const CHAINS = [
+  { id: "solana", name: "Solana" },
+  { id: "robinhood", name: "Robinhood Chain" },
+] as const;
+
+/** Which vaults the hedge counts, chain by chain: "It counts the protection sold on Solana (the current vault: 0 open; …)." */
+function counted(vaults: HedgeResponse["vaults"]): string {
+  const parts = CHAINS.flatMap((c) => {
+    const mine = vaults.filter((v) => v.chain === c.id);
+    return mine.length ? [`on ${c.name} (${mine.map((v) => `${v.label}: ${v.positions} open`).join("; ")})`] : [];
+  });
+  return parts.length ? `It counts the protection sold ${parts.join(" and ")}.` : "No vault is deployed for it to count.";
 }
 
 function Stat({ label, value, note }: { label: string; value: string; note?: string }) {

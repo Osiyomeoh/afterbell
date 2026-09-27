@@ -22,6 +22,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { signForEvm, type PricedProtection } from "../../quoter/quoter";
 import { afterbellPositionsAbi, afterbellVaultAbi, testUsdAbi } from "../client/abi";
 import { buyProtection, claimFilled, requestDeposit, type EvmSeries } from "../client/vault";
+import { evmVault } from "../../hedger/evm";
 import { planEvmKeeper, runEvmKeeper } from "../keeper/keeper";
 import { ANVIL_KEYS as KEYS, deployLocalVault, mockFeedAbi, startAnvil } from "./local-chain";
 
@@ -71,6 +72,12 @@ async function main() {
     const bobId = await sell(bob, 1, 380, 360, 1);
     const holder = (id: bigint) => client.readContract({ address: d.positions, abi: afterbellPositionsAbi, functionName: "ownerOf", args: [id] });
     check((await holder(aliceId)) === alice!.account.address && (await holder(bobId)) === bob!.account.address, `sold positions ${aliceId} and ${bobId}, each an NFT held by its buyer`);
+    const hedged = evmVault("Robinhood Chain", client, d);
+    const exposed = await hedged.read();
+    check(
+      JSON.stringify(exposed) === JSON.stringify([2, 1].map((shares, i) => ({ symbol: "TSLA", openTs: Number(open), shares, upper: [390, 380][i], lower: [370, 360][i] }))),
+      "the hedger reads both as open TSLA protection: 2 shares from $390 to $370, 1 from $380 to $360",
+    );
 
     // Before the bell, Alice sells her position to Carol, and Dave asks to underwrite 1,000.
     await mined(await alice!.writeContract({ address: d.positions, abi: afterbellPositionsAbi, functionName: "transferFrom", args: [alice!.account.address, carol!.account.address, aliceId] }));
@@ -112,6 +119,7 @@ async function main() {
     check(report.paid.length === plannedUnits.size && report.paid.every((c) => plannedUnits.get(c.id) === c.units), "the keeper paid exactly what the plan said it would");
     check(report.tips === 80_000n && (await balance(keeper)) - keeperBefore === 80_000n, "the vault paid the keeper 0.08 TestUSD in tips: 2% of the 4 in premiums");
     check((await read<bigint>("locked")) === 0n && (await read<bigint>("tipsOwed")) === 0n, "nothing is locked or owed any more");
+    check((await hedged.read()).length === 0, "and the hedger reads nothing open");
 
     // The roll: the pool kept the premiums less the payout and the tips, and Dave's deposit buys shares at that value.
     check(report.rolled?.round === 2n && (await read<bigint>("round")) === 3n, "the keeper rolled the pool from round 2 into round 3");

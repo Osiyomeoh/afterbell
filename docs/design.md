@@ -26,7 +26,7 @@ Customers, in order:
 | EVM vault | Robinhood Chain, Solidity | Sells protection against a signed quote (EIP-712; with a permit, in one transaction) as an NFT, within the pool's risk limits; locks the maximum payout, settles on Chainlink's round in force at the open, pays each NFT's holder. Underwritten by a pool anyone can join (ERC-7540) |
 | Solana vault | Solana, Anchor | The same sale against an ed25519-signed quote, settled on the first Pyth print at or after the open, with the same pool, NFT positions (Token-2022), risk limits and tips. Both run on devnet: the second since 27 Sep, and the first (collateral without pool shares, positions as accounts) until its Monday positions are paid out |
 | Keepers | TypeScript | Permissionless: settle each due series (Pyth's first print posted through its receiver; Chainlink's round in force found by binary search), void the unsettleable, pay every position out to its NFT's holder, earning the keeper's tip, then roll the pool. Both can plan a run: what they would settle on and pay, sending nothing |
-| Hedger (written, not trading yet) | TypeScript, Hyperliquid | Reads open protection from both Solana vaults and holds a short in `xyz:TSLA` equal to its delta under the pricing model, rebalanced every 5 minutes and bought back at the open. On Hyperliquid testnet at mainnet's price, filling against our own quoting account (testnet's book is empty). Robinhood Chain's vault isn't read yet. Plan: docs/hedger.md |
+| Hedger (written, not trading yet) | TypeScript, Hyperliquid | Reads open protection from both Solana vaults, and Robinhood Chain's once deployed, and holds a short in `xyz:TSLA` equal to its delta under the pricing model, rebalanced every 5 minutes and bought back at the open. On Hyperliquid testnet at mainnet's price, filling against our own quoting account (testnet's book is empty). Plan: docs/hedger.md |
 | App | Next.js | Protect with a Solana / Robinhood Chain switch (live pricing, payoff, backtest, "protect what I hold"); My protection, Vault and Track record for both chains; each chain's pool (deposit, withdraw) and each position's NFT; a devnet faucet and a Solana Action; the hedge, on the Vault page |
 | MCP server | TypeScript | Hosted (no keys, returns unsigned transactions) and local (the agent's own devnet wallet, capped spend): `protect_portfolio`, `quote_protection` and read tools |
 
@@ -99,7 +99,7 @@ Colosseum's form asks for every chain integrated. We select only chains that are
 | Sep 27 (done) | Solana vault v2 deployed to devnet, its pool underwritten with 100,000 TestUSD; the hedger written and tested (sizing, signing, plan mode, the testnet quoter, sending, a backtest, the Vault page), its plan modes run against the live vaults and Hyperliquid |
 | Sep 28 | First devnet settlement and claims by the keeper after Monday's open; week-2 update video |
 | Sep 28 to Oct 1 | The app switches to Solana vault v2; Robinhood Chain mainnet deploy with test collateral (when the deploy wallet is funded); hosting |
-| Oct 2 to 6 | Hedger trading on Hyperliquid testnet across opens (its accounts first); Robinhood Chain's vault in its exposure |
+| Oct 2 to 6 | Hedger trading on Hyperliquid testnet across opens (its accounts first) |
 | Oct 6 to 8 | Perps submission Oct 8 |
 | Oct 9 | Buffer, traction push |
 | **cut line** | Below: Arbitrum, Solana stocks beyond TSLA and QQQ (Pyth entitlement), Solami side track. Vault shares for outside depositors started below the line and are now built on both chains (the pool) |

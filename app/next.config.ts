@@ -15,7 +15,7 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     ...Object.fromEntries(["/api/quote", "/api/market", "/api/positions", "/api/vault"].map((r) => [r, ["../evm/deployments/*.json"]])),
     "/api/record": ["../evm/deployments/*.json", "../solana/deployments/*.json"],
-    "/api/hedge": ["../solana/deployments/*.json"],
+    "/api/hedge": ["../evm/deployments/*.json", "../solana/deployments/*.json"],
   },
 };
 

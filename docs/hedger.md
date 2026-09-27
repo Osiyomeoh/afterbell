@@ -62,7 +62,7 @@ The asset id is never hard-coded: each run reads it from that network's own dex 
 
 ## Design, as built
 
-**Exposure** (`hedger/solana.ts`, `hedger/target.ts`). Reads every open position in both Solana vaults, the new one and the first version until its last series is paid, with each version's own account decoder. Positions whose open has passed no longer count, whether or not the keeper has settled them yet. Only TSLA is hedged: positions on other stocks are listed as not hedged. Robinhood Chain's vault isn't read yet; it isn't deployed.
+**Exposure** (`hedger/solana.ts`, `hedger/evm.ts`, `hedger/target.ts`). Reads every open position in both Solana vaults, the new one and the first version until its last series is paid, with each version's own account decoder, and in Robinhood Chain's vault once `evm/deployments/robinhood.json` exists (each position the vault has sold, through the RPC the file names; stocks named by the file's feed list). That vault isn't deployed, so its read has run only on a local chain, in `npm run evm:cycle`. Positions whose open has passed no longer count, whether or not the keeper has settled them yet. Only TSLA is hedged: positions on other stocks are listed as not hedged.
 
 **Where it runs.** Testnet by default (`HYPERLIQUID_NETWORK=testnet`). The reference price is always mainnet's `xyz:TSLA` mid, read from the public endpoint: that's the price the research checked against Pyth, and testnet's own oracle and mark drift from it (on 26 Sep testnet's oracle was $372.59 and its mark $389.89, against mainnet's $371.87).
 

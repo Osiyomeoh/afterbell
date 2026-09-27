@@ -4,7 +4,6 @@
  * and needs no key. Any read that fails fails the whole state: a hedge is
  * never sized on half a book.
  */
-import type { Connection } from "@solana/web3.js";
 import type { Address } from "viem";
 
 import { hyperliquidMid } from "../quoter/marketData";
@@ -13,15 +12,17 @@ import type { Stock } from "../quoter/stocks";
 import type { Market, Network } from "./hyperliquid";
 import { fetchHedgeAccount, fetchMarket, postInfo, type HedgeAccount, type Post } from "./info";
 import { planHedge, type HedgePlan } from "./plan";
-import { openPositions, readVault, type VaultVersion } from "./solana";
 import type { OpenExposure, OpenPosition } from "./target";
 
-export type VaultSource = { label: string; version: VaultVersion; connection: Connection; deployment: { programId: string; vault: string } };
+export type VaultChain = "solana" | "robinhood";
+
+/** A vault the hedge counts: where it is, and how to read its open positions (`solanaVault`, `evmVault`). */
+export type VaultSource = { chain: VaultChain; label: string; vault: string; read: () => Promise<OpenPosition[]> };
 
 /** What the model needs besides the price: the recorded openings, and the calendar. */
 export type ModelInputs = Pick<QuoterMarket, "history" | "annualVol" | "holidays" | "earlyCloses">;
 
-export type Book = { label: string; vault: string; positions: OpenPosition[] };
+export type Book = { chain: VaultChain; label: string; vault: string; positions: OpenPosition[] };
 
 export type HedgeState = {
   now: number;
@@ -54,10 +55,7 @@ export async function readHedgeState(s: HedgeSources): Promise<HedgeState> {
   const post = s.post ?? postInfo;
   const [books, mid, market, account, inputs] = await Promise.all([
     Promise.all(
-      s.vaults.map(async (v) => {
-        const { series, positions } = await readVault(v.connection, v.version, v.deployment);
-        return { label: v.label, vault: v.deployment.vault, positions: openPositions(series, positions).filter((p) => p.openTs > now) };
-      }),
+      s.vaults.map(async (v) => ({ chain: v.chain, label: v.label, vault: v.vault, positions: (await v.read()).filter((p) => p.openTs > now) })),
     ),
     (s.mid ?? hyperliquidMid)(coin),
     fetchMarket(post, s.network, coin),
@@ -76,7 +74,7 @@ export type HedgeSummary = {
   network: Network;
   now: number;
   mid: number;
-  vaults: { label: string; vault: string; positions: number }[];
+  vaults: { chain: VaultChain; label: string; vault: string; positions: number }[];
   opens: OpenExposure[];
   /** The short the open positions call for, in shares, before rounding and the cap. */
   hedge: number;
@@ -101,7 +99,7 @@ export function summarize(st: HedgeState, stock: Stock, network: Network, maxNot
     network,
     now: st.now,
     mid: st.mid,
-    vaults: st.books.map((b) => ({ label: b.label, vault: b.vault, positions: b.positions.length })),
+    vaults: st.books.map((b) => ({ chain: b.chain, label: b.label, vault: b.vault, positions: b.positions.length })),
     opens: st.plan.exposure.opens,
     hedge: st.plan.exposure.hedge,
     target: st.plan.rebalance.target,
