@@ -16,7 +16,7 @@ Customers, in order:
 
 1. Holders on Solana and Robinhood Chain (web app, Solana Action).
 2. Agents managing tokenized-stock portfolios (MCP tool `protect_portfolio`).
-3. Later: apps and lending protocols that hold tokenized stocks and want protection for a whole book.
+3. Apps, vaults and lending protocols that hold tokenized stocks and want protection for a whole book. The gap report (`/gap`, an endpoint and an MCP tool) prices a book against each stock's worst openings and until the next open; selling protection for a whole book in one purchase is later.
 
 ## Components
 
@@ -27,8 +27,8 @@ Customers, in order:
 | Solana vault | Solana, Anchor | The same sale against an ed25519-signed quote, settled on the first Pyth print at or after the open, with the same pool, NFT positions (Token-2022), risk limits and tips. Both run on devnet: the second since 27 Sep, and the first (collateral without pool shares, positions as accounts) until its Monday positions are paid out |
 | Keepers | TypeScript | Permissionless: settle each due series (Pyth's first print posted through its receiver; Chainlink's round in force found by binary search), void the unsettleable, pay every position out to its NFT's holder, earning the keeper's tip, then roll the pool. Both can plan a run: what they would settle on and pay, sending nothing |
 | Hedger (written, not trading yet) | TypeScript, Hyperliquid | Reads open protection from both Solana vaults, and Robinhood Chain's once deployed, and holds a short in `xyz:TSLA` equal to its delta under the pricing model, rebalanced every 5 minutes and bought back at the open. On Hyperliquid testnet at mainnet's price, filling against our own quoting account (testnet's book is empty). Plan: docs/hedger.md |
-| App | Next.js | Protect with a Solana / Robinhood Chain switch (live pricing, payoff, backtest, "protect what I hold"); My protection, Vault and Track record for both chains; each chain's pool (deposit, withdraw) and each position's NFT; a devnet faucet and a Solana Action; the hedge, on the Vault page |
-| MCP server | TypeScript | Hosted (no keys, returns unsigned transactions) and local (the agent's own devnet wallet, capped spend): `protect_portfolio`, `quote_protection` and read tools |
+| App | Next.js | Protect with a Solana / Robinhood Chain switch (live pricing, payoff, backtest, "protect what I hold"); My protection, Vault and Track record for both chains; each chain's pool (deposit, withdraw) and each position's NFT; a devnet faucet and a Solana Action; the hedge, on the Vault page; a gap report for a whole book |
+| MCP server | TypeScript | Hosted (no keys, returns unsigned transactions) and local (the agent's own devnet wallet, capped spend): `protect_portfolio`, `quote_protection`, `gap_report` and read tools |
 
 ### Why a vault and fixed quotes (not Weekend Markets' pools)
 

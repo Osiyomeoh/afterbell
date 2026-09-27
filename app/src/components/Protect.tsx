@@ -71,12 +71,16 @@ export function Protect() {
   const [symbol, setSymbol] = useState("TSLA");
   const evm = useEvmWallet();
 
-  // A link can open the ticket on a chain and a stock: /?chain=robinhood&symbol=NVDA.
+  // A link can open the ticket on a chain, a stock and a size: /?chain=robinhood&symbol=NVDA&shares=40.
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
     if (q.get("chain") === "robinhood") setChain("robinhood");
     const s = q.get("symbol");
     if (s && /^[A-Za-z.]{1,10}$/.test(s)) setSymbol(s.toUpperCase());
+    const n = Number(q.get("shares"));
+    if (n > 0) setShares(Math.max(0.01, Math.min(n, market?.config.maxShares ?? 1_000)));
+    // Read once, on arrival.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function pickStock(next: string) {

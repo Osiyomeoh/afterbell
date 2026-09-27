@@ -16,6 +16,7 @@ import { z } from "zod";
 
 import { backtest } from "../pricing/backtest";
 import type { SolanaQuote } from "../pricing/solanaQuote";
+import { formatBook, type GapReport } from "../quoter/gapReport";
 import { priceQuote, type PricedProtection } from "../quoter/quoter";
 import { buyInstructions, getProgram } from "../solana/client/vault";
 import { AfterbellApi, toMarket, type MarketInfo, type PriceSource, type SolanaQuoteResponse } from "./api";
@@ -34,7 +35,8 @@ This hosted server holds no keys and spends nothing. market shows a stock's pric
 prices protection (show the user the cost and what it pays before buying); protect_portfolio sizes protection to the
 TSLAx and TSLAon a Solana wallet holds. To buy, protection_transaction or protect_portfolio returns an unsigned
 transaction for the buyer's own wallet to sign (a fresh devnet wallet is sent test money first). positions follows any
-wallet; vault shows the vault's collateral and every series. An agent that should hold its own wallet and buy by itself
+wallet; vault shows the vault's collateral and every series; gap_report prices a whole book (a wallet, a vault, a lending
+market's collateral) against each stock's worst openings and until the next open. An agent that should hold its own wallet and buy by itself
 can run the local server from the Afterbell repo (agent/server.ts).`;
 
 const LOCAL = `${ABOUT}
@@ -42,7 +44,7 @@ Typical flow: wallet, then get_test_funds the first time. market shows a stock's
 quote_protection prices protection; show the user the cost and what it pays and get their agreement before
 buy_protection, which spends from the agent's wallet up to its spending cap. protect_portfolio does the same sized to
 what a mainnet wallet holds. positions follows the agent's protection; after the open settles, claim collects payouts
-(a keeper also pays every position out).`;
+(a keeper also pays every position out). gap_report prices a whole book against each stock's worst openings.`;
 
 export const read = { readOnlyHint: true, openWorldHint: true } as const;
 
@@ -85,6 +87,28 @@ export function describe(p: PricedProtection): string {
     `If ${p.symbol} opens below ${usd(p.protection.upper)}, it pays ${usd(p.protection.shares)} for every dollar below, up to ${usd(p.maxPayout)} at ${usd(p.protection.lower)} or lower.`,
     `Chance it pays anything: ${(p.probabilityOfPayout * 100).toFixed(1)}% (from ${p.model.openings} past ${p.symbol} openings). Priced from ${usd(p.reference.price)} (${p.reference.basis}).`,
   ].join("\n");
+}
+
+/** A gap report as text: the book's totals, then a paragraph per stock. */
+export function describeGapReport(r: GapReport & { names: Record<string, string> }): string {
+  const t = r.totals;
+  const openTs = r.lines.flatMap((l) => ("openTs" in l.tonight ? [l.tonight.openTs] : []))[0];
+  const range = `from ${r.structure.deductible * 100}% to ${r.structure.depth * 100}% below each price`;
+  const out = [
+    `The book is worth ${usd(t.value)} across ${r.lines.length} stock${r.lines.length === 1 ? "" : "s"}.`,
+    openTs ? `Protection ${range}, until ${nyTime(openTs)}, costs ${usd(t.premium)} and pays up to ${usd(t.maxPayout)}.` : `Protection can't be priced right now.`,
+    `If every stock had its worst recorded opening at once, the book would lose ${usd(t.worstNightLoss)} and the protection would pay ${usd(t.worstNightPaid)} (a bound, not a forecast).`,
+  ];
+  for (const l of r.lines) {
+    const down2 = l.history.downAtLeast.find((d) => d.move === 0.02)?.nights ?? 0;
+    const tonight = "premium" in l.tonight ? `Protecting it costs ${usd(l.tonight.premium)} and pays up to ${usd(l.tonight.maxPayout)}.` : `Not priced now: ${l.tonight.unavailable}.`;
+    const replay = l.replay ? ` Replayed on ${l.replay.nights} past openings it paid back ${Math.round(l.replay.paidPerDollar * 100)}¢ per $1 of premium and paid out on ${l.replay.paidNights} of them.` : "";
+    out.push(
+      `${l.symbol} (${r.names[l.symbol] ?? l.symbol}): ${Math.round(l.shares * 10_000) / 10_000} shares, ${usd(l.value)} at ${usd(l.reference.price)}. It opened 2% or more below its close on ${down2} of ${l.history.openings} openings since ${l.history.from}; the worst was ${(l.history.worst.gap * 100).toFixed(1)}% on ${l.history.worst.to}, which would cost this position ${usd(l.worstNight.loss)} today, of which the protection pays ${usd(l.worstNight.protectionPays)}. ${tonight}${replay}`,
+    );
+  }
+  if (r.skipped.length) out.push(`Not in the report: ${r.skipped.map((s) => `${s.symbol} (${s.reason})`).join("; ")}.`);
+  return out.join("\n");
 }
 
 /** How many shares: given, or the TSLA `holder` holds on mainnet (tokenized TSLA is all it can read). */
@@ -181,6 +205,34 @@ export function createServer(kind: "hosted" | "local", api: AfterbellApi, wallet
         const record = backtest(m.history, { deductible: start, depth: (stops_below ?? 10) / 100 }, { shares: 1, annualVol: m.annualVol, margin: m.config.margin });
         const toBuy = m.solana?.selling ? `To buy: ${kind === "local" ? "buy_protection" : "protection_transaction"} with the same arguments.` : `Solana devnet doesn't sell ${m.symbol}; this is a price only.`;
         return `${describe(p)}\nReplayed on ${record.nights.length} past ${m.symbol} openings, each priced only from the ones before it, this protection paid back ${Math.round(record.paidPerDollar * 100)}¢ per $1 of premium and paid out on ${record.paidNights} of them.\n${toBuy}`;
+      }),
+  );
+
+  server.registerTool(
+    "gap_report",
+    {
+      title: "Gap report for a book",
+      description:
+        "For a book of stock holdings (a wallet, a vault, a lending market's collateral): how each stock has opened after its closes, what its worst recorded opening would cost the book at today's price and what protection would pay that night, and what protecting the whole book until the next open costs now. Prices only; spends nothing.",
+      inputSchema: {
+        book: z
+          .array(z.object({ symbol: z.string(), shares: z.number().positive().optional(), dollars: z.number().positive().optional() }))
+          .optional()
+          .describe("Holdings, each as shares or as a dollar value."),
+        holder: z.string().optional().describe("A Solana mainnet wallet, to add the TSLAx and TSLAon it holds."),
+        starts_below: protectionArgs.starts_below,
+        stops_below: protectionArgs.stops_below,
+      },
+      annotations: read,
+    },
+    ({ book, holder, starts_below, stops_below }) =>
+      respond(async () => {
+        const lines = (book ?? []).map((l) => {
+          if ((l.shares === undefined) === (l.dollars === undefined)) throw new Error(`Give ${l.symbol} as shares or as dollars, not both or neither.`);
+          return l.shares !== undefined ? { symbol: l.symbol, shares: l.shares } : { symbol: l.symbol, value: l.dollars };
+        });
+        const r = await api.gapReport({ book: lines.length ? formatBook(lines) : undefined, owner: holder, start: starts_below ?? 2, stop: stops_below ?? 10 });
+        return describeGapReport(r);
       }),
   );
 

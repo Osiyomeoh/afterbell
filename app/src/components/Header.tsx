@@ -25,11 +25,13 @@ const WalletButton = dynamic(
   { ssr: false },
 );
 
-const NAV = [
+const NAV: { href: string; label: string; wide?: boolean }[] = [
   { href: "/", label: "Protect" },
   { href: "/positions", label: "My protection" },
   { href: "/vault", label: "Vault" },
   { href: "/record", label: "Track record" },
+  // No room on a phone's row; the home page and the footer link it there.
+  { href: "/gap", label: "Gap report", wide: true },
 ];
 
 export function Header() {
@@ -47,7 +49,7 @@ export function Header() {
             <Link
               key={n.href}
               href={n.href}
-              className={`rounded-md px-2.5 py-1.5 whitespace-nowrap sm:px-3 ${path === n.href ? "bg-raised text-text" : "text-muted hover:text-text"}`}
+              className={`rounded-md px-2.5 py-1.5 whitespace-nowrap sm:px-3 ${n.wide ? "hidden md:inline-block" : ""} ${path === n.href ? "bg-raised text-text" : "text-muted hover:text-text"}`}
             >
               {n.label}
             </Link>

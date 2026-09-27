@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 /**
@@ -14,7 +15,7 @@ export function ForAgents() {
 
   return (
     <section className="mt-16">
-      <h2 className="text-xl font-semibold tracking-tight">For wallets and agents</h2>
+      <h2 className="text-xl font-semibold tracking-tight">For wallets, agents and protocols</h2>
       <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div className="rounded-2xl border border-line bg-surface p-5">
           <h3 className="font-medium">A Blink, in any Solana wallet</h3>
@@ -34,6 +35,18 @@ export function ForAgents() {
           </p>
           <Copyable text={`claude mcp add --transport http afterbell ${origin}/mcp`} />
           <Copyable text={`claude mcp add afterbell -e AFTERBELL_URL=${origin} -- npx tsx agent/server.ts`} />
+        </div>
+        <div className="rounded-2xl border border-line bg-surface p-5 lg:col-span-2">
+          <h3 className="font-medium">A gap report, for a whole book</h3>
+          <p className="mt-2 text-sm leading-relaxed text-muted">
+            A vault or lending market holding tokenized stocks carries every stock&apos;s opening at once. The{" "}
+            <Link className="text-text underline" href="/gap">
+              gap report
+            </Link>{" "}
+            shows how each stock in a book has opened, what its worst opening would cost at today&apos;s price, and what protecting the book until the
+            next open costs now. The same report is a JSON endpoint and an MCP tool.
+          </p>
+          <Copyable text={`${origin}/api/gap-report?book=TSLA:100,NVDA:$25000`} />
         </div>
       </div>
     </section>

@@ -3,6 +3,7 @@ import type { HedgeActivity } from "@root/hedger/info";
 import type { OpenSeries } from "@root/hedger/solana";
 import type { HedgeSummary } from "@root/hedger/state";
 import type { Opening } from "@root/pricing/model";
+import type { GapReport } from "@root/quoter/gapReport";
 import type { Market, PricedProtection, QuoterConfig } from "@root/quoter/quoter";
 
 export type PriceSource = "pyth" | "chainlink" | "hyperliquid";
@@ -197,3 +198,17 @@ export const fetchRecord = () => fetch("/api/record", { cache: "no-store" }).the
 export type HedgeResponse = HedgeSummary & { activity: HedgeActivity | null };
 
 export const fetchHedge = () => fetch("/api/hedge", { cache: "no-store" }).then((r) => json<HedgeResponse>(r));
+
+/** A gap report for a book (see /api/gap-report): each stock's openings, its worst night on this position, and protection tonight. */
+export type GapReportResponse = GapReport & {
+  names: Record<string, string>;
+  /** The Solana wallet whose TSLAx and TSLAon were added, when one was given. */
+  wallet: { owner: string; holdings: { symbol: string; shares: number }[] } | null;
+};
+
+export const fetchGapReport = (q: { book?: string; owner?: string; start: number; stop: number }) => {
+  const params = new URLSearchParams({ start: String(q.start), stop: String(q.stop) });
+  if (q.book) params.set("book", q.book);
+  if (q.owner) params.set("owner", q.owner);
+  return fetch(`/api/gap-report?${params}`, { cache: "no-store" }).then((r) => json<GapReportResponse>(r));
+};

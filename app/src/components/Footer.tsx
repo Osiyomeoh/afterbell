@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { robinhoodChain } from "@root/evm/client/vault";
 
 import { explorer } from "@/lib/format";
@@ -27,6 +29,9 @@ export function Footer() {
           hold the stock. Nothing here is financial advice.
         </p>
         <nav className="flex flex-wrap gap-x-5 gap-y-2 text-muted">
+          <Link className="whitespace-nowrap hover:text-text" href="/gap">
+            Gap report
+          </Link>
           {links.map((l) => (
             <a key={l.label} className="whitespace-nowrap hover:text-text" href={l.href} target="_blank" rel="noreferrer">
               {l.label}

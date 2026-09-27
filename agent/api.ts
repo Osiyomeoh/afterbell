@@ -3,6 +3,7 @@
  * tools price and sign exactly as the site does. No keys here.
  */
 import type { Opening } from "../pricing/model";
+import type { GapReport } from "../quoter/gapReport";
 import type { Market, PricedProtection, QuoterConfig } from "../quoter/quoter";
 
 export type PriceSource = "pyth" | "chainlink" | "hyperliquid";
@@ -86,6 +87,12 @@ export class AfterbellApi {
   positions = (owner: string) => this.call<{ positions: PositionInfo[] }>(`/api/positions?owner=${owner}`).then((r) => r.positions);
   vault = () => this.call<VaultInfo>("/api/vault");
   holdings = (owner: string) => this.call<{ holdings: { symbol: string; shares: number }[] }>(`/api/holdings?owner=${owner}`).then((r) => r.holdings);
+  gapReport = (q: { book?: string; owner?: string; start: number; stop: number }) => {
+    const params = new URLSearchParams({ start: String(q.start), stop: String(q.stop) });
+    if (q.book) params.set("book", q.book);
+    if (q.owner) params.set("owner", q.owner);
+    return this.call<GapReport & { names: Record<string, string> }>(`/api/gap-report?${params}`);
+  };
   faucet = (owner: string) =>
     this.call<{ signature: string | null; testUsd: number; sol: number; alreadyFunded: boolean }>("/api/faucet", { method: "POST", body: JSON.stringify({ owner }) });
 }
