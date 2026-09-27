@@ -1,3 +1,4 @@
+import { Activity } from "@/components/Activity";
 import { ForAgents } from "@/components/ForAgents";
 import { HowItWorks } from "@/components/HowItWorks";
 import { Protect } from "@/components/Protect";
@@ -14,6 +15,7 @@ export default function Home() {
           opening print. Pay once, and if the stock opens below your level, the vault pays the difference, settled on-chain by the oracle&apos;s price at
           the 09:30 ET open.
         </p>
+        <Activity />
       </section>
       <Protect />
       <HowItWorks />

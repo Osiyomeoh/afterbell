@@ -3,7 +3,7 @@
 import { useAnchorWallet, useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { backtest, type BacktestNight, type BacktestResult } from "@root/pricing/backtest";
 import { priceQuote } from "@root/quoter/quoter";
@@ -187,6 +187,27 @@ export function Protect() {
     }
   }
 
+  // On a phone the checkout sits under the sliders; while the ticket is on screen but the checkout isn't, a bar
+  // at the bottom keeps the price and the button in reach.
+  const ticketRef = useRef<HTMLElement>(null);
+  const checkoutRef = useRef<HTMLDivElement>(null);
+  const [inView, setInView] = useState({ ticket: false, checkout: false });
+  useEffect(() => {
+    const ticket = ticketRef.current;
+    const box = checkoutRef.current;
+    if (!ticket || !box) return;
+    const observer = new IntersectionObserver((entries) =>
+      setInView((v) => {
+        const next = { ...v };
+        for (const e of entries) next[e.target === ticket ? "ticket" : "checkout"] = e.isIntersecting;
+        return next;
+      }),
+    );
+    observer.observe(ticket);
+    observer.observe(box);
+    return () => observer.disconnect();
+  }, [!!market]);
+
   if (loadError) return <Notice>Market data for {symbol} is unavailable: {loadError}</Notice>;
   if (!market) return <Notice>Loading {symbol}…</Notice>;
   // Still showing the last stock while the one just picked loads.
@@ -199,6 +220,17 @@ export function Protect() {
 
   // The price and the buy button: beside the ticket on wide screens, inside it (under the sliders) on phones,
   // where the aside only starts below the whole ticket.
+  const buttonLabel =
+    status.kind === "busy"
+      ? status.step
+      : !connected
+        ? chain === "solana"
+          ? "Connect a wallet"
+          : "Connect an EVM wallet"
+        : priced
+          ? `Protect for ${usd(priced.premium)}`
+          : "Protect";
+
   const checkout = (
     <>
       <div className="grid grid-cols-2 gap-3">
@@ -226,13 +258,7 @@ export function Protect() {
         disabled={!!blocked || status.kind === "busy"}
         className="mt-5 w-full rounded-xl bg-brass px-4 py-3 font-medium text-ink transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
       >
-        {status.kind === "busy"
-          ? status.step
-          : !connected
-            ? chain === "solana"
-              ? "Connect a wallet"
-              : "Connect an EVM wallet"
-            : priced ? `Protect for ${usd(priced.premium)}` : "Protect"}
+        {buttonLabel}
       </button>
       {blocked && <p className="mt-3 text-sm text-loss">{blocked}</p>}
       {status.kind === "error" && (
@@ -262,7 +288,7 @@ export function Protect() {
 
   return (
     <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
-      <section className="rounded-2xl border border-line bg-surface p-5 sm:p-6">
+      <section ref={ticketRef} className="rounded-2xl border border-line bg-surface p-5 sm:p-6">
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
           <div className="inline-flex rounded-lg border border-line bg-ink p-0.5 text-sm" role="tablist" aria-label="Chain">
             {CHAINS.map((c) => (
@@ -346,7 +372,9 @@ export function Protect() {
           <Slider label="Protection stops" value={Math.max(depth, start + 0.01)} min={start + 0.01} max={0.3} step={0.01} onChange={setDepth} price={protection?.lower} />
         </div>
 
-        <div className="mt-6 rounded-xl border border-line bg-ink p-4 lg:hidden">{checkout}</div>
+        <div ref={checkoutRef} className="mt-6 rounded-xl border border-line bg-ink p-4 lg:hidden">
+          {checkout}
+        </div>
 
         {protection && priced && (
           <div className="mt-6">
@@ -393,6 +421,24 @@ export function Protect() {
           {record && <Replay record={record} symbol={market.symbol} shares={shares} oracle={SOURCE[market.closeSource === "chainlink" ? "chainlink" : "pyth"]} />}
         </div>
       </aside>
+
+      {inView.ticket && !inView.checkout && (
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/95 px-4 py-3 backdrop-blur lg:hidden">
+          <div className="mx-auto flex max-w-xl items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="num text-lg font-semibold leading-tight">{priced ? usd(priced.premium) : "—"}</div>
+              <div className="num truncate text-xs text-muted">{priced ? `pays up to ${usd(priced.maxPayout, 0)}` : blocked ?? ""}</div>
+            </div>
+            <button
+              onClick={buy}
+              disabled={!!blocked || status.kind === "busy"}
+              className="shrink-0 rounded-xl bg-brass px-4 py-2.5 text-sm font-medium text-ink transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {buttonLabel}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
