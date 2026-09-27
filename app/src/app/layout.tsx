@@ -13,6 +13,8 @@ const description =
   "Protection for tokenized stocks until the next opening bell. Pay once; if the stock opens below your level, the vault pays the difference. Settled on-chain by the first oracle print after 09:30 ET.";
 
 export const metadata: Metadata = {
+  // The hosted address (SITE_URL, read at build time), so link previews point at the app's own image rather than localhost.
+  ...(process.env.SITE_URL && { metadataBase: new URL(process.env.SITE_URL) }),
   title: { default: "Afterbell · Protection until the opening bell", template: "%s · Afterbell" },
   description,
 };
