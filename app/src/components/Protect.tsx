@@ -14,6 +14,7 @@ import { buyOnRobinhood, evmTxUrl, NeedsGas, useEvmWallet } from "@/lib/evm";
 import { nextEvent } from "@/lib/events";
 import { countdown, dayLabel, explorer, nyTime, pct, usd } from "@/lib/format";
 
+import { Board } from "./Board";
 import { OvernightChart } from "./OvernightChart";
 import { PayoffChart } from "./PayoffChart";
 import { TestFunds } from "./TestFunds";
@@ -439,6 +440,16 @@ export function Protect() {
           </div>
         </div>
       )}
+
+      <div className="lg:col-span-2">
+        <Board
+          current={symbol}
+          onPick={(s) => {
+            pickStock(s);
+            ticketRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+          }}
+        />
+      </div>
     </div>
   );
 }

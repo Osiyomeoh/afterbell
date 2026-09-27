@@ -1,6 +1,7 @@
 import type { EvmDeployment } from "@root/evm/client/vault";
 import type { HedgeActivity } from "@root/hedger/info";
 import type { OpenSeries } from "@root/hedger/solana";
+import type { BoardPrice } from "@root/quoter/board";
 import type { HedgeSummary } from "@root/hedger/state";
 import type { Opening } from "@root/pricing/model";
 import type { GapReport } from "@root/quoter/gapReport";
@@ -60,6 +61,11 @@ export type OvernightResponse = { symbol: string; closeTs: number; close: number
 
 export const fetchOvernight = (symbol: string) =>
   fetch(`/api/overnight?symbol=${encodeURIComponent(symbol)}`, { cache: "no-store" }).then((r) => json<OvernightResponse>(r));
+
+/** Standard cover on one share of every stock the app prices (GET /api/board). */
+export type BoardRow = { symbol: string; name: string; solana: boolean; robinhood: boolean; settles: Chain[] } & ({ price: BoardPrice } | { error: string });
+
+export const fetchBoard = () => fetch("/api/board", { cache: "no-store" }).then((r) => json<{ rows: BoardRow[] }>(r));
 
 export const fetchMarket = (symbol = "TSLA") => fetch(`/api/market?symbol=${encodeURIComponent(symbol)}`, { cache: "no-store" }).then((r) => json<MarketResponse>(r));
 

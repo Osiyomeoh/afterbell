@@ -27,13 +27,30 @@ export type Print = { price: number; publishTime: number };
 type ParsedPrice = { price: { price: string; expo: number; publish_time: number } };
 const toPrint = (p: ParsedPrice): Print => ({ price: Number(p.price.price) * 10 ** p.price.expo, publishTime: p.price.publish_time });
 
+const SCHEDULES_TTL_MS = 6 * 60 * 60 * 1000;
+let schedules: { at: number; byFeed: Promise<Map<string, string>> } | null = null;
+
+/**
+ * Every equity feed's market-hours schedule, by feed id (lower case, no 0x):
+ * one request for all of them, kept six hours. Pyth's public endpoint allows
+ * only a few requests a second, so a page pricing every stock can't ask once each.
+ */
+function equitySchedules(): Promise<Map<string, string>> {
+  if (!schedules || Date.now() - schedules.at > SCHEDULES_TTL_MS) {
+    const byFeed = fetch(`${BENCHMARKS}?asset_type=equity`, { signal: AbortSignal.timeout(20_000) }).then(async (res) => {
+      if (!res.ok) throw new Error(`Pyth market hours returned ${res.status}`);
+      const feeds = (await res.json()) as { id: string; attributes?: { schedule?: string } }[];
+      return new Map(feeds.flatMap((f) => (f.attributes?.schedule ? [[f.id.replace(/^0x/, "").toLowerCase(), f.attributes.schedule] as const] : [])));
+    });
+    schedules = { at: Date.now(), byFeed };
+    byFeed.catch(() => (schedules = null));
+  }
+  return schedules.byFeed;
+}
+
 /** Holidays and early closes from Pyth's own schedule for the feed. */
 export async function pythCalendar(symbol: string, feedId: string, now: number): Promise<{ holidays: Set<string>; earlyCloses: Map<string, { hour: number; minute: number }> }> {
-  const res = await fetch(`${BENCHMARKS}?query=${encodeURIComponent(symbol)}&asset_type=equity`, { signal: AbortSignal.timeout(10_000) });
-  if (!res.ok) throw new Error(`Pyth market hours returned ${res.status}`);
-  const want = feedId.replace(/^0x/, "").toLowerCase();
-  const feed = ((await res.json()) as { id: string; attributes?: { schedule?: string } }[]).find((f) => f.id.replace(/^0x/, "").toLowerCase() === want);
-  const schedule = feed?.attributes?.schedule;
+  const schedule = (await equitySchedules()).get(feedId.replace(/^0x/, "").toLowerCase());
   if (!schedule) throw new Error(`Pyth has no market-hours schedule for ${symbol}`);
   return { holidays: scheduleHolidays(schedule, now), earlyCloses: scheduleEarlyCloses(schedule, now) };
 }
