@@ -4,6 +4,7 @@ import { createPublicClient, getAddress, http } from "viem";
 import { evmChain } from "@root/evm/client/vault";
 import { evmVault } from "@root/hedger/evm";
 import type { Network } from "@root/hedger/hyperliquid";
+import { fetchHedgeActivity, postInfo, type HedgeActivity } from "@root/hedger/info";
 import { solanaVault } from "@root/hedger/solana";
 import { readHedgeState, summarize, type HedgeSummary, type VaultSource } from "@root/hedger/state";
 import { TSLA } from "@root/quoter/stocks";
@@ -36,16 +37,22 @@ function vaults(): VaultSource[] {
   return out;
 }
 
+/** The hedge as the Vault page shows it, and the account's trading over the last week once there is an account. */
+export type HedgeView = HedgeSummary & { activity: HedgeActivity | null };
+
 const TTL_MS = 15_000;
-let cached: { at: number; summary: Promise<HedgeSummary> } | null = null;
+const ACTIVITY_DAYS = 7;
+let cached: { at: number; summary: Promise<HedgeView> } | null = null;
 
 /** The hedge as the Vault page shows it, sized with the model the quotes are priced from; refreshed at most every 15 seconds. */
-export function hedgeSummary(): Promise<HedgeSummary> {
+export function hedgeSummary(): Promise<HedgeView> {
   if (!cached || Date.now() - cached.at > TTL_MS) {
     const s = settings();
-    const summary = readHedgeState({ stock: TSLA, vaults: vaults(), network: s.network, address: s.address, maxNotional: s.maxNotional, model: () => marketSnapshot(TSLA).then((m) => m.market) }).then((st) =>
-      summarize(st, TSLA, s.network, s.maxNotional),
-    );
+    const since = Math.floor(Date.now() / 1000) - ACTIVITY_DAYS * 86_400;
+    const summary = Promise.all([
+      readHedgeState({ stock: TSLA, vaults: vaults(), network: s.network, address: s.address, maxNotional: s.maxNotional, model: () => marketSnapshot(TSLA).then((m) => m.market) }),
+      s.address ? fetchHedgeActivity(postInfo, s.network, s.address, TSLA.hyperliquid!, since) : null,
+    ]).then(([st, activity]) => ({ ...summarize(st, TSLA, s.network, s.maxNotional), activity }));
     cached = { at: Date.now(), summary };
     summary.catch(() => {
       if (cached?.summary === summary) cached = null;

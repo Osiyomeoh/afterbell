@@ -21,6 +21,7 @@
  *
  * Every read is public and needs no key: both vaults' accounts on Solana,
  * the Robinhood Chain vault's positions once it's deployed,
+ * the account's trades and funding over the last week (single runs only),
  * Pyth's market-hours schedule (holidays, for the model), mainnet's xyz:TSLA
  * mid, and the hedge network's market list and the account's position.
  * Sending is on testnet only for now (docs/hedger.md: no real money).
@@ -38,7 +39,7 @@ import tslaGaps from "../../research/data/pyth-tsla-gaps.json" with { type: "jso
 import { evmVault } from "../evm";
 import { createExchange, type Exchange, type OrderResult } from "../exchange";
 import { DEFAULT_SLIPPAGE, type Network } from "../hyperliquid";
-import { dexOf, type HedgeAccount } from "../info";
+import { dexOf, fetchHedgeActivity, postInfo, type HedgeAccount, type HedgeActivity } from "../info";
 import { nextRunMs, type HedgePlan } from "../plan";
 import { sendHedge, type SentHedge } from "../send";
 import { solanaVault } from "../solana";
@@ -134,6 +135,18 @@ function printState(st: HedgeState, s: Settings) {
   if (line) console.log(`ORDER   ${line}\n        ${JSON.stringify(st.plan.order)}`);
 }
 
+function printActivity(a: HedgeActivity) {
+  console.log(`\nTRADES since ${iso(a.since)}`);
+  if (a.trades === 0) console.log("  none");
+  for (const f of a.fills) {
+    const pnl = f.closedPnl === 0 ? "" : `, closed P&L ${usd(f.closedPnl)}`;
+    console.log(`  ${iso(f.time)}  ${f.dir}: ${f.sell ? "sold" : "bought"} ${sh(f.size)} at ${usd(f.price)}, fee $${f.fee.toFixed(4)}${pnl}`);
+  }
+  if (a.trades > a.fills.length) console.log(`  … ${a.trades - a.fills.length} earlier`);
+  if (a.trades > 0) console.log(`  ${a.trades} trade(s): fees $${a.fees.toFixed(4)}, closed P&L ${usd(a.closedPnl)}`);
+  console.log(`  funding ${a.funding >= 0 ? "received" : "paid"} $${Math.abs(a.funding).toFixed(4)} over ${a.fundingPayments} payment(s)`);
+}
+
 /** One line a run, for --every. */
 function printLine(st: HedgeState) {
   const held = st.plan.current;
@@ -170,8 +183,10 @@ async function main() {
 
   const tick = async () => {
     const st = await readState(settings);
-    if (every === null) printState(st, settings);
-    else printLine(st);
+    if (every === null) {
+      printState(st, settings);
+      if (settings.address) printActivity(await fetchHedgeActivity(postInfo, network, settings.address, coin, st.now - 7 * 86_400));
+    } else printLine(st);
     if (ex && st.plan.order) {
       if (!Number.isInteger(leverage) || leverage < 1 || leverage > st.market.maxLeverage) {
         throw new Error(`HEDGE_LEVERAGE must be a whole number from 1 to ${st.market.maxLeverage}`);

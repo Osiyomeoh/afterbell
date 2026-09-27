@@ -97,6 +97,8 @@ function HedgeView({ h }: { h: HedgeResponse }) {
         {h.opens.length === 0 && <p className="px-4 py-3 text-sm text-muted">Nothing open in TSLA, so no short is needed.</p>}
       </section>
 
+      {h.activity && <Activity a={h.activity} />}
+
       <div className="space-y-2 text-sm leading-relaxed text-muted">
         {h.capped && (
           <p>
@@ -130,6 +132,52 @@ function HedgeView({ h }: { h: HedgeResponse }) {
         </p>
       </div>
     </div>
+  );
+}
+
+/** The hedge account's trades in the coin and the funding on them, over the window the server reads. */
+function Activity({ a }: { a: NonNullable<HedgeResponse["activity"]> }) {
+  const days = Math.round((Date.now() / 1000 - a.since) / 86_400);
+  return (
+    <section className="rounded-2xl border border-line bg-surface">
+      <h3 className="border-b border-line px-4 py-3 font-medium">The hedge account&apos;s trades, last {days} days</h3>
+      {a.fills.length > 0 && (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="text-left text-muted">
+              <tr className="border-b border-line">
+                <th className="px-4 py-3 font-normal">Time</th>
+                <th className="px-4 py-3 font-normal">Trade</th>
+                <th className="px-4 py-3 text-right font-normal">Size</th>
+                <th className="px-4 py-3 text-right font-normal">Price</th>
+                <th className="px-4 py-3 text-right font-normal">Fee</th>
+                <th className="px-4 py-3 text-right font-normal">Closed P&amp;L</th>
+              </tr>
+            </thead>
+            <tbody>
+              {a.fills.map((f, i) => (
+                <tr key={`${f.time}-${i}`} className="border-b border-line last:border-0">
+                  <td className="px-4 py-3">{nyTime(f.time)}</td>
+                  <td className="px-4 py-3">{f.dir}</td>
+                  <td className="num px-4 py-3 text-right">{shares(f.size)}</td>
+                  <td className="num px-4 py-3 text-right">{usd(f.price)}</td>
+                  <td className="num px-4 py-3 text-right">{usd(f.fee, 4)}</td>
+                  <td className="num px-4 py-3 text-right">{f.closedPnl === 0 ? "–" : usd(f.closedPnl)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <p className={`px-4 py-3 text-sm text-muted ${a.fills.length > 0 ? "border-t border-line" : ""}`}>
+        {a.trades === 0
+          ? "No trades yet."
+          : `${a.trades} trade${a.trades === 1 ? "" : "s"}${a.trades > a.fills.length ? `, the latest ${a.fills.length} above` : ""}: ${usd(a.fees, 4)} in fees, ${usd(a.closedPnl)} of closed P&L.`}{" "}
+        {a.fundingPayments === 0
+          ? "No funding yet."
+          : `Funding ${a.funding >= 0 ? "received" : "paid"}: ${usd(Math.abs(a.funding), 4)} over ${a.fundingPayments} payment${a.fundingPayments === 1 ? "" : "s"}.`}
+      </p>
+    </section>
   );
 }
 

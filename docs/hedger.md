@@ -84,7 +84,7 @@ Each approves an **API wallet** (Hyperliquid's "agent" key): a separate key that
 
 **Plan mode.** `npm run hedger -- --plan` and `npm run hedger:quoter -- --plan` read everything and print it (exposure per open, the target, the short held, the order it would send; the book, the account's resting quotes, and the cancels and quotes it would send), send nothing and need no key. Both have run against the live vaults and Hyperliquid's public endpoints.
 
-**In the app.** The Vault page shows the hedge from `GET /api/hedge`, which reads the same state through the same code, public endpoints only, no key on the server: mainnet's price, the short the open protection calls for, the short held, each open's positions and the short for it, and, once `HEDGE_ACCOUNT` is set, the account's value, P&L, margin and a link to it on Hyperliquid's explorer. Funding isn't shown yet. Until the account exists it says the hedge isn't running.
+**In the app.** The Vault page shows the hedge from `GET /api/hedge`, which reads the same state through the same code, public endpoints only, no key on the server: mainnet's price, the short the open protection calls for, the short held, each open's positions and the short for it, and, once `HEDGE_ACCOUNT` is set, the account's value, P&L, margin and a link to it on Hyperliquid's explorer, and its trades and funding over the last 7 days. Those come from Hyperliquid's `userFillsByTime` and `userFunding`, which take no dex and cover every market, so they're filtered to `xyz:TSLA`; testnet accepted both requests for an account with no trades, and what they return for a builder dex's market is seen only once the hedge trades. A single `npm run hedger -- --plan` with `HEDGE_ACCOUNT` prints the same. Until the account exists the page says the hedge isn't running.
 
 ## Build steps
 
@@ -97,7 +97,7 @@ Each approves an **API wallet** (Hyperliquid's "agent" key): a separate key that
 7. Vault page panel and `/api/hedge`. **Done**; shows "not running yet" until step 6.
 8. README: move the hedger from Next to Built only after step 6 has run across an open.
 
-Not yet checked against the exchange, so step 6 checks them first: the cancel and leverage actions' shapes, the exact answers `/exchange` gives, whether a reduce-only buy-back under $10 is refused by the minimum order value, whether `xyz` allows isolated margin, and the explorer link's format.
+Not yet checked against the exchange, so step 6 checks them first: the cancel and leverage actions' shapes, the exact answers `/exchange` gives, whether a reduce-only buy-back under $10 is refused by the minimum order value, whether `xyz` allows isolated margin, the fills and funding records for `xyz:TSLA`, and the explorer link's format.
 
 ## Decisions
 

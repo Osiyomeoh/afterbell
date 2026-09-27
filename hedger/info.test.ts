@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { Network } from "./hyperliquid";
-import { dexOf, fetchHedgeAccount, fetchMarket, fetchOpenOrders, fetchTopOfBook, type Post } from "./info";
+import { dexOf, fetchHedgeAccount, fetchHedgeActivity, fetchMarket, fetchOpenOrders, fetchTopOfBook, type Post } from "./info";
 
 const ACCOUNT = "0x000000000000000000000000000000000000dEaD";
 
@@ -114,5 +114,59 @@ describe("fetchTopOfBook", () => {
     });
     expect(await fetchTopOfBook(post, "testnet", "xyz:TSLA")).toEqual({ bid: { px: 389.78, size: 0.081 }, ask: null });
     expect(asked).toEqual([{ network: "testnet", body: { type: "l2Book", coin: "xyz:TSLA" } }]);
+  });
+});
+
+describe("fetchHedgeActivity", () => {
+  const SINCE = 1_790_000_000;
+  const ms = (s: number) => s * 1000;
+  // As Hyperliquid's SDK recorded them, fields the hedger ignores included.
+  const fill = (coin: string, side: "A" | "B", sz: string, px: string, fee: string, closedPnl: string, dir: string, at: number) => ({
+    closedPnl, coin, crossed: true, dir, fee, feeToken: "USDC", hash: `0x${at.toString(16)}`, oid: at, px, side, startPosition: "0.0", sz, tid: at, time: ms(at),
+  });
+  const funding = (coin: string, usdc: string, szi: string, at: number) => ({
+    delta: { coin, fundingRate: "0.0000125", nSamples: null, szi, type: "funding", usdc }, hash: `0x${at.toString(16)}`, time: ms(at),
+  });
+
+  it("keeps the coin's fills, newest first, and sums fees, closed P&L and funding received", async () => {
+    const { post, asked } = fakeInfo({
+      userFillsByTime: [
+        fill("xyz:TSLA", "A", "0.906", "372.17", "0.030347", "0.0", "Open Short", SINCE + 60),
+        fill("BTC", "B", "0.01", "65000.0", "0.29", "0.0", "Open Long", SINCE + 90),
+        fill("xyz:TSLA", "B", "0.906", "370.0", "0.030170", "1.96602", "Close Short", SINCE + 3600),
+        fill("xyz:TSLA", "A", "0.1", "380.0", "0.0", "0.0", "Open Short", SINCE - 60),
+      ],
+      userFunding: [funding("xyz:TSLA", "0.004214", "-0.906", SINCE + 1800), funding("xyz:TSLA", "-0.001", "-0.906", SINCE + 3000), funding("BTC", "-0.5", "0.01", SINCE + 1800)],
+    });
+    const a = await fetchHedgeActivity(post, "testnet", ACCOUNT, "xyz:TSLA", SINCE);
+    expect(asked.map((q) => q.body)).toEqual([
+      { type: "userFillsByTime", user: ACCOUNT, startTime: ms(SINCE), aggregateByTime: true },
+      { type: "userFunding", user: ACCOUNT, startTime: ms(SINCE) },
+    ]);
+    expect(a.fills).toEqual([
+      { time: SINCE + 3600, sell: false, size: 0.906, price: 370, fee: 0.03017, closedPnl: 1.96602, dir: "Close Short" },
+      { time: SINCE + 60, sell: true, size: 0.906, price: 372.17, fee: 0.030347, closedPnl: 0, dir: "Open Short" },
+    ]);
+    expect(a.trades).toBe(2);
+    expect(a.fees).toBeCloseTo(0.060517, 9);
+    expect(a.closedPnl).toBeCloseTo(1.96602, 9);
+    expect(a.funding).toBeCloseTo(0.003214, 9);
+    expect(a.fundingPayments).toBe(2);
+    expect(a.since).toBe(SINCE);
+  });
+
+  it("shows only the latest fills but counts them all", async () => {
+    const many = Array.from({ length: 12 }, (_, i) => fill("xyz:TSLA", i % 2 ? "B" : "A", "0.05", "372.0", "0.001", "0.0", "Open Short", SINCE + i));
+    const { post } = fakeInfo({ userFillsByTime: many, userFunding: [] });
+    const a = await fetchHedgeActivity(post, "testnet", ACCOUNT, "xyz:TSLA", SINCE);
+    expect(a.fills).toHaveLength(10);
+    expect(a.fills[0]?.time).toBe(SINCE + 11);
+    expect(a.trades).toBe(12);
+    expect(a.fees).toBeCloseTo(0.012, 9);
+  });
+
+  it("reads an account that hasn't traded as nothing", async () => {
+    const { post } = fakeInfo({ userFillsByTime: [], userFunding: [] });
+    expect(await fetchHedgeActivity(post, "testnet", ACCOUNT, "xyz:TSLA", SINCE)).toEqual({ since: SINCE, fills: [], trades: 0, fees: 0, closedPnl: 0, funding: 0, fundingPayments: 0 });
   });
 });

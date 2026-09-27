@@ -116,3 +116,55 @@ export async function fetchTopOfBook(post: Post, network: Network, coin: string)
   const top = (side: { px: string; sz: string }[]) => (side[0] ? { px: Number(side[0].px), size: Number(side[0].sz) } : null);
   return { bid: top(book.levels[0]), ask: top(book.levels[1]) };
 }
+
+/** A fill as /info {type: "userFillsByTime"} sends it (the fields used here): side "A" sold, "B" bought; `dir` is Hyperliquid's own word for it, "Open Short" say. */
+export type Fill = { coin: string; side: "A" | "B"; px: string; sz: string; fee: string; closedPnl: string; dir: string; time: number; hash: string };
+
+/** A funding payment as /info {type: "userFunding"} sends it: `usdc` above 0 was received, below 0 paid. */
+export type FundingPayment = { time: number; hash: string; delta: { type: "funding"; coin: string; usdc: string; szi: string; fundingRate: string } };
+
+export type HedgeFill = { time: number; sell: boolean; size: number; price: number; fee: number; closedPnl: number; dir: string };
+
+/** The account's trading in the coin since `since` (unix seconds): its latest fills, newest first, and totals. */
+export type HedgeActivity = {
+  since: number;
+  fills: HedgeFill[];
+  trades: number;
+  fees: number;
+  closedPnl: number;
+  /** Funding received, net: below 0 it paid more than it got. */
+  funding: number;
+  fundingPayments: number;
+};
+
+export function hedgeActivity(since: number, fills: readonly Fill[], funding: readonly FundingPayment[], coin: string, latest = 10): HedgeActivity {
+  const mine = fills
+    .filter((f) => f.coin === coin && f.time >= since * 1000)
+    .sort((a, b) => b.time - a.time)
+    .map((f) => ({ time: Math.floor(f.time / 1000), sell: f.side === "A", size: Number(f.sz), price: Number(f.px), fee: Number(f.fee), closedPnl: Number(f.closedPnl), dir: f.dir }));
+  const paid = funding.filter((f) => f.delta.type === "funding" && f.delta.coin === coin && f.time >= since * 1000);
+  const sum = (xs: number[]) => xs.reduce((a, x) => a + x, 0);
+  return {
+    since,
+    fills: mine.slice(0, latest),
+    trades: mine.length,
+    fees: sum(mine.map((f) => f.fee)),
+    closedPnl: sum(mine.map((f) => f.closedPnl)),
+    funding: sum(paid.map((f) => Number(f.delta.usdc))),
+    fundingPayments: paid.length,
+  };
+}
+
+/**
+ * The account's fills and funding in `coin` since `since`, from the public
+ * endpoint. Neither request takes a dex: they cover every market the account
+ * trades, so each is filtered to the coin. Partial fills of one order are
+ * combined, as Hyperliquid's own history shows them.
+ */
+export async function fetchHedgeActivity(post: Post, network: Network, address: Address, coin: string, since: number): Promise<HedgeActivity> {
+  const [fills, funding] = await Promise.all([
+    post(network, { type: "userFillsByTime", user: address, startTime: since * 1000, aggregateByTime: true }) as Promise<Fill[]>,
+    post(network, { type: "userFunding", user: address, startTime: since * 1000 }) as Promise<FundingPayment[]>,
+  ]);
+  return hedgeActivity(since, fills, funding, coin);
+}
