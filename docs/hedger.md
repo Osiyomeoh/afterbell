@@ -80,7 +80,7 @@ The asset id is never hard-coded: each run reads it from that network's own dex 
 
 Each approves an **API wallet** (Hyperliquid's "agent" key): a separate key that signs orders for the account. The scripts read those keys only from the shell (`HEDGER_AGENT_KEY`, `QUOTER_AGENT_KEY`), never from a file, never print them, and refuse a key that is the account's own. On testnet nothing of value is at stake; before any mainnet use, confirm in Hyperliquid's docs that an API wallet can't withdraw.
 
-**Signing** (`hedger/msgpack.ts`, `hedger/hyperliquid.ts`, `hedger/exchange.ts`). Our own signer with viem, no SDK added: EIP-712 over a msgpack hash of the action (Hyperliquid's "L1 action" scheme), checked against the signatures in the tests of Hyperliquid's Python SDK (orders, an action for a vault, a scheduled cancel). Cancels and leverage changes follow the field order of the SDK's code, but the SDK has no test signature for either, so the exchange checks them on first use. Each request's nonce is the time in milliseconds, strictly increasing within a run.
+**Signing** (`hedger/msgpack.ts`, `hedger/hyperliquid.ts`, `hedger/exchange.ts`). Our own signer with viem, no SDK added: EIP-712 over a msgpack hash of the action (Hyperliquid's "L1 action" scheme), checked against the signatures in the tests of Hyperliquid's Python SDK (orders, an action for a vault, a scheduled cancel) and its Rust SDK (an immediate-or-cancel order and a cancel). Leverage changes follow the field order of the Python SDK's code, but neither SDK has a test signature for one, so the exchange checks it on first use. Each request's nonce is the time in milliseconds, strictly increasing within a run.
 
 **Plan mode.** `npm run hedger -- --plan` and `npm run hedger:quoter -- --plan` read everything and print it (exposure per open, the target, the short held, the order it would send; the book, the account's resting quotes, and the cancels and quotes it would send), send nothing and need no key. Both have run against the live vaults and Hyperliquid's public endpoints.
 
@@ -97,7 +97,7 @@ Each approves an **API wallet** (Hyperliquid's "agent" key): a separate key that
 7. Vault page panel and `/api/hedge`. **Done**; shows "not running yet" until step 6.
 8. README: move the hedger from Next to Built only after step 6 has run across an open.
 
-Not yet checked against the exchange, so step 6 checks them first: the cancel and leverage actions' shapes, the exact answers `/exchange` gives, whether a reduce-only buy-back under $10 is refused by the minimum order value, whether `xyz` allows isolated margin, the fills and funding records for `xyz:TSLA`, and the explorer link's format.
+Not yet checked against the exchange, so step 6 checks them first: the leverage action's shape, the exact answers `/exchange` gives, whether a reduce-only buy-back under $10 is refused by the minimum order value, whether `xyz` allows isolated margin, the fills and funding records for `xyz:TSLA`, and the explorer link's format.
 
 ## Decisions
 

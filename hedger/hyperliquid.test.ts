@@ -75,6 +75,29 @@ const VECTORS: Record<string, Vector> = {
   },
 };
 
+/**
+ * Vectors from Hyperliquid's Rust SDK (src/exchange/exchange_client.rs at
+ * aac7558), which has a cancel where the Python SDK has none. Its test wallet is
+ * a different one; the address kept here is the one all four signatures recover
+ * to, and two different hashes can only recover the same signer if both are right.
+ */
+const RUST_SDK_TEST_SIGNER: Address = "0xcD49bbAc6E85fdEB167EB7cA41A945d2b8758F6F";
+
+const RUST_VECTORS: Record<string, Vector> = {
+  "an immediate-or-cancel order": {
+    action: orderAction([{ a: 1, b: true, p: "2000.0", s: "3.5", r: false, t: { limit: { tif: "Ioc" } } }]),
+    nonce: 1_583_838,
+    mainnet: { r: "0x77957e58e70f43b6b68581f2dc42011fc384538a2e5b7bf42d5b936f19fbb673", s: "0x60721a8598727230f67080efee48c812a6a4442013fd3b0eed509171bef9f23f", v: 28 },
+    testnet: { r: "0xcd0925372ff1ed499e54883e9a6205ecfadec748f80ec463fe2f84f120964877", s: "0x6377961965cb7b12414186b1ea291e95fd512722427efcbcfb3b0b2bcd4d79d0", v: 28 },
+  },
+  "a cancel": {
+    action: cancelAction([{ a: 1, o: 82_382 }]),
+    nonce: 1_583_838,
+    mainnet: { r: "0x02f76cc5b16e0810152fa0e14e7b219f49c361e3325f771544c6f54e157bf9fa", s: "0x17ed0afc11a98596be85d5cd9f86600aad515337318f7ab346e5ccc1b03425d5", v: 27 },
+    testnet: { r: "0x6ffebadfd48067663390962539fbde76cfa36f53be65abe2ab72c9db6d0db444", s: "0x57720db9d7c4860f142a484f070c84eb4b9694c3a617c83f0d698a27e55fd5e0", v: 28 },
+  },
+};
+
 const signerOf = (hash: Hex, network: Network, sig: Signature) =>
   recoverTypedDataAddress({
     ...agentTypedData(hash, network),
@@ -116,6 +139,16 @@ describe("signing, against the Python SDK", () => {
     const sig: Signature = { r: "0x01", s: "0x02", v: 27 };
     expect(exchangeRequest({ type: "scheduleCancel" }, 5, sig)).toEqual({ action: { type: "scheduleCancel" }, nonce: 5, signature: sig, vaultAddress: null, expiresAfter: null });
   });
+});
+
+describe("signing, against the Rust SDK", () => {
+  for (const [name, v] of Object.entries(RUST_VECTORS)) {
+    it(`hashes ${name} as the SDK does, on mainnet and testnet`, async () => {
+      const hash = actionHash(v.action, v.nonce);
+      expect(await signerOf(hash, "mainnet", v.mainnet)).toBe(RUST_SDK_TEST_SIGNER);
+      expect(await signerOf(hash, "testnet", v.testnet)).toBe(RUST_SDK_TEST_SIGNER);
+    });
+  }
 });
 
 describe("wire formats", () => {
