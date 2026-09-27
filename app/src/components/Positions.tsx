@@ -2,7 +2,10 @@
 
 import { useAnchorWallet, useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+
+import { svg } from "@root/solana/client/art";
 
 import { fetchMarket, fetchPositions, type MarketResponse, type PositionRow } from "@/lib/api";
 import { claimPosition } from "@/lib/claim";
@@ -23,7 +26,7 @@ export function Positions() {
       <section>
         <h2 className="mb-3 text-sm font-medium text-muted">Solana devnet</h2>
         {market?.solana ? (
-          <SolanaPositions vault={{ vault: market.solana.vault, collateralMint: market.solana.collateralMint }} />
+          <SolanaPositions vault={{ vault: market.solana.vault, collateralMint: market.solana.collateralMint }} nextOpen={market.nextOpen} />
         ) : (
           <Panel>{market ? "The Solana vault v2 isn't deployed yet." : "Loading…"}</Panel>
         )}
@@ -40,7 +43,7 @@ export function Positions() {
   );
 }
 
-function SolanaPositions({ vault }: { vault: { vault: string; collateralMint: string } }) {
+function SolanaPositions({ vault, nextOpen }: { vault: { vault: string; collateralMint: string }; nextOpen: number }) {
   const wallet = useAnchorWallet();
   const { sendTransaction } = useWallet();
   const { connection } = useConnection();
@@ -56,7 +59,29 @@ function SolanaPositions({ vault }: { vault: { vault: string; collateralMint: st
   }, [wallet]);
   useEffect(load, [load]);
 
-  if (!wallet) return <Connect onClick={() => setVisible(true)}>Connect the Solana wallet holding your protection.</Connect>;
+  if (!wallet) {
+    return (
+      <div className="grid items-center gap-6 rounded-2xl border border-line bg-surface p-6 sm:grid-cols-[1fr_16rem]">
+        <div>
+          <p className="text-lg font-medium">Your protection lives in your wallet, as an NFT.</p>
+          <ul className="mt-3 space-y-1.5 text-sm leading-relaxed text-muted">
+            <li>It shows the stock, the open it covers and where it pays.</li>
+            <li>After the bell, it pays whoever holds it: our keeper sends the payout, or you claim it here.</li>
+            <li>You can send it to another wallet, and the payout follows it.</li>
+          </ul>
+          <div className="mt-5 flex flex-wrap items-center gap-3">
+            <button onClick={() => setVisible(true)} className="rounded-xl bg-brass px-4 py-2.5 font-medium text-ink">
+              Connect a wallet
+            </button>
+            <Link href="/" className="text-sm text-muted hover:text-text">
+              Or protect a stock first
+            </Link>
+          </div>
+        </div>
+        <ExampleCard nextOpen={nextOpen} />
+      </div>
+    );
+  }
 
   async function claim(p: PositionRow) {
     if (!wallet || !p.nftAccount) return;
@@ -119,7 +144,14 @@ function PositionsTable(props: { rows: PositionRow[] | null; error: string | nul
   if (error && !rows) return <Panel>Couldn&apos;t load your positions: {error}</Panel>;
   if (!rows) return <Panel>Loading…</Panel>;
   if (rows.length === 0 && claimed.length === 0) {
-    return <Panel>No open protection. Positions disappear here once they&apos;re paid out; the payout goes straight to the wallet holding the NFT.</Panel>;
+    return (
+      <Panel>
+        No open protection. Positions disappear here once they&apos;re paid out; the payout goes straight to the wallet holding the NFT.{" "}
+        <Link href="/" className="text-brass hover:underline">
+          Protect a stock
+        </Link>
+      </Panel>
+    );
   }
   return (
     <div className="scroll-x rounded-2xl border border-line bg-surface">
@@ -192,6 +224,31 @@ function Status({ p, busy, onClaim }: { p: PositionRow; busy: boolean; onClaim: 
         {busy ? "Claiming…" : (p.claimable ?? 0) > 0 ? "Claim" : "Close"}
       </button>
     </span>
+  );
+}
+
+/** What a position's NFT looks like, drawn by the same code as the real ones, with example numbers and marked as an example. */
+function ExampleCard({ nextOpen }: { nextOpen: number }) {
+  const card = svg({
+    number: 1n,
+    symbol: "TSLA",
+    openTs: BigInt(nextOpen),
+    shares: 10_000_000n,
+    upper: 36_460_000_000n,
+    lower: 33_484_000_000n,
+    premium: 8_610_000n,
+    maxPayout: 297_600_000n,
+    state: "open",
+    price: 0n,
+    payout: 0n,
+    closed: false,
+    forfeited: false,
+  });
+  return (
+    <figure>
+      <img src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(card)}`} alt="An example position NFT: 10 TSLA protected from $364.60 down to $334.84" className="w-full rounded-xl border border-line" />
+      <figcaption className="mt-2 text-center text-xs text-faint">An example, with made-up numbers</figcaption>
+    </figure>
   );
 }
 

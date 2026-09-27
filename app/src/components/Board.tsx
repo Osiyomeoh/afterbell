@@ -45,11 +45,16 @@ export function Board({ current, onPick }: { current: string; onPick: (symbol: s
               aria-pressed={r.symbol === current}
               className={`block h-full w-full rounded-xl border bg-surface p-3 text-left transition hover:border-muted sm:p-4 ${r.symbol === current ? "border-brass" : "border-line"}`}
             >
-              <div className="flex items-baseline justify-between gap-2">
-                <span className="num font-semibold">{r.symbol}</span>
-                {"price" in r && <Change price={r.price} />}
+              <div className="flex items-center gap-2.5">
+                <Badge symbol={r.symbol} />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="num font-semibold">{r.symbol}</span>
+                    {"price" in r && <Change price={r.price} />}
+                  </div>
+                  <div className="truncate text-xs text-muted">{r.name}</div>
+                </div>
               </div>
-              <div className="truncate text-xs text-muted">{r.name}</div>
               {"price" in r ? (
                 <>
                   <div className="mt-3 flex items-baseline justify-between gap-2">
@@ -91,6 +96,21 @@ export function Board({ current, onPick }: { current: string; onPick: (symbol: s
 }
 
 const FIRST = 8;
+
+/** A monogram in a colour of the stock's own, the same on every visit: no logos, which are the companies' marks. */
+function Badge({ symbol }: { symbol: string }) {
+  let h = 0;
+  for (const c of symbol) h = (h * 31 + c.charCodeAt(0)) % 360;
+  return (
+    <span
+      aria-hidden
+      className="num grid size-8 shrink-0 place-items-center rounded-full text-[11px] font-semibold"
+      style={{ background: `hsl(${h} 35% 20%)`, color: `hsl(${h} 70% 78%)` }}
+    >
+      {symbol.slice(0, 2)}
+    </span>
+  );
+}
 
 function Change({ price }: { price: { close: number; live: number | null } }) {
   if (price.live === null) return null;
