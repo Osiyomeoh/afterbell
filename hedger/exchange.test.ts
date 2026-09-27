@@ -80,7 +80,11 @@ describe("reading answers", () => {
   it("refuses an answer for another kind of action, or a status it doesn't know", async () => {
     expect(() => orderResults({ type: "cancel", data: { statuses: ["success"] } })).toThrow(/expected the exchange to answer a order/);
     expect(() => cancelResults({ type: "default" })).toThrow(/expected/);
-    expect(() => orderResults({ type: "order", data: { statuses: [{ waitingForFill: {} }] } })).toThrow(/unknown order status/);
+    // The Rust SDK's statuses include bare strings; one shouldn't come back for a limit order, and an object we don't know is refused too.
+    for (const status of ["waitingForFill", "success", { waitingForFill: {} }, null])
+      expect(() => orderResults({ type: "order", data: { statuses: [status] } })).toThrow(/unknown order status/);
+    for (const status of ["waitingForFill", { resting: { oid: 1 } }])
+      expect(() => cancelResults({ type: "cancel", data: { statuses: [status] } })).toThrow(/unknown cancel status/);
     const ex = createExchange("testnet", agent, fakeExchange(ok("order", [])).post, () => NOW);
     await expect(setLeverage(ex, 750_001, 3, false)).rejects.toThrow(/accept the leverage/);
   });

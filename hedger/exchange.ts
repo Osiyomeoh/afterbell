@@ -66,7 +66,8 @@ export function createExchange(network: Network, signer: LocalAccount, post: Exc
  */
 export type OrderResult = { kind: "resting"; oid: number } | { kind: "filled"; oid: number; size: number; avgPx: number } | { kind: "error"; message: string };
 
-type OrderStatus = { resting: { oid: number } } | { filled: { oid: number; totalSz: string; avgPx: string } } | { error: string };
+/** A status may also be a bare string: the Rust SDK lists "success", "waitingForFill" and "waitingForTrigger", none of which a limit order is expected to get. */
+type OrderStatus = { resting: { oid: number } } | { filled: { oid: number; totalSz: string; avgPx: string } } | { error: string } | string;
 
 function statuses(response: ExchangeResponse, type: string): unknown[] {
   if (response.type !== type || !response.data) throw new Error(`expected the exchange to answer a ${type}, got ${JSON.stringify(response)}`);
@@ -75,16 +76,22 @@ function statuses(response: ExchangeResponse, type: string): unknown[] {
 
 export function orderResults(response: ExchangeResponse): OrderResult[] {
   return (statuses(response, "order") as OrderStatus[]).map((s) => {
-    if ("resting" in s) return { kind: "resting", oid: s.resting.oid };
-    if ("filled" in s) return { kind: "filled", oid: s.filled.oid, size: Number(s.filled.totalSz), avgPx: Number(s.filled.avgPx) };
-    if ("error" in s) return { kind: "error", message: s.error };
+    if (typeof s === "object" && s !== null) {
+      if ("resting" in s) return { kind: "resting", oid: s.resting.oid };
+      if ("filled" in s) return { kind: "filled", oid: s.filled.oid, size: Number(s.filled.totalSz), avgPx: Number(s.filled.avgPx) };
+      if ("error" in s) return { kind: "error", message: s.error };
+    }
     throw new Error(`unknown order status ${JSON.stringify(s)}`);
   });
 }
 
 /** Each cancel's outcome: null when it cancelled, else why not (an order that filled meanwhile can't be). */
 export function cancelResults(response: ExchangeResponse): (string | null)[] {
-  return (statuses(response, "cancel") as ("success" | { error: string })[]).map((s) => (s === "success" ? null : s.error));
+  return (statuses(response, "cancel") as ("success" | { error: string } | string)[]).map((s) => {
+    if (s === "success") return null;
+    if (typeof s === "object" && s !== null && "error" in s) return s.error;
+    throw new Error(`unknown cancel status ${JSON.stringify(s)}`);
+  });
 }
 
 export const placeOrders = async (ex: Exchange, orders: OrderWire[]) => orderResults(await ex.send(orderAction(orders)));
