@@ -8,6 +8,15 @@ export const iso = (secs: number) => new Date(secs * 1000).toISOString().replace
 export const usd = (x: number) => `$${x.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 export const sh = (x: number) => x.toFixed(3);
 
+/**
+ * A warning when an account holds nothing on the coin's dex: each builder dex
+ * margins separately, so USDC elsewhere in the account can't back an order
+ * there. Null when there's something to trade with.
+ */
+export function emptyDexNote(accountValue: number, dex: string): string | null {
+  return accountValue > 0 ? null : `note: the account holds nothing on the ${dex} dex; move USDC there first, its orders need margin on that dex`;
+}
+
 /** Where the hedge trades: testnet unless HYPERLIQUID_NETWORK says mainnet. */
 export function hedgeNetwork(): Network {
   const n = process.env.HYPERLIQUID_NETWORK ?? "testnet";

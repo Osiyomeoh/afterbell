@@ -1,7 +1,7 @@
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { agentKey, loop } from "./common";
+import { agentKey, emptyDexNote, loop } from "./common";
 
 const NAME = "AFTERBELL_TEST_AGENT_KEY";
 const ACCOUNT = "0x000000000000000000000000000000000000dEaD";
@@ -53,5 +53,12 @@ describe("loop", () => {
     }
     expect(ran).toEqual(["run 1", "run 3", "run 4"]);
     expect(String(errors[0])).toMatch(/failed: the read failed/);
+  });
+});
+
+describe("emptyDexNote", () => {
+  it("warns only when the account holds nothing on the dex", () => {
+    expect(emptyDexNote(0, "xyz")).toMatch(/nothing on the xyz dex; move USDC there/);
+    expect(emptyDexNote(0.01, "xyz")).toBeNull();
   });
 });

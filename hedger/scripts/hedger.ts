@@ -44,7 +44,7 @@ import { nextRunMs, type HedgePlan } from "../plan";
 import { sendHedge, type SentHedge } from "../send";
 import { solanaVault } from "../solana";
 import { readHedgeState, type HedgeState, type ModelInputs, type VaultSource } from "../state";
-import { agentKey, envNumber, everyMs, hedgeNetwork, iso, loop, maxNotional, sh, usd } from "./common";
+import { agentKey, emptyDexNote, envNumber, everyMs, hedgeNetwork, iso, loop, maxNotional, sh, usd } from "./common";
 
 const stock = TSLA;
 const coin = stock.hyperliquid!;
@@ -85,8 +85,10 @@ function printAccount(account: HedgeAccount | null, network: Network) {
   const funds = `${usd(account.accountValue)} on the ${dexOf(coin)} dex, ${usd(account.withdrawable)} withdrawable`;
   const p = account.position;
   console.log(`  ${account.address} on ${network}`);
+  const empty = emptyDexNote(account.accountValue, dexOf(coin));
   if (!p) {
     console.log(`  no ${coin} position; ${funds}`);
+    if (empty) console.log(`  ${empty}`);
     return;
   }
   const side = p.short >= 0 ? `short ${sh(p.short)}` : `LONG ${sh(-p.short)}`;
@@ -94,6 +96,7 @@ function printAccount(account: HedgeAccount | null, network: Network) {
   const liq = p.liquidationPx === null ? "no liquidation price" : `liquidation at ${usd(p.liquidationPx)}`;
   console.log(`  ${side}${entry}, P&L ${usd(p.unrealizedPnl)}, ${liq}, ${p.leverage.type} ${p.leverage.value}×`);
   console.log(`  ${usd(p.marginUsed)} margin used; ${funds}`);
+  if (empty) console.log(`  ${empty}`);
 }
 
 function orderLine(plan: HedgePlan, mid: number): string | null {
@@ -151,6 +154,8 @@ function printActivity(a: HedgeActivity) {
 function printLine(st: HedgeState) {
   const held = st.plan.current;
   console.log(`${iso(st.now)}  mid ${usd(st.mid)}  hedge ${sh(st.plan.exposure.hedge)}  short ${sh(held)}  ${st.plan.rebalance.note}`);
+  const empty = st.account && emptyDexNote(st.account.accountValue, dexOf(coin));
+  if (empty) console.log(`  ${empty}`);
 }
 
 function describeResult(r: OrderResult, asked: string): string {
@@ -191,7 +196,6 @@ async function main() {
       if (!Number.isInteger(leverage) || leverage < 1 || leverage > st.market.maxLeverage) {
         throw new Error(`HEDGE_LEVERAGE must be a whole number from 1 to ${st.market.maxLeverage}`);
       }
-      if (st.account && st.account.accountValue === 0) console.log(`  note: the account holds nothing on the ${dexOf(coin)} dex; the order needs margin there`);
       printSent(await sendHedge(ex, st.plan, st.account!, leverage), st.plan);
     }
     return nextRunMs(Date.now(), every ?? 0, st.plan.exposure.opens.map((o) => o.openTs));
