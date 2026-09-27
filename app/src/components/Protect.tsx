@@ -46,18 +46,22 @@ const SETTLED_BY: Record<Chain, (symbol: string) => string> = {
 const SOURCE: Record<PriceSource, string> = { pyth: "Pyth", chainlink: "Chainlink", hyperliquid: "Hyperliquid" };
 
 /** Why a chain can't sell this stock right now, or null if it can. */
+/** Why the ticket can't sell this stock on this chain, in plain words, or null when it can. */
 function unavailableOn(chain: Chain, m: MarketResponse): string | null {
   const listing = m.stocks.find((s) => s.symbol === m.symbol);
+  const sym = m.symbol;
   if (chain === "solana") {
-    if (!m.solana) return "The Solana vault v2 isn't deployed yet.";
+    if (!m.solana) return "The Solana vault isn't deployed yet.";
     if (m.solana.selling) return null;
-    if (listing?.settles.includes("solana")) return `The Solana vault doesn't take ${m.symbol} yet.`;
-    const pyth = m.stocks.filter((s) => s.settles.includes("solana")).map((s) => s.symbol);
-    return `Solana settles on Pyth prices, which the quote service can read for ${pyth.join(" and ") || "no stock"} only. ${m.symbol} settles on Robinhood Chain.`;
+    if (listing?.settles.includes("solana")) return `${sym} isn't on sale on Solana yet.`;
+    // Solana settles on Pyth's prices, and the quote service reads them for these only.
+    const sold = m.stocks.filter((s) => s.solana).map((s) => s.symbol);
+    const there = m.robinhood ? "Robinhood Chain" : "Robinhood Chain, once that vault is deployed";
+    return `${sym} isn't sold on Solana${sold.length ? `, which sells ${sold.join(" and ")}` : ""}. ${sym} is for ${there}.`;
   }
   const rh = m.robinhood;
-  if (!rh) return "The Robinhood Chain vault isn't deployed yet.";
-  if (!rh.feeds[m.symbol]) return `The Robinhood Chain vault doesn't take ${m.symbol} yet.`;
+  if (!rh) return `Robinhood Chain's vault isn't deployed yet, so ${sym} isn't on sale there.`;
+  if (!rh.feeds[sym]) return `${sym} isn't on sale on Robinhood Chain yet.`;
   if (!rh.selling) return "Robinhood Chain sales open once the quote service has its key.";
   return null;
 }
@@ -341,6 +345,9 @@ export function Protect() {
                 role="tab"
                 aria-selected={chain === c.id}
                 onClick={() => {
+                  // A chain that doesn't sell this stock opens on one it does, rather than on a ticket that can't sell.
+                  const sold = market.stocks.filter((s) => (c.id === "solana" ? s.solana : s.robinhood));
+                  if (sold.length && !sold.some((s) => s.symbol === market.symbol)) pickStock(sold[0]!.symbol);
                   setChain(c.id);
                   setStatus({ kind: "idle" });
                 }}
