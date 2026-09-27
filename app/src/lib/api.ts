@@ -1,5 +1,6 @@
 import type { EvmDeployment } from "@root/evm/client/vault";
 import type { HedgeActivity } from "@root/hedger/info";
+import type { OpenSeries } from "@root/hedger/solana";
 import type { HedgeSummary } from "@root/hedger/state";
 import type { Opening } from "@root/pricing/model";
 import type { Market, PricedProtection, QuoterConfig } from "@root/quoter/quoter";
@@ -155,6 +156,8 @@ export type VaultResponse = {
   locked: number;
   openPositions: number;
   series: { address: string; symbol: string; openTs: number; state: SeriesState; price: number | null; publishTime: number | null; positions: number; premiums: number; maxPayouts: number }[];
+  /** Solana only, while the app keeps the first vault's record: each series it still has open, or why it couldn't be read. */
+  firstVault?: { vault: string; open: OpenSeries[] } | { vault: string; error: string };
 };
 
 export type Chain = "solana" | "robinhood";

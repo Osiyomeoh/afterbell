@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { QQQ, TSLA } from "../quoter/stocks";
 import * as v1 from "../solana/client/v1";
 import * as v2 from "../solana/client/vault";
-import { openPositions, readVault, type PositionRecord, type SeriesRecord } from "./solana";
+import { openPositions, openSeries, readVault, type PositionRecord, type SeriesRecord } from "./solana";
 import { fakeCluster } from "./testing";
 
 const OPEN = 1_790_000_000;
@@ -40,6 +40,35 @@ describe("openPositions", () => {
   it("names each by its own feed, and an unknown feed by its id, so it's never hedged as another stock", () => {
     const got = openPositions(series, [position("qqq-open"), position("unknown-open")]);
     expect(got.map((p) => p.symbol)).toEqual(["QQQ", "0x" + "ab".repeat(32)]);
+  });
+});
+
+describe("openSeries", () => {
+  it("adds up the positions openPositions keeps, by series, soonest open first", () => {
+    const later: SeriesRecord = { address: "tsla-later", feedId: TSLA.feedId, openTs: OPEN + 86_400, state: "open" };
+    const got = openSeries(
+      [later, ...series],
+      [
+        position("tsla-later"),
+        position("tsla-open"),
+        position("tsla-open", { shares: 500_000n }),
+        position("tsla-open", { closed: true }),
+        position("tsla-settled"),
+        position("qqq-open"),
+      ],
+    );
+    expect(got.map((s) => [s.address, s.symbol, s.openTs, s.positions])).toEqual([
+      ["tsla-open", "TSLA", OPEN, 2],
+      ["qqq-open", "QQQ", OPEN, 1],
+      ["tsla-later", "TSLA", OPEN + 86_400, 1],
+    ]);
+    // 2 shares, each paying at most $370.32 − $340.09.
+    expect(got[0]!.shares).toBeCloseTo(2, 9);
+    expect(got[0]!.maxPayout).toBeCloseTo(60.46, 9);
+  });
+
+  it("leaves out a series with nothing open", () => {
+    expect(openSeries(series, [position("tsla-open", { closed: true }), position("tsla-settled")])).toEqual([]);
   });
 });
 

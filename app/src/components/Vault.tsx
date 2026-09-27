@@ -112,6 +112,8 @@ function ChainVault({ chain }: { chain: Chain }) {
         )}
       </section>
 
+      {v.firstVault && <FirstVault f={v.firstVault} />}
+
       <section className="rounded-2xl border border-line bg-surface p-5 text-sm leading-relaxed text-muted">
         <p>
           Vault{" "}
@@ -128,6 +130,60 @@ function ChainVault({ chain }: { chain: Chain }) {
         </p>
       </section>
     </div>
+  );
+}
+
+/**
+ * Solana's first vault sells nothing new, but what it sold stays open until it
+ * settles, and the hedge counts it: listed here so this page counts it too.
+ * Nothing shows once it has nothing open.
+ */
+function FirstVault({ f }: { f: NonNullable<VaultResponse["firstVault"]> }) {
+  if (!("error" in f) && f.open.length === 0) return null;
+  return (
+    <section className="rounded-2xl border border-line bg-surface">
+      <h2 className="border-b border-line px-4 py-3 font-medium">Still open in the first vault</h2>
+      <p className="px-4 py-3 text-sm leading-relaxed text-muted">
+        Solana&apos;s first vault,{" "}
+        <a className="num text-text hover:underline" href={explorer("address", f.vault)} target="_blank" rel="noreferrer">
+          {f.vault.slice(0, 6)}…{f.vault.slice(-4)}
+        </a>
+        , no longer sells protection. What it sold before this vault opened stays open until its series settles at the open, and it pays from the
+        first vault&apos;s own collateral. The hedge below counts it.
+      </p>
+      {"error" in f ? (
+        <p className="border-t border-line px-4 py-3 text-sm">Couldn&apos;t read it: {f.error}</p>
+      ) : (
+        <div className="overflow-x-auto border-t border-line">
+          <table className="w-full text-sm">
+            <thead className="text-left text-muted">
+              <tr className="border-b border-line">
+                <th className="px-4 py-3 font-normal">Open</th>
+                <th className="px-4 py-3 font-normal">Stock</th>
+                <th className="px-4 py-3 text-right font-normal">Positions</th>
+                <th className="px-4 py-3 text-right font-normal">Shares</th>
+                <th className="px-4 py-3 text-right font-normal">Locked</th>
+              </tr>
+            </thead>
+            <tbody>
+              {f.open.map((s) => (
+                <tr key={s.address} className="border-b border-line last:border-0">
+                  <td className="whitespace-nowrap px-4 py-3">
+                    <a className="hover:underline" href={explorer("address", s.address)} target="_blank" rel="noreferrer">
+                      {nyTime(s.openTs)}
+                    </a>
+                  </td>
+                  <td className="px-4 py-3">{s.symbol}</td>
+                  <td className="num px-4 py-3 text-right">{s.positions}</td>
+                  <td className="num px-4 py-3 text-right">{Number(s.shares.toFixed(6))}</td>
+                  <td className="num px-4 py-3 text-right">{usd(s.maxPayout)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
   );
 }
 

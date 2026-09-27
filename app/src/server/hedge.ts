@@ -31,7 +31,7 @@ function settings(): { network: Network; address: `0x${string}` | null; maxNotio
 function vaults(): VaultSource[] {
   const out: VaultSource[] = [];
   if (SOLANA_DEPLOYMENT) out.push(solanaVault("the current vault", "v2", new Connection(RPC, "confirmed"), SOLANA_DEPLOYMENT));
-  if (SOLANA_V1_DEPLOYMENT) out.push(solanaVault("the first version", "v1", new Connection(SOLANA_V1_DEPLOYMENT.rpc, "confirmed"), SOLANA_V1_DEPLOYMENT));
+  if (SOLANA_V1_DEPLOYMENT) out.push(solanaVault("the first vault", "v1", new Connection(SOLANA_V1_DEPLOYMENT.rpc, "confirmed"), SOLANA_V1_DEPLOYMENT));
   const evm = evmDeployment();
   if (evm) out.push(evmVault("the vault", createPublicClient({ chain: evmChain(evm), transport: http(evm.rpc) }), evm));
   return out;

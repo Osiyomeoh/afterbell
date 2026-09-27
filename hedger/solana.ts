@@ -26,11 +26,36 @@ const PRICE = 1e8;
  * know it, so nothing unknown is hedged as something else).
  */
 export function openPositions(series: readonly SeriesRecord[], positions: readonly PositionRecord[]): OpenPosition[] {
+  return stillOpen(series, positions).map(({ s, p }) => ({ symbol: symbolOf(s), openTs: s.openTs, shares: Number(p.shares) / SHARE, upper: Number(p.upper) / PRICE, lower: Number(p.lower) / PRICE }));
+}
+
+/** A series with positions still open: how many, their shares, and the most they pay together. */
+export type OpenSeries = { address: string; symbol: string; openTs: number; positions: number; shares: number; maxPayout: number };
+
+/**
+ * The same open positions as `openPositions`, by series, soonest open first,
+ * so a page listing them counts what the hedge counts.
+ */
+export function openSeries(series: readonly SeriesRecord[], positions: readonly PositionRecord[]): OpenSeries[] {
+  const out = new Map<string, OpenSeries>();
+  for (const { s, p } of stillOpen(series, positions)) {
+    const row = out.get(s.address) ?? { address: s.address, symbol: symbolOf(s), openTs: s.openTs, positions: 0, shares: 0, maxPayout: 0 };
+    row.positions += 1;
+    row.shares += Number(p.shares) / SHARE;
+    row.maxPayout += ((Number(p.shares) / SHARE) * Number(p.upper - p.lower)) / PRICE;
+    out.set(s.address, row);
+  }
+  return [...out.values()].sort((a, b) => a.openTs - b.openTs);
+}
+
+const symbolOf = (s: SeriesRecord) => stockByFeedId(s.feedId)?.symbol ?? s.feedId;
+
+/** Each position not paid out, in a series not yet settled or voided, with its series. */
+function stillOpen(series: readonly SeriesRecord[], positions: readonly PositionRecord[]): { s: SeriesRecord; p: PositionRecord }[] {
   const open = new Map(series.filter((s) => s.state === "open").map((s) => [s.address, s]));
   return positions.flatMap((p) => {
     const s = open.get(p.series);
-    if (!s || p.closed) return [];
-    return [{ symbol: stockByFeedId(s.feedId)?.symbol ?? s.feedId, openTs: s.openTs, shares: Number(p.shares) / SHARE, upper: Number(p.upper) / PRICE, lower: Number(p.lower) / PRICE }];
+    return s && !p.closed ? [{ s, p }] : [];
   });
 }
 
