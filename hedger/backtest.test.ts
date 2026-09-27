@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { openingModel, type Opening } from "../pricing/model";
 import { hedgeShares, type Protection } from "../pricing/putSpread";
 import { nyTime, type Candle } from "../research/lib";
-import { backtestHedges, hedgeNight, nightPath, type PricePoint, type Strategy } from "./backtest";
+import { backtestHedges, hedgeNight, narrowed, nightPath, remainingMove, widthAt, type PricePoint, type Strategy } from "./backtest";
 
 const MIN = 60_000;
 const HOUR = 60 * MIN;
@@ -104,5 +104,80 @@ describe("backtestHedges", () => {
 
   it("names a night it can't price instead of guessing", () => {
     expect(backtestHedges(nights, [], strategies, opts)).toEqual({ nights: [], skipped: ["2026-09-03 → 2026-09-04"] });
+  });
+});
+
+describe("narrowed", () => {
+  const expected = (m: typeof model) => m.components.reduce((a, c) => a + Math.exp(c.mean + (c.sd * c.sd) / 2), 0) / m.components.length;
+
+  it("leaves the model as it is when all of the move is still to come", () => {
+    const same = narrowed(model, 1);
+    same.components.forEach((c, i) => {
+      expect(c.mean).toBeCloseTo(model.components[i]!.mean, 12);
+      expect(c.sd).toBeCloseTo(model.components[i]!.sd, 12);
+    });
+  });
+
+  it("scales every move, keeps the expected price at the price now, and so holds less far from the strikes", () => {
+    const half = narrowed(model, 0.5);
+    expect(half.sd).toBeCloseTo(model.sd / 2, 12);
+    expect(half.components[0]!.sd).toBeCloseTo(model.components[0]!.sd / 2, 12);
+    expect(expected(half)).toBeCloseTo(1, 12);
+    // Well above the protection, less of the move can reach it.
+    expect(hedgeShares(half, 104, protection)).toBeLessThan(hedgeShares(model, 104, protection));
+    expect(() => narrowed(model, 0)).toThrow();
+  });
+});
+
+describe("remainingMove", () => {
+  // Nights of 17.5 hours whose close is 100 and open 104, with Hyperliquid at `hl(hoursBeforeOpen)`.
+  const nightsOf = (n: number): Opening[] => Array.from({ length: n }, (_, i) => ({ from: `2026-08-${String(3 + i).padStart(2, "0")}`, to: `2026-08-${String(4 + i).padStart(2, "0")}`, close: 100, open: 104, weekend: false }));
+  const tape = (nights: Opening[], hl: (hoursBeforeOpen: number) => number): Candle[] =>
+    nights.flatMap((o) => {
+      const open = nyTime(o.to, 9, 30);
+      return candles(nyTime(o.from, 16) - HOUR, open, (t) => hl((open - (t + 15 * MIN)) / HOUR));
+    });
+
+  it("is all of the move while Hyperliquid sits at the close, and none once it has reached the open", () => {
+    const nights = nightsOf(9);
+    // At the close until 3 hours before the open, at the open after.
+    const r = remainingMove(nights, tape(nights, (h) => (h >= 3 ? 100 : 104)), 30 * MIN, 8, [1, 4, 17.5, 24]);
+    expect(r.map((x) => x.hours)).toEqual([1, 4, 17.5]);
+    expect(r[0]).toEqual({ hours: 1, nights: 9, ratio: 0 });
+    expect(r[1]!.ratio).toBeCloseTo(1, 12);
+    expect(r[2]!.ratio).toBeCloseTo(1, 12);
+  });
+
+  it("leaves out an hour too few nights reach", () => {
+    const nights = nightsOf(5);
+    expect(remainingMove(nights, tape(nights, () => 100), 30 * MIN, 8, [1])).toEqual([]);
+  });
+});
+
+describe("widthAt", () => {
+  const w = widthAt([
+    { hours: 1, nights: 9, ratio: 0.4 },
+    { hours: 3, nights: 9, ratio: 0.6 },
+    { hours: 17.5, nights: 9, ratio: 1.02 },
+  ]);
+
+  it("draws straight lines between the measured hours and holds the nearest measure beyond them", () => {
+    expect(w(2)).toBeCloseTo(0.5, 12);
+    expect(w(0.25)).toBe(0.4);
+    expect(w(40)).toBe(1.02);
+  });
+
+  it("never goes under its floor", () => {
+    expect(widthAt([{ hours: 1, nights: 9, ratio: 0 }])(0.5)).toBe(0.05);
+  });
+});
+
+describe("hedgeNight, narrowing", () => {
+  it("hedges as today when all of the move is still to come; narrowing, it trades the short down as the open nears above the protection", () => {
+    const path: PricePoint[] = Array.from({ length: 18 }, (_, k) => ({ ts: OPEN - (17 - k) * HOUR - (k === 17 ? 0 : 30 * MIN), px: 101 }));
+    const today = hedgeNight(model, protection, path, { ...rules, everyMs: HOUR });
+    expect(hedgeNight(model, protection, path, { ...rules, everyMs: HOUR, width: () => 1 })).toEqual(today);
+    const narrowing = hedgeNight(model, protection, path, { ...rules, everyMs: HOUR, width: (h) => Math.max(h / 17.5, 0.05) });
+    expect(narrowing.trades).toBeGreaterThan(today.trades);
   });
 });

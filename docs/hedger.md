@@ -27,17 +27,17 @@ The first live `npm run hedger -- --plan` (27 Sep, 12:37 UTC) read the same five
 
 **Backtest** (`npm run hedger:backtest`, full tables in [research/results/hedge-backtest.md](../research/results/hedge-backtest.md)). 36 nights, 5 Aug to 25 Sep. Each night the vault sells protection on 10 TSLA at the close, priced only from earlier openings, and pays it on Pyth's opening print. The short trades at Hyperliquid's own 15-minute prices, through the hedger's own dead band, and is bought back at the open. Fees are growth mode's highest taker rate. Funding and the spread are left out. The spread of the vault's nightly result (standard deviation):
 
-| Protection | Unhedged | Short set at the close | Rebalanced hourly | Every 15 minutes |
-|---|---|---|---|---|
-| 2% to 10% below the close (paid on 1 night) | $12.28 | $11.46 (−7%) | $7.56 (−38%) | $7.63 (−38%) |
-| 1% to 5% below the close (paid on 8 nights) | $19.89 | $15.09 (−24%) | $7.56 (−62%) | $7.36 (−63%) |
+| Protection | Unhedged | Short set at the close | Rebalanced hourly | Every 15 minutes | Hourly, narrowing to the open |
+|---|---|---|---|---|---|
+| 2% to 10% below the close (paid on 1 night) | $12.28 | $11.46 (−7%) | $7.56 (−38%) | $7.63 (−38%) | $6.33 (−48%) |
+| 1% to 5% below the close (paid on 8 nights) | $19.89 | $15.09 (−24%) | $7.56 (−62%) | $7.36 (−63%) | $6.65 (−67%) |
 
 What it shows, and what it doesn't:
 
 - **One night carries most of it.** On 3 to 4 Sep TSLA fell through the night on Hyperliquid (−1.9% by midnight, −2.9% by 08:00, −3.8% at the open), so a rebalanced short followed it down: the vault's worst night on 2% to 10% went from −$57 to −$16. A drop that comes all at once at the open would give it nothing to follow.
 - **Far-out protection gets noisier on quiet nights.** Without that night, every hedge makes the other 35 nights of 2% to 10% protection noisier (SD $4.00 → about $6.00). On 1% to 5%, rebalancing still cuts the spread by about half without it. Monday's real book is near the money (strikes 0.4% to 2% under the close), closer to the second case.
 - **Hourly is as good as every 15 minutes**, with about a third of the trades. The hedger runs every 5 minutes; the dead band keeps it from trading most of those times.
-- **The model doesn't narrow as the open nears.** It prices the whole close-to-open move from any moment of the night, so late in the night the delta is spread wider than it should be. The backtest runs the hedger as it is.
+- **The model doesn't narrow as the open nears, and a hedge that does was better.** The hedger prices the whole close-to-open move from any moment of the night. Measured on the recorded nights, much of it has already happened by the morning: Hyperliquid's price 3 hours before the open leaves 61% of the move's size still to come, 15 minutes before it 34% (the report's last table; about 100% from 14 hours out, so at the close). The last column scales the model's moves by that share at each rebalance, measured only on the nights before the one it hedges (29 of the 36 nights had enough of them; the rest hedge as "hourly"). Same trades, a smaller spread, and better worst nights (−$8.98 against −$15.73 on 2% to 10%; −$19.59 against −$27.54 on 1% to 5%). On 1% to 5% without 3 to 4 Sep it's no better than hourly ($5.01 against $4.97). **The hedger doesn't use it yet:** the same model prices the quotes, which would then be cheaper overnight, so that's a pricing decision first.
 
 One stock over a few dozen nights: read it as how the hedge behaves, not as proof of how much it saves.
 
@@ -111,5 +111,5 @@ Not yet checked against the exchange, so step 6 checks them first: the cancel an
 ## What we'll claim, and what we won't
 
 - Will, once it has run: "the vault's exposure is hedged on Hyperliquid (HyperCore testnet) in `xyz:TSLA`, sized by the same model that prices it, at mainnet's price, filling against our own quoting account because testnet has no TSLA liquidity", with the account's trades linkable, and only where the recorded fills show it.
-- Will, now: "in a backtest over 36 nights, rebalancing hourly cut the spread of the vault's nightly results by a third to two-thirds, mostly from one night when TSLA fell through the night; for protection far below the close it added noise on quiet nights."
+- Will, now: "in a backtest over 36 nights, rebalancing hourly cut the spread of the vault's nightly results by a third to two-thirds, mostly from one night when TSLA fell through the night; for protection far below the close it added noise on quiet nights." And, as research only: "sizing the hedge for the part of the move still to come, measured on earlier nights, cut it further, to about a half to two-thirds."
 - Won't: that it hedges real money or trades against a real market (it doesn't, on testnet); that the hedge removes the vault's risk (the numbers above say it trims it), or that Hyperliquid's weekend price predicts the open (it doesn't; research/results).
