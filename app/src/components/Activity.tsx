@@ -37,14 +37,14 @@ export function Activity() {
   // Before anything has settled, say when the first settlement is rather than show empty totals.
   if (!last) {
     return (
-      <div className="mt-6 grid grid-cols-2 gap-3 sm:max-w-2xl">
+      <div className="mt-6 grid grid-cols-2 gap-3 sm:max-w-2xl lg:mt-0 lg:max-w-none lg:grid-cols-1">
         {protectedNow}
         <Stat label="First settlement" value={next !== null ? nyTime(next).split(",")[0]! : "Not yet"} note={next !== null ? `at the ${nyTime(next).split(", ")[1]} open` : "Every settlement is listed on the track record"} href="/record" />
       </div>
     );
   }
   return (
-    <div className="mt-6 grid grid-cols-3 gap-3">
+    <div className="mt-6 grid grid-cols-3 gap-3 lg:mt-0 lg:grid-cols-1">
       {protectedNow}
       <Stat label="Paid out" value={usd(sum(rows, (r) => r.paid))} note={`on ${settled.length} settled opening${settled.length === 1 ? "" : "s"}`} />
       <Stat

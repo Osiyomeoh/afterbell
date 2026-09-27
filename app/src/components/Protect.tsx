@@ -97,7 +97,14 @@ export function Protect() {
 
   const { connection } = useConnection();
   const wallet = useAnchorWallet();
-  const { sendTransaction } = useWallet();
+  const { sendTransaction, wallets } = useWallet();
+  // Wallets register themselves a moment after the page loads; until then, don't say there are none.
+  const [walletsSettled, setWalletsSettled] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setWalletsSettled(true), 1200);
+    return () => clearTimeout(t);
+  }, []);
+  const noSolanaWallet = walletsSettled && !wallets.some((w) => w.readyState === "Installed" || w.readyState === "Loadable");
   const { setVisible } = useWalletModal();
   const [holdings, setHoldings] = useState<{ symbol: string; shares: number }[]>([]);
 
@@ -215,7 +222,14 @@ export function Protect() {
   const loading = market.symbol !== symbol;
 
   const priced = preview && "priced" in preview ? preview.priced : null;
-  const blocked = (loading ? `Loading ${symbol}…` : null) ?? unavailableOn(chain, market) ?? market.paused ?? (preview && "error" in preview ? preview.error : null);
+  const unavailable = loading ? null : unavailableOn(chain, market);
+  const blocked = (loading ? `Loading ${symbol}…` : null) ?? unavailable ?? market.paused ?? (preview && "error" in preview ? preview.error : null);
+  // Where protection is on sale now, for a stock or chain where it isn't.
+  const onSale = market.stocks.filter((s) => s.solana || s.robinhood);
+  function switchTo(next: string, on: Chain) {
+    pickStock(next);
+    setChain(on);
+  }
   const openTs = priced?.openTs ?? market.nextOpen;
   const connected = chain === "solana" ? !!wallet : !!evm.address;
 
@@ -224,7 +238,9 @@ export function Protect() {
   const buttonLabel =
     status.kind === "busy"
       ? status.step
-      : !connected
+      : unavailable
+        ? "Not on sale yet"
+        : !connected
         ? chain === "solana"
           ? "Connect a wallet"
           : "Connect an EVM wallet"
@@ -268,6 +284,27 @@ export function Protect() {
         {buttonLabel}
       </button>
       {blocked && <p className="mt-3 text-sm text-loss">{blocked}</p>}
+      {unavailable && onSale.length > 0 && (
+        <div className="mt-3">
+          <p className="text-sm text-muted">On sale now:</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {onSale.map((s) => {
+              const on: Chain = s.solana ? "solana" : "robinhood";
+              return (
+                <button
+                  key={s.symbol}
+                  type="button"
+                  onClick={() => switchTo(s.symbol, on)}
+                  className="rounded-lg border border-brass/60 px-3 py-1.5 text-sm text-brass hover:bg-raised"
+                >
+                  {s.symbol} on {on === "solana" ? "Solana" : "Robinhood Chain"}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+      {chain === "solana" && !unavailable && !connected && noSolanaWallet && <NoWallet />}
       {status.kind === "error" && (
         <p className="mt-3 text-sm text-loss">
           {status.message}
@@ -538,6 +575,40 @@ function Slider(props: { label: string; value: number; min: number; max: number;
         className="mt-2 w-full"
       />
     </label>
+  );
+}
+
+/**
+ * No Solana wallet in this browser: say so before the wallet list does, point
+ * to one, and on a phone (where browsers can't hold one) open the page inside
+ * a wallet's own browser.
+ */
+function NoWallet() {
+  const here = typeof window === "undefined" ? "" : window.location.href;
+  const origin = typeof window === "undefined" ? "" : window.location.origin;
+  const inWallet = (base: string) => `${base}/${encodeURIComponent(here)}?ref=${encodeURIComponent(origin)}`;
+  return (
+    <div className="mt-3 rounded-lg border border-line p-3 text-sm text-muted">
+      <p>
+        No Solana wallet in this browser. Install{" "}
+        <a className="text-text underline" href="https://phantom.com/download" target="_blank" rel="noreferrer">
+          Phantom
+        </a>{" "}
+        or{" "}
+        <a className="text-text underline" href="https://solflare.com/download" target="_blank" rel="noreferrer">
+          Solflare
+        </a>{" "}
+        and switch it to devnet, or on a phone open this page in the wallet&apos;s own browser:
+      </p>
+      <div className="mt-2 flex flex-wrap gap-2">
+        <a className="rounded-lg border border-line px-3 py-1.5 text-text hover:bg-raised" href={inWallet("https://phantom.app/ul/browse")}>
+          Open in Phantom
+        </a>
+        <a className="rounded-lg border border-line px-3 py-1.5 text-text hover:bg-raised" href={inWallet("https://solflare.com/ul/v1/browse")}>
+          Open in Solflare
+        </a>
+      </div>
+    </div>
   );
 }
 

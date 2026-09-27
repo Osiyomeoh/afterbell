@@ -23,7 +23,7 @@ export function Footer() {
 
   return (
     <footer className="border-t border-line">
-      <div className="mx-auto flex max-w-5xl flex-col gap-4 px-4 py-8 text-sm sm:flex-row sm:justify-between sm:px-6">
+      <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-8 text-sm sm:flex-row sm:justify-between sm:px-6">
         <p className="max-w-xl leading-relaxed text-faint">
           Test money only: the vaults hold TestUSD, a token with no value. A position pays on the oracle&apos;s price at the open, whether or not you
           hold the stock. Nothing here is financial advice.
