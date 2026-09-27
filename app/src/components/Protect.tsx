@@ -200,11 +200,23 @@ export function Protect() {
   // where the aside only starts below the whole ticket.
   const checkout = (
     <>
-      <div className="text-sm text-muted">You pay</div>
-      <div className="num mt-1 text-3xl font-semibold">{priced ? usd(priced.premium) : "—"}</div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <div className="text-sm text-muted">You pay</div>
+          <div className="num mt-1 text-3xl font-semibold">{priced ? usd(priced.premium) : "—"}</div>
+        </div>
+        <div className="text-right">
+          <div className="text-sm text-muted">Pays up to</div>
+          <div className="num mt-1 text-3xl font-semibold text-gain">{priced ? usd(priced.maxPayout, 0) : "—"}</div>
+        </div>
+      </div>
+      {priced && priced.premium > 0 && (
+        <p className="mt-2 text-sm text-muted">
+          Up to <span className="num text-text">{multiple(priced.maxPayout / priced.premium)}</span> what you pay, with a{" "}
+          <span className="num text-text">{pct(priced.probabilityOfPayout)}</span> chance it pays anything.
+        </p>
+      )}
       <dl className="mt-4 space-y-2 text-sm">
-        <Row label="Pays up to" value={priced ? usd(priced.maxPayout) : "—"} />
-        <Row label="Chance it pays" value={priced ? pct(priced.probabilityOfPayout) : "—"} />
         <Row label="Priced from" value={priced ? usd(priced.reference.price) : "—"} />
       </dl>
       {priced && <p className="mt-1 text-right text-xs text-faint">{BASIS[priced.reference.basis]}</p>}
@@ -287,6 +299,29 @@ export function Protect() {
           <span className="num text-sm text-muted">opens in {countdown(openTs - now)}</span>
         </div>
         <EventNote symbol={market.symbol} now={now} openTs={openTs} />
+
+        <div className="mt-5 flex flex-wrap gap-2" role="group" aria-label="Protection presets">
+          {PRESETS.map((p) => {
+            const on = Math.abs(start - p.start) < 1e-9 && Math.abs(depth - p.depth) < 1e-9;
+            return (
+              <button
+                key={p.label}
+                type="button"
+                aria-pressed={on}
+                onClick={() => {
+                  setStart(p.start);
+                  setDepth(p.depth);
+                }}
+                className={`rounded-lg border px-3 py-1.5 text-left text-sm ${on ? "border-brass bg-raised text-text" : "border-line text-muted hover:text-text"}`}
+              >
+                <span className="block">{p.label}</span>
+                <span className="num block text-xs text-faint">
+                  {pct(p.start, 0)} to {pct(p.depth, 0)} below
+                </span>
+              </button>
+            );
+          })}
+        </div>
 
         <div className="mt-5 grid gap-5 sm:grid-cols-[8rem_1fr_1fr]">
           <label className="block">
@@ -409,6 +444,16 @@ function Replay({ record, symbol, shares, oracle }: { record: BacktestResult; sy
     </p>
   );
 }
+
+/** One tap for the usual choices; the sliders below still set any levels. */
+const PRESETS = [
+  { label: "Close cover", start: 0.01, depth: 0.05 },
+  { label: "Standard", start: 0.02, depth: 0.1 },
+  { label: "Crash cover", start: 0.05, depth: 0.2 },
+] as const;
+
+/** 34.5 → "35×", 4.26 → "4.3×". */
+const multiple = (x: number) => `${x >= 10 ? Math.round(x) : x.toFixed(1)}×`;
 
 function Slider(props: { label: string; value: number; min: number; max: number; step: number; onChange: (v: number) => void; price?: number }) {
   return (
