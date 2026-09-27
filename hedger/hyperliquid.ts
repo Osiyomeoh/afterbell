@@ -63,6 +63,15 @@ export function orderAction(orders: OrderWire[]): { type: "order"; orders: Order
   return { type: "order", orders, grouping: "na" };
 }
 
+/**
+ * Cancels resting orders by asset and order id (the SDK's bulk_cancel). The
+ * SDK's tests have no vector for it, so its shape is checked here and by the
+ * exchange when it first runs.
+ */
+export function cancelAction(cancels: { a: number; o: number }[]): { type: "cancel"; cancels: { a: number; o: number }[] } {
+  return { type: "cancel", cancels: cancels.map(({ a, o }) => ({ a, o })) };
+}
+
 /** Margin mode and leverage for one asset: the hedge runs isolated, so a loss can't reach past its own margin. */
 export function updateLeverageAction(asset: number, leverage: number, isCross: boolean) {
   if (!Number.isInteger(leverage) || leverage < 1) throw new Error("leverage is a whole number, at least 1");

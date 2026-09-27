@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
   actionHash,
   agentTypedData,
+  cancelAction,
   exchangeRequest,
   floatToWire,
   hedgeOrder,
@@ -133,6 +134,12 @@ describe("wire formats", () => {
     expect(perpPrice(372.50352, 3, "down")).toBe(372.5);
     expect(perpPrice(371.76, 3, "up")).toBe(371.76);
     expect(() => perpPrice(0, 3, "up")).toThrow();
+  });
+
+  it("cancels by asset and order id in the SDK's field order", () => {
+    const action = cancelAction([{ a: 750_001, o: 101 }, { o: 103, a: 750_001 }]);
+    expect(action).toEqual({ type: "cancel", cancels: [{ a: 750_001, o: 101 }, { a: 750_001, o: 103 }] });
+    expect(action.cancels.map((c) => Object.keys(c))).toEqual([["a", "o"], ["a", "o"]]);
   });
 
   it("sets isolated leverage in the SDK's field order", () => {

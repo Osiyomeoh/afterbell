@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { Network } from "./hyperliquid";
-import { dexOf, fetchHedgeAccount, fetchMarket, type Post } from "./info";
+import { dexOf, fetchHedgeAccount, fetchMarket, fetchOpenOrders, fetchTopOfBook, type Post } from "./info";
 
 const ACCOUNT = "0x000000000000000000000000000000000000dEaD";
 
@@ -86,5 +86,33 @@ describe("fetchHedgeAccount", () => {
     const p = position("xyz:TSLA", "-1.0");
     const got = await fetchHedgeAccount(fakeInfo({ clearinghouseState: state({ ...p, position: { ...p.position, entryPx: null, liquidationPx: null } } as never) }).post, "mainnet", ACCOUNT, "xyz:TSLA");
     expect(got.position).toMatchObject({ entryPx: null, liquidationPx: null });
+  });
+});
+
+describe("fetchOpenOrders", () => {
+  it("lists the account's orders in the coin, from the coin's dex, sides and sizes read", async () => {
+    const { post, asked } = fakeInfo({
+      openOrders: [
+        { coin: "xyz:TSLA", side: "B", limitPx: "373.26", sz: "5.0", oid: 101, timestamp: 1_790_000_000_000, origSz: "5.0" },
+        { coin: "xyz:NVDA", side: "B", limitPx: "180.1", sz: "1.0", oid: 102, timestamp: 1_790_000_000_000, origSz: "1.0" },
+        { coin: "xyz:TSLA", side: "A", limitPx: "373.42", sz: "3.84", oid: 103, timestamp: 1_790_000_000_000, origSz: "5.0" },
+      ],
+    });
+    expect(await fetchOpenOrders(post, "testnet", ACCOUNT, "xyz:TSLA")).toEqual([
+      { oid: 101, buy: true, px: 373.26, size: 5 },
+      { oid: 103, buy: false, px: 373.42, size: 3.84 },
+    ]);
+    expect(asked).toEqual([{ network: "testnet", body: { type: "openOrders", user: ACCOUNT, dex: "xyz" } }]);
+  });
+});
+
+describe("fetchTopOfBook", () => {
+  it("reads the best bid and ask, and an empty side as none", async () => {
+    // Testnet's xyz:TSLA book on 26 Sep: one stray bid, no asks.
+    const { post, asked } = fakeInfo({
+      l2Book: { coin: "xyz:TSLA", time: 1_790_000_000_000, levels: [[{ px: "389.78", sz: "0.081", n: 1 }, { px: "260.0", sz: "1.0", n: 1 }], []] },
+    });
+    expect(await fetchTopOfBook(post, "testnet", "xyz:TSLA")).toEqual({ bid: { px: 389.78, size: 0.081 }, ask: null });
+    expect(asked).toEqual([{ network: "testnet", body: { type: "l2Book", coin: "xyz:TSLA" } }]);
   });
 });

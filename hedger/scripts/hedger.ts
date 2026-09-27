@@ -32,22 +32,7 @@ import { DEFAULT_SLIPPAGE, type Network } from "../hyperliquid";
 import { dexOf, fetchHedgeAccount, fetchMarket, postInfo, type HedgeAccount } from "../info";
 import { planHedge, type HedgePlan } from "../plan";
 import { openPositions, readVault, type VaultVersion } from "../solana";
-
-const iso = (secs: number) => new Date(secs * 1000).toISOString().replace(".000Z", "Z");
-const usd = (x: number) => `$${x.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-const sh = (x: number) => x.toFixed(3);
-
-function hedgeNetwork(): Network {
-  const n = process.env.HYPERLIQUID_NETWORK ?? "testnet";
-  if (n !== "testnet" && n !== "mainnet") throw new Error(`HYPERLIQUID_NETWORK is testnet or mainnet, not "${n}"`);
-  return n;
-}
-
-function maxNotional(): number {
-  const x = Number(process.env.HEDGE_MAX_NOTIONAL ?? 1500);
-  if (!(x > 0)) throw new Error("HEDGE_MAX_NOTIONAL must be a positive number of dollars");
-  return x;
-}
+import { hedgeNetwork, iso, maxNotional, sh, usd } from "./common";
 
 function printAccount(account: HedgeAccount | null, network: Network, coin: string) {
   console.log("\nHEDGE ACCOUNT");

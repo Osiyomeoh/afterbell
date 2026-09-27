@@ -17,6 +17,7 @@
     "evm:cycle": "tsx evm/scripts/local-cycle.ts",
     "evm:local": "tsx evm/scripts/local-app.ts",
     "hedger": "tsx hedger/scripts/hedger.ts",
+    "hedger:quoter": "tsx hedger/scripts/quoter.ts",
     "agent": "tsx agent/server.ts",
     "agent:smoke": "tsx agent/smoke.ts"
   },
