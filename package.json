@@ -18,6 +18,7 @@
     "evm:local": "tsx evm/scripts/local-app.ts",
     "hedger": "tsx hedger/scripts/hedger.ts",
     "hedger:quoter": "tsx hedger/scripts/quoter.ts",
+    "hedger:backtest": "tsx hedger/scripts/backtest.ts",
     "agent": "tsx agent/server.ts",
     "agent:smoke": "tsx agent/smoke.ts"
   },
