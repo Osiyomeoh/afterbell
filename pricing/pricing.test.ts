@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import { backtest } from "./backtest";
 import { MIN_HISTORY, openingModel, type Opening, type OpeningModel } from "./model";
-import { expectedPut, normCdf, payout, priceProtection, probabilityBelow, type Protection } from "./putSpread";
+import { expectedPut, hedgeShares, normCdf, payout, priceProtection, probabilityBelow, putDelta, type Protection } from "./putSpread";
 
 const TSLA: Opening[] = JSON.parse(readFileSync(join(import.meta.dirname, "..", "research", "data", "pyth-tsla-gaps.json"), "utf8")).gaps;
 
@@ -122,6 +122,42 @@ describe("protection", () => {
     expect(() => priceProtection(m, 100, { shares: 0, upper: 99, lower: 95 }, 0)).toThrow();
     expect(() => priceProtection(m, 100, { shares: 1, upper: 95, lower: 99 }, 0)).toThrow();
     expect(() => priceProtection(m, 100, { shares: 1, upper: 99, lower: 95 }, -0.1)).toThrow();
+  });
+});
+
+describe("the hedge", () => {
+  const m = openingModel(TSLA, { annualVol: 0.6, years: 0 });
+  const p: Protection = { shares: 10, upper: 360, lower: 340 };
+
+  it("is Black-Scholes' put delta for a single lognormal", () => {
+    // S = K = 100, sigma = 20%, T = 1: delta = -N(-d1) with d1 = 0.1, and N(-0.1) = 0.460172
+    const lognormal = openingModel([], { annualVol: 0.2, years: 1 });
+    expect(putDelta(lognormal, 100, 100)).toBeCloseTo(0.460172, 5);
+  });
+
+  it("is how fast the expected payout rises as the price falls", () => {
+    const h = 0.01;
+    for (const spot of [330, 345, 355, 362, 375, 400]) {
+      const slope = (priceProtection(m, spot - h, p, 0).expectedPayout - priceProtection(m, spot + h, p, 0).expectedPayout) / (2 * h);
+      expect(hedgeShares(m, spot, p)).toBeCloseTo(slope, 3);
+    }
+  });
+
+  it("is at most every share, most with the price inside the spread, and none far from it", () => {
+    const at = (spot: number) => hedgeShares(m, spot, p);
+    expect(at(350)).toBeGreaterThan(at(380));
+    expect(at(350)).toBeGreaterThan(at(320));
+    for (const spot of [300, 340, 350, 360, 380]) {
+      expect(at(spot)).toBeGreaterThanOrEqual(0);
+      expect(at(spot)).toBeLessThanOrEqual(p.shares);
+    }
+    expect(at(1000)).toBeCloseTo(0, 10);
+    expect(at(100)).toBeCloseTo(0, 10);
+  });
+
+  it("is every share when the open is sure to land inside the spread", () => {
+    const quiet = openingModel([], { annualVol: 0.001, years: 1 / 365 });
+    expect(hedgeShares(quiet, 350, p)).toBeCloseTo(10, 6);
   });
 });
 

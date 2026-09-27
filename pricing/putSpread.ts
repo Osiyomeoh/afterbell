@@ -40,6 +40,21 @@ export function probabilityBelow(model: OpeningModel, spot: number, strike: numb
   return sum / model.components.length;
 }
 
+/**
+ * How much a put's expected payout per share rises for each $1 the price
+ * falls: E[e^X; spot·e^X < strike], its delta without the minus sign. The
+ * short, in shares, that hedges it.
+ */
+export function putDelta(model: OpeningModel, spot: number, strike: number): number {
+  if (strike <= 0) return 0;
+  const x = Math.log(strike / spot);
+  const sum = model.components.reduce((a, c) => {
+    if (c.sd === 0) return a + (c.mean < x ? Math.exp(c.mean) : 0);
+    return a + Math.exp(c.mean + (c.sd * c.sd) / 2) * normCdf((x - c.mean) / c.sd - c.sd);
+  }, 0);
+  return sum / model.components.length;
+}
+
 export type Protection = {
   shares: number;
   /** Protection starts below this price (the holder's deductible sits above it). */
@@ -60,6 +75,12 @@ export function payout(p: Protection, open: number): number {
 }
 
 export const maxPayout = (p: Protection) => p.shares * (p.upper - p.lower);
+
+/** The short, in shares, that hedges protection at `spot`: how much its expected payout rises per $1 fall. */
+export function hedgeShares(model: OpeningModel, spot: number, p: Protection): number {
+  validate(p);
+  return p.shares * Math.max(putDelta(model, spot, p.upper) - putDelta(model, spot, p.lower), 0);
+}
 
 export type Price = {
   /** Expected payout under the model: the fair premium. */
