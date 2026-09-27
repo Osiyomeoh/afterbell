@@ -17,11 +17,13 @@ Built for Colosseum's Crypto World's Fair (September to October 2026). Design: [
 - `evm/`: the Robinhood Chain vault, its viem client and keeper. It sells the same protection, settled on Chainlink's round in force at the open, and it is underwritten by a pool anyone can join: deposits and withdrawals are requested and filled at the pool's exact value once each opening is paid out (ERC-7540). Each position is an NFT paid to whoever holds it. Risk limits cap each night and each stock, keepers earn a tip for paying positions out, and a permit makes buying one transaction. Settlement is tested against Chainlink's live TSLA feed in forge fork tests; the rest runs on a local chain, where a full round passes (sell, move an NFT, open, settle, pay the holder, roll, fill a deposit). The deploy script allows all 34 Chainlink feeds. Not deployed yet.
 - `app/`: the web app, for both chains. Protect prices any of the 34 stocks live with the quoter's own code, My protection lists and claims positions, Vault shows collateral and every series, and Track record shows what each series took in, settled on and paid out. It also has a devnet faucet and the Blink. On both chains a position is an NFT and anyone can underwrite the pool; on Robinhood Chain (any injected EVM wallet) buying is one transaction. Buying, settling, paying out, depositing and withdrawing have run end to end against a local chain, and on Solana against a local validator. It goes live on each chain when that vault is deployed.
 - `agent/`: Afterbell as an MCP server, hosted (no keys) and local (the agent's own devnet wallet with a spending cap).
-- Tests: 150 TypeScript (including a check of every stock's Chainlink history, and that TSLA's agrees with Pyth's), 74 Foundry (3 fuzz and 4 invariants), 5 fork tests of settlement against Chainlink's live TSLA feed, 23 Rust unit and 42 LiteSVM tests of the compiled Solana program (including randomized sequences). CI also runs Slither on the EVM contracts.
+- Tests: 248 TypeScript (including a check of every stock's Chainlink history, that TSLA's agrees with Pyth's, and the hedger's signatures against Hyperliquid's own SDK), 74 Foundry (3 fuzz and 4 invariants), 5 fork tests of settlement against Chainlink's live TSLA feed, 23 Rust unit and 42 LiteSVM tests of the compiled Solana program (including randomized sequences). CI also runs Slither on the EVM contracts.
 
 **Next:** run the keeper on devnet after Monday 28 September's open to settle and claim the first series, then switch the app to the new Solana vault. Deploy the EVM vault to Robinhood Chain mainnet; the app's Robinhood flow is ready for it. Host the app.
 
-**Planned:** the Hyperliquid hedger. Dates and cut line are in the design doc.
+**Written, not trading yet:** the Hyperliquid hedger ([below](#hedge-on-hyperliquid)). It sizes a short in Hyperliquid's `xyz:TSLA` to what the protection the vaults have sold stands to pay per $1 fall, from the model that prices it, rebalances overnight and buys it back at the open. Its plan mode reads the live vaults and Hyperliquid and prints the order it would send, and the Vault page shows the same. Sending is written and tested against Hyperliquid's documented answers but hasn't traded: it runs on Hyperliquid testnet once its accounts exist.
+
+**Planned:** counting Robinhood Chain's vault in the hedge once it's deployed. Dates and cut line are in the design doc.
 
 This section changes as parts ship. Nothing is listed as built until it runs and is tested.
 
@@ -156,6 +158,7 @@ The keeper ([`solana/keeper`](solana/keeper)) is permissionless. For each series
 - **Track record** (`GET /api/record`) lists every series either vault has sold: sales, premiums, the oracle price and time it settled on, and what it paid out. Both vaults keep paid positions on-chain with what they paid, so the ledger reads state, and on Solana it takes each settlement's transaction from the program's events. The first Solana version's claims closed its position accounts, so its history comes from its events (`ProtectionBought`, `SeriesSettled`, `Claimed`) in the vault's transactions, read once each and cached. Below that, the same pricing replayed on every recorded TSLA opening, each priced only from the openings before it.
 - **How it works** and **For wallets and agents**, on the home page, explain the product and give the Blink and MCP addresses for whatever host the app runs on.
 - **My protection** and **Vault** read each chain through `GET /api/positions` (a Solana or EVM address) and `GET /api/vault` (`?chain=robinhood` for Robinhood Chain), which share one cached read per chain, so visitors don't each hit the RPC. My protection lists the positions whose NFTs the wallet holds, with each NFT's image: on Robinhood Chain the one drawn on-chain (`GET /api/position-art/<id>`), on Solana the same card drawn from the position's accounts (`GET /api/position-art/solana/<position>` is the metadata each NFT points at, and `/image` the image). A holder can pay out a settled or voided position themselves (on Solana that's `process` for their own position, so they take the keeper's tip too); the keepers pay everyone anyway. The Vault page shows each chain's pool and lets anyone underwrite it (`GET /api/underwriter?owner=` reads an underwriter's shares and requests, for a Solana or EVM address).
+- **The hedge**, on the Vault page (`GET /api/hedge`): mainnet's `xyz:TSLA` price, the short the open protection calls for, each open's positions and the short for it, and the short held. It reads the same state as the hedger's plan mode, through public endpoints only; the server holds no key. Until the hedge account exists (`HEDGE_ACCOUNT`, an address) it says the hedge isn't running.
 - **Solana, on a local validator** (`npm run solana:local`): the routes and pages, the Blink and the agent ran against the new vault. A holder whose position opened at $355 paid it out to themselves with the app's claim code ($50.00, plus the $0.40 tip), after which its NFT's image read "paid $50.00"; the keeper paid the rest and rolled; the Blink and the quote endpoint then sold Monday's open; a 250 TestUSD deposit was filled at a roll and claimed, and 100 shares were withdrawn at the next roll for $99.97. The test browser has no Solana wallet, so the app's browser code for buying, claiming and underwriting was run from a script signing with a test key.
 
 ```bash
@@ -190,6 +193,24 @@ On devnet, the smoke run went end to end on both servers with the first Solana v
 - **Expiry.** Quotes live 60 seconds and always expire at least two minutes before their open.
 
 It's pure: the caller passes the time, market data and keys, so the tests pin every case. The HTTP endpoint comes with the app.
+
+## Hedge on Hyperliquid
+
+Written and tested; **it hasn't traded yet.** Plan and results: [docs/hedger.md](docs/hedger.md).
+
+[`hedger/`](hedger) holds a short in Hyperliquid's `xyz:TSLA` perp equal to the vaults' delta: how much more the open protection pays for each $1 TSLA falls, from the same openings model the quoter prices with. Protection sold raises it, a fall toward the strikes raises it further, and at the open those positions stop counting and the short is bought back. It reads every open position in both Solana vaults. Robinhood Chain's vault isn't read yet; it isn't deployed.
+
+- **Where.** Hyperliquid testnet, with mock USDC, at mainnet's price; sending on mainnet is refused. Testnet's TSLA book is empty, so a second account of ours rests a bid and an ask at mainnet's mid, and the hedger's orders fill against it. That's our own liquidity, and the app says so.
+- **Orders.** Immediate-or-cancel at the mid ± 0.2%, reduce-only when buying back, isolated 3× margin, only when the short is off its target by more than 0.01 TSLA or $10, and capped at $1,500 of TSLA by default. It runs every 5 minutes and 1 second after each open.
+- **Signing.** Our own signer (EIP-712 over a msgpack hash of the action), checked against the signatures in Hyperliquid's Python SDK tests. The scripts take only an API wallet's key, from the shell, and refuse the account's own.
+- **Backtest.** Over 36 nights, rebalancing the short hourly cut the spread of the vault's nightly results by a third to two-thirds, mostly from one night when TSLA fell through the night on Hyperliquid; for protection far below the close it added noise on quiet nights. Tables: [research/results/hedge-backtest.md](research/results/hedge-backtest.md).
+- **Checked live:** both plan modes, against the devnet vaults and Hyperliquid's public endpoints. **Not yet:** anything sent, since the testnet accounts don't exist yet.
+
+```bash
+npm run hedger -- --plan          # the short the vaults call for, the short held, and the order; sends nothing, needs no key
+npm run hedger:quoter -- --plan   # the testnet quotes it would rest, against the book
+npm run hedger:backtest           # writes research/results/hedge-backtest.md
+```
 
 ## How we got here
 

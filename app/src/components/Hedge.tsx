@@ -125,8 +125,8 @@ function HedgeView({ h }: { h: HedgeResponse }) {
           </p>
         )}
         <p>
-          It counts the protection sold on Solana ({h.vaults.map((v) => `${v.label}: ${v.positions} open`).join("; ")}). Robinhood Chain&apos;s will count
-          once that vault is deployed.
+          It counts the protection sold on Solana ({h.vaults.map((v) => `${v.label}: ${v.positions} open`).join("; ")}). Robinhood Chain&apos;s vault isn&apos;t
+          counted yet: it isn&apos;t deployed.
         </p>
       </div>
     </div>
