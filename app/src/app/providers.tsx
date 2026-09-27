@@ -14,7 +14,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
   // one isn't an error here: the adapter opens its install page instead.
   const onError = useCallback((e: Error) => {
     if (e.name === "WalletNotReadyError") return;
-    setError(e.message || e.name.replace(/Error$/, "").replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase());
+    // The adapter keeps the wallet's own error underneath; its code says more than "Unexpected error" does.
+    const inner = (e as Error & { error?: { code?: number | string; message?: string } }).error;
+    const detail = inner && (inner.code !== undefined || (inner.message && inner.message !== e.message)) ? ` (${[inner.code !== undefined ? `code ${inner.code}` : "", inner.message && inner.message !== e.message ? inner.message : ""].filter(Boolean).join(": ")})` : "";
+    setError((e.message || e.name.replace(/Error$/, "").replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase()) + detail);
   }, []);
   useEffect(() => {
     if (!error) return;
