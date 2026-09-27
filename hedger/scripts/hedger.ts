@@ -28,17 +28,15 @@ import { Connection } from "@solana/web3.js";
 import { getAddress, type Address } from "viem";
 
 import type { Opening } from "../../pricing/model";
-import { hyperliquidMid, pythCalendar } from "../../quoter/marketData";
-import { modelFor } from "../../quoter/quoter";
+import { pythCalendar } from "../../quoter/marketData";
 import { TSLA } from "../../quoter/stocks";
 import tslaGaps from "../../research/data/pyth-tsla-gaps.json" with { type: "json" };
 import { createExchange, type Exchange, type OrderResult } from "../exchange";
-import { DEFAULT_SLIPPAGE, type Market, type Network } from "../hyperliquid";
-import { dexOf, fetchHedgeAccount, fetchMarket, postInfo, type HedgeAccount } from "../info";
-import { nextRunMs, planHedge, type HedgePlan } from "../plan";
+import { DEFAULT_SLIPPAGE, type Network } from "../hyperliquid";
+import { dexOf, type HedgeAccount } from "../info";
+import { nextRunMs, type HedgePlan } from "../plan";
 import { sendHedge, type SentHedge } from "../send";
-import { openPositions, readVault, type VaultVersion } from "../solana";
-import type { OpenPosition } from "../target";
+import { readHedgeState, type HedgeState, type ModelInputs, type VaultSource } from "../state";
 import { agentKey, envNumber, everyMs, hedgeNetwork, iso, loop, maxNotional, sh, usd } from "./common";
 
 const stock = TSLA;
@@ -47,35 +45,24 @@ const history = tslaGaps.gaps as Opening[];
 
 type Settings = { network: Network; cap: number; address: Address | null; connection: Connection };
 
-type Book = { label: string; vault: string; positions: OpenPosition[] };
-
-type State = { now: number; mid: number; market: Market; account: HedgeAccount | null; books: Book[]; positions: OpenPosition[]; plan: HedgePlan };
-
-/** Everything the hedger reads, and the plan from it. Any read that fails fails the whole run: it never trades on half a book. */
-async function readState(s: Settings): Promise<State> {
-  const vaults = [
-    { label: "Solana v2", version: "v2" as VaultVersion, file: process.env.DEPLOYMENTS ?? "solana/deployments/devnet.json" },
-    { label: "Solana v1", version: "v1" as VaultVersion, file: process.env.DEPLOYMENTS_V1 ?? "solana/deployments/devnet-v1.json" },
-  ].filter((v) => existsSync(v.file));
-  const now = Math.floor(Date.now() / 1000);
-  const [books, mid, market, account, calendar] = await Promise.all([
-    Promise.all(
-      vaults.map(async (v) => {
-        const d = JSON.parse(readFileSync(v.file, "utf8")) as { programId: string; vault: string };
-        const { series, positions } = await readVault(s.connection, v.version, d);
-        return { label: v.label, vault: d.vault, positions: openPositions(series, positions).filter((p) => p.openTs > now) };
-      }),
-    ),
-    hyperliquidMid(coin),
-    fetchMarket(postInfo, s.network, coin),
-    s.address ? fetchHedgeAccount(postInfo, s.network, s.address, coin) : null,
-    pythCalendar(stock.symbol, stock.feedId, now),
-  ]);
-  const positions = books.flatMap((b) => b.positions);
-  const inputs = { history, annualVol: stock.annualVol, holidays: calendar.holidays, earlyCloses: calendar.earlyCloses };
-  const plan = planHedge({ now, symbol: stock.symbol, positions, mid, modelFor: (openTs) => modelFor(now, openTs, inputs), market, account, maxNotional: s.cap });
-  return { now, mid, market, account, books, positions, plan };
+/** Both Solana vaults whose deployment files exist: v2, and v1 until its last series is paid. */
+function vaultSources(connection: Connection): VaultSource[] {
+  return [
+    { label: "Solana v2", version: "v2" as const, file: process.env.DEPLOYMENTS ?? "solana/deployments/devnet.json" },
+    { label: "Solana v1", version: "v1" as const, file: process.env.DEPLOYMENTS_V1 ?? "solana/deployments/devnet-v1.json" },
+  ]
+    .filter((v) => existsSync(v.file))
+    .map((v) => ({ label: v.label, version: v.version, connection, deployment: JSON.parse(readFileSync(v.file, "utf8")) as { programId: string; vault: string } }));
 }
+
+/** The model from the recorded openings, with holidays and early closes from Pyth's public schedule. */
+const recordedModel = async (now: number): Promise<ModelInputs> => {
+  const calendar = await pythCalendar(stock.symbol, stock.feedId, now);
+  return { history, annualVol: stock.annualVol, holidays: calendar.holidays, earlyCloses: calendar.earlyCloses };
+};
+
+const readState = (s: Settings) =>
+  readHedgeState({ stock, vaults: vaultSources(s.connection), network: s.network, address: s.address, maxNotional: s.cap, model: recordedModel });
 
 function printAccount(account: HedgeAccount | null, network: Network) {
   console.log("\nHEDGE ACCOUNT");
@@ -106,7 +93,7 @@ function orderLine(plan: HedgePlan, mid: number): string | null {
 }
 
 /** The whole picture, for a single run. */
-function printState(st: State, s: Settings) {
+function printState(st: HedgeState, s: Settings) {
   console.log(`now           ${iso(st.now)}`);
   console.log(`reference     ${coin} mid on mainnet: ${usd(st.mid)}`);
   console.log(`hedge market  ${coin} on ${s.network}: asset ${st.market.asset}, size step ${10 ** -st.market.szDecimals}, up to ${st.market.maxLeverage}× leverage`);
@@ -138,7 +125,7 @@ function printState(st: State, s: Settings) {
 }
 
 /** One line a run, for --every. */
-function printLine(st: State) {
+function printLine(st: HedgeState) {
   const held = st.plan.current;
   console.log(`${iso(st.now)}  mid ${usd(st.mid)}  hedge ${sh(st.plan.exposure.hedge)}  short ${sh(held)}  ${st.plan.rebalance.note}`);
 }

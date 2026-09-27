@@ -1,12 +1,12 @@
 import anchor from "@anchor-lang/core";
-import { Connection, Keypair, PublicKey, type GetProgramAccountsConfig } from "@solana/web3.js";
-import bs58 from "bs58";
+import { Keypair, PublicKey } from "@solana/web3.js";
 import { describe, expect, it } from "vitest";
 
 import { QQQ, TSLA } from "../quoter/stocks";
 import * as v1 from "../solana/client/v1";
 import * as v2 from "../solana/client/vault";
 import { openPositions, readVault, type PositionRecord, type SeriesRecord } from "./solana";
+import { fakeCluster } from "./testing";
 
 const OPEN = 1_790_000_000;
 const series: SeriesRecord[] = [
@@ -42,22 +42,6 @@ describe("openPositions", () => {
     expect(got.map((p) => p.symbol)).toEqual(["QQQ", "0x" + "ab".repeat(32)]);
   });
 });
-
-/** A cluster holding the given accounts, answering getProgramAccounts with its memcmp filters applied, as an RPC node does. */
-function fakeCluster(accounts: { owner: PublicKey; pubkey: PublicKey; data: Buffer }[]) {
-  const matches = (data: Buffer, f: { offset: number; bytes: string }) => {
-    const want = Buffer.from(bs58.decode(f.bytes));
-    return data.subarray(f.offset, f.offset + want.length).equals(want);
-  };
-  return {
-    commitment: "confirmed",
-    getProgramAccounts: async (programId: PublicKey, config: GetProgramAccountsConfig) =>
-      accounts
-        .filter((a) => a.owner.equals(programId))
-        .filter((a) => (config.filters ?? []).every((f) => ("memcmp" in f ? matches(a.data, f.memcmp) : a.data.length === f.dataSize)))
-        .map((a) => ({ pubkey: a.pubkey, account: { data: a.data, owner: programId, lamports: 1, executable: false } })),
-  } as unknown as Connection;
-}
 
 describe("readVault", () => {
   const { BN } = anchor;

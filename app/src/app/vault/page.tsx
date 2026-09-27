@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import { Hedge } from "@/components/Hedge";
 import { Vault } from "@/components/Vault";
 
 export const metadata: Metadata = { title: "Vault" };
@@ -16,6 +17,7 @@ export default function Page() {
         </p>
       </section>
       <Vault />
+      <Hedge />
     </>
   );
 }

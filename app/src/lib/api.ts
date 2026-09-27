@@ -1,4 +1,5 @@
 import type { EvmDeployment } from "@root/evm/client/vault";
+import type { HedgeSummary } from "@root/hedger/state";
 import type { Opening } from "@root/pricing/model";
 import type { Market, PricedProtection, QuoterConfig } from "@root/quoter/quoter";
 
@@ -187,3 +188,8 @@ export type LedgerRow = {
 };
 
 export const fetchRecord = () => fetch("/api/record", { cache: "no-store" }).then((r) => json<{ series: LedgerRow[] }>(r));
+
+/** The hedge on Hyperliquid: what the vaults' open protection calls for, and the hedge account's position (null until it exists). */
+export type HedgeResponse = HedgeSummary;
+
+export const fetchHedge = () => fetch("/api/hedge", { cache: "no-store" }).then((r) => json<HedgeResponse>(r));

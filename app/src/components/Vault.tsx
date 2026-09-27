@@ -113,12 +113,7 @@ function ChainVault({ chain }: { chain: Chain }) {
       </section>
 
       <section className="rounded-2xl border border-line bg-surface p-5 text-sm leading-relaxed text-muted">
-        <h2 className="font-medium text-text">Hedge</h2>
-        <p className="mt-2">
-          Planned: the vault will short the matching Hyperliquid perp at the close and close it at the open, so its exposure follows the price its
-          protection settles on. Not live yet.
-        </p>
-        <p className="mt-3">
+        <p>
           Vault{" "}
           {vaultUrl ? (
             <a className="num text-text hover:underline" href={vaultUrl} target="_blank" rel="noreferrer">

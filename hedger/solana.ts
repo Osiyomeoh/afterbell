@@ -1,10 +1,9 @@
 /**
  * The positions a Solana vault has sold and not yet settled, read from the
  * chain: vault v2's, and v1's while its last series waits for its open. Reads
- * only; the wallet Anchor asks for is a throwaway that never signs.
+ * only; the wallet Anchor asks for refuses to sign.
  */
-import anchor from "@anchor-lang/core";
-import { Connection, Keypair, PublicKey } from "@solana/web3.js";
+import { Connection, PublicKey } from "@solana/web3.js";
 
 import { stockByFeedId } from "../quoter/stocks";
 import * as v1 from "../solana/client/v1";
@@ -36,6 +35,13 @@ export function openPositions(series: readonly SeriesRecord[], positions: readon
 
 export type VaultVersion = "v1" | "v2";
 
+/** What Anchor takes as a wallet, for reading: it has no key and refuses to sign. */
+const readOnly = {
+  publicKey: PublicKey.default,
+  signTransaction: () => Promise.reject(new Error("read-only")),
+  signAllTransactions: () => Promise.reject(new Error("read-only")),
+};
+
 type Big = { toString(): string };
 /** The fields read here, which both versions' accounts share (v2's position adds `closed`). */
 type Accounts = {
@@ -49,7 +55,7 @@ export async function readVault(connection: Connection, version: VaultVersion, d
   if (client.PROGRAM_ID.toBase58() !== deployment.programId) {
     throw new Error(`the ${version} deployment's program ${deployment.programId} isn't the ${version} client's ${client.PROGRAM_ID.toBase58()}`);
   }
-  const accounts: Accounts = client.getProgram(connection, new anchor.Wallet(Keypair.generate())).account;
+  const accounts: Accounts = client.getProgram(connection, readOnly).account;
   // Both versions' series and positions start with their vault's address.
   const byVault = [{ memcmp: { offset: 8, bytes: new PublicKey(deployment.vault).toBase58() } }];
   const [series, positions] = await Promise.all([accounts.series.all(byVault), accounts.position.all(byVault)]);
