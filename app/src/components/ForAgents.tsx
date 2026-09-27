@@ -44,7 +44,8 @@ function Copyable({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
   return (
     <div className="mt-3 flex items-center gap-2 rounded-lg border border-line bg-ink py-1.5 pr-1.5 pl-3">
-      <code className="num min-w-0 flex-1 overflow-x-auto text-xs whitespace-nowrap text-text">{text}</code>
+      {/* Wrapped rather than scrolled, so the whole command shows on a phone. */}
+      <code className="num min-w-0 flex-1 py-0.5 text-xs leading-relaxed break-all text-text">{text}</code>
       <button
         type="button"
         onClick={() =>

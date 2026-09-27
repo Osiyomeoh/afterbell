@@ -122,8 +122,8 @@ function PositionsTable(props: { rows: PositionRow[] | null; error: string | nul
     return <Panel>No open protection. Positions disappear here once they&apos;re paid out; the payout goes straight to the wallet holding the NFT.</Panel>;
   }
   return (
-    <div className="overflow-x-auto rounded-2xl border border-line bg-surface">
-      <table className="w-full text-sm">
+    <div className="scroll-x rounded-2xl border border-line bg-surface">
+      <table className="w-full text-sm whitespace-nowrap">
         <thead className="text-left text-muted">
           <tr className="border-b border-line">
             <th className="px-4 py-3 font-normal">Stock</th>

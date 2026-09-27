@@ -7,6 +7,8 @@ import { backtest } from "@root/pricing/backtest";
 import { fetchMarket, fetchRecord, type LedgerRow, type MarketResponse } from "@/lib/api";
 import { dayLabel, explorer, nyClock, nyTime, pct, usd } from "@/lib/format";
 
+import { Stat, Stats } from "./Stats";
+
 // The shape the Blink sells: protection from 2% to 10% below the close.
 const STRUCTURE = { deductible: 0.02, depth: 0.1 };
 const CHAIN: Record<LedgerRow["chain"], string> = { solana: "Solana", robinhood: "Robinhood Chain" };
@@ -40,13 +42,13 @@ export function TrackRecord() {
         <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted">
           Every series the vaults have sold, read from the chain: what buyers paid, the oracle price it settled on, and what it paid back.
         </p>
-        <div className="mt-4 overflow-x-auto rounded-2xl border border-line bg-surface">
+        <div className="scroll-x mt-4 rounded-2xl border border-line bg-surface">
           {error && !ledger ? (
             <p className="p-5 text-sm text-muted">Couldn&apos;t read the record: {error}</p>
           ) : !ledger ? (
             <p className="p-5 text-sm text-muted">Reading the vaults…</p>
           ) : (
-            <table className="w-full text-sm">
+            <table className="w-full text-sm whitespace-nowrap">
               <thead className="text-left text-muted">
                 <tr className="border-b border-line">
                   <th className="px-4 py-3 font-normal">Open</th>
@@ -103,13 +105,15 @@ export function TrackRecord() {
         </p>
         {replay && (
           <>
-            <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
-              <Stat label="Openings replayed" value={String(replay.nights.length)} />
-              <Stat label="Paid out on" value={`${replay.paidNights} (${pct(replay.paidNights / replay.nights.length, 0)})`} />
-              <Stat label="Paid back per $1 of premium" value={`${Math.round(replay.paidPerDollar * 100)}¢`} />
+            <div className="mt-4">
+              <Stats>
+                <Stat label="Openings replayed" value={String(replay.nights.length)} />
+                <Stat label="Paid out on" value={`${replay.paidNights} (${pct(replay.paidNights / replay.nights.length, 0)})`} />
+                <Stat label="Paid back per $1 of premium" value={`${Math.round(replay.paidPerDollar * 100)}¢`} />
+              </Stats>
             </div>
-            <div className="mt-4 overflow-x-auto rounded-2xl border border-line bg-surface">
-              <table className="w-full text-sm">
+            <div className="scroll-x mt-4 rounded-2xl border border-line bg-surface">
+              <table className="w-full text-sm whitespace-nowrap">
                 <thead className="text-left text-muted">
                   <tr className="border-b border-line">
                     <th className="px-4 py-3 font-normal">Close → open</th>
@@ -164,14 +168,5 @@ function Settlement({ s }: { s: LedgerRow }) {
     </a>
   ) : (
     <span>{label}</span>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-2xl border border-line bg-surface p-5">
-      <div className="text-sm text-muted">{label}</div>
-      <div className="num mt-1 text-2xl font-semibold">{value}</div>
-    </div>
   );
 }

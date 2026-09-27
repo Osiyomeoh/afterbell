@@ -6,22 +6,27 @@ import { evmDeployment } from "@/server/evmDeployment";
 
 const margin = `${Math.round(DEFAULT_QUOTER_CONFIG.margin * 100)}%`;
 
+// Each step says what happens in a sentence; the detail underneath says how.
 const STEPS = [
   {
     title: "Choose your levels",
-    body: `Pick the stock, the shares and where protection starts and stops. It's priced from how that stock has actually opened after every recorded close, read from the oracle it settles on, plus a ${margin} margin. Outside the session it's quoted from the lower of the last close and the live price, so a drop after the close can't buy cheap protection.`,
+    body: "Pick the stock, how many shares, and the prices where protection starts and stops. The price updates as you move them.",
+    detail: `Priced from how that stock has actually opened after every recorded close, read from the oracle it settles on, plus a ${margin} margin. Outside the session it's quoted from the lower of the last close and the live price, so a drop after the close can't buy cheap protection.`,
   },
   {
     title: "Pay once",
-    body: `The quote service signs the price for ${DEFAULT_QUOTER_CONFIG.ttlSecs} seconds. Your wallet sends one transaction: Solana's Ed25519 program checks the signature, and the vault takes the premium, locks the most it could pay and mints your position to you as an NFT. Every position is fully backed from the moment it's bought.`,
+    body: "One transaction pays for it. The vault locks the most it could pay you, so every position is fully backed, and your position arrives as an NFT.",
+    detail: `The quote service signs the price for ${DEFAULT_QUOTER_CONFIG.ttlSecs} seconds, and Solana's Ed25519 program checks that signature in the same transaction.`,
   },
   {
     title: "The bell settles it",
-    body: `Every position for an open settles on the first Pyth price at or after 09:30 ET. The program accepts only a print published within ${DEFAULT_PARAMS.settleWindowSecs} seconds of the open whose previous print came before it, so nobody can choose a convenient price. Anyone may settle; our keeper does.`,
+    body: "The oracle's first price at or after the 09:30 ET open settles every position for that open.",
+    detail: `The program accepts only a Pyth print published within ${DEFAULT_PARAMS.settleWindowSecs} seconds of the open whose previous print came before it, so nobody can choose a convenient price. Anyone may settle; our keeper does.`,
   },
   {
     title: "Get paid",
-    body: `If the stock opened below where your protection starts, whoever holds the position's NFT is paid the difference on every share, down to where it stops. The keeper pays it into their wallet, or the holder can claim on My protection. If no valid price arrives, as in a halt, every premium is refunded after ${DEFAULT_PARAMS.voidDelaySecs / 3600} hours.`,
+    body: "If the stock opened below where your protection starts, whoever holds the NFT is paid the difference on every share, down to where it stops.",
+    detail: `The keeper pays it into the holder's wallet, or the holder claims it on My protection. If no valid price arrives, as in a halt, every premium is refunded after ${DEFAULT_PARAMS.voidDelaySecs / 3600} hours.`,
   },
 ];
 
@@ -37,6 +42,7 @@ export function HowItWorks() {
             <div className="num text-sm text-brass">{i + 1}</div>
             <h3 className="mt-1 font-medium">{s.title}</h3>
             <p className="mt-2 text-sm leading-relaxed text-muted">{s.body}</p>
+            <p className="mt-2 text-xs leading-relaxed text-faint">{s.detail}</p>
           </li>
         ))}
       </ol>

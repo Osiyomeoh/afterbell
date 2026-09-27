@@ -6,6 +6,7 @@ import { fetchVault, type Chain, type VaultResponse } from "@/lib/api";
 import { evmAddressUrl } from "@/lib/evm";
 import { explorer, nyTime, usd } from "@/lib/format";
 
+import { Stat, Stats } from "./Stats";
 import { Pool } from "./Underwrite";
 
 const CHAINS: { id: Chain; label: string }[] = [
@@ -55,25 +56,25 @@ function ChainVault({ chain }: { chain: Chain }) {
   return (
     <div className="space-y-6">
       {v.pool ? (
-        <div className="grid gap-4 sm:grid-cols-3">
+        <Stats>
           {/* While protection is open, the contract values the pool as if every position pays its maximum. */}
           <Stat label={v.locked > 0 ? "Pool value if every position pays in full" : "Pool value (TestUSD)"} value={usd(v.pool.nav)} />
           <Stat label={v.locked > 0 ? "Share price, same worst case" : "Share price"} value={usd(v.pool.sharePrice, 6)} />
           <Stat label="Locked for open protection" value={usd(v.locked)} />
-        </div>
+        </Stats>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-3">
+        <Stats>
           <Stat label="Collateral (TestUSD)" value={usd(v.collateral)} />
           <Stat label="Locked for open protection" value={usd(v.locked)} />
           <Stat label="Free to sell against" value={usd(v.collateral - v.locked)} />
-        </div>
+        </Stats>
       )}
       {v.pool && <Pool pool={v.pool} chain={chain} />}
 
-      <section className="rounded-2xl border border-line bg-surface">
+      <section className="overflow-hidden rounded-2xl border border-line bg-surface">
         <h2 className="border-b border-line px-4 py-3 font-medium">Series</h2>
-        <div className="overflow-x-auto">
-        <table className="w-full text-sm">
+        <div className="scroll-x">
+        <table className="w-full text-sm whitespace-nowrap">
           <thead className="text-left text-muted">
             <tr className="border-b border-line">
               <th className="px-4 py-3 font-normal">Open</th>
@@ -141,7 +142,7 @@ function ChainVault({ chain }: { chain: Chain }) {
 function FirstVault({ f }: { f: NonNullable<VaultResponse["firstVault"]> }) {
   if (!("error" in f) && f.open.length === 0) return null;
   return (
-    <section className="rounded-2xl border border-line bg-surface">
+    <section className="overflow-hidden rounded-2xl border border-line bg-surface">
       <h2 className="border-b border-line px-4 py-3 font-medium">Still open in the first vault</h2>
       <p className="px-4 py-3 text-sm leading-relaxed text-muted">
         Solana&apos;s first vault,{" "}
@@ -154,8 +155,8 @@ function FirstVault({ f }: { f: NonNullable<VaultResponse["firstVault"]> }) {
       {"error" in f ? (
         <p className="border-t border-line px-4 py-3 text-sm">Couldn&apos;t read it: {f.error}</p>
       ) : (
-        <div className="overflow-x-auto border-t border-line">
-          <table className="w-full text-sm">
+        <div className="scroll-x border-t border-line">
+          <table className="w-full text-sm whitespace-nowrap">
             <thead className="text-left text-muted">
               <tr className="border-b border-line">
                 <th className="px-4 py-3 font-normal">Open</th>
@@ -184,14 +185,5 @@ function FirstVault({ f }: { f: NonNullable<VaultResponse["firstVault"]> }) {
         </div>
       )}
     </section>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-2xl border border-line bg-surface p-5">
-      <div className="text-sm text-muted">{label}</div>
-      <div className="num mt-1 text-2xl font-semibold">{value}</div>
-    </div>
   );
 }

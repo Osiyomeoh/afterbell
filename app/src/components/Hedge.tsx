@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 import { fetchHedge, type HedgeResponse } from "@/lib/api";
 import { nyTime, usd } from "@/lib/format";
 
+import { Stat, Stats } from "./Stats";
+
 const shares = (x: number) => `${x.toFixed(3)} TSLA`;
 
 /** Hyperliquid's explorer page for an account on the network the hedge trades on. */
@@ -62,16 +64,16 @@ function HedgeView({ h }: { h: HedgeResponse }) {
         )}
       </p>
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <Stats>
         <Stat label="TSLA on Hyperliquid mainnet" value={usd(h.mid)} />
         <Stat label="Short to hold" value={shares(h.target)} note={`${usd(h.target * h.mid)} of TSLA`} />
         <Stat label="Short held" value={held === null ? "None yet" : shares(held)} note={p?.entryPx ? `from ${usd(p.entryPx)}` : undefined} />
-      </div>
+      </Stats>
 
-      <section className="rounded-2xl border border-line bg-surface">
+      <section className="overflow-hidden rounded-2xl border border-line bg-surface">
         <h3 className="border-b border-line px-4 py-3 font-medium">Open protection in TSLA</h3>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+        <div className="scroll-x">
+          <table className="w-full text-sm whitespace-nowrap">
             <thead className="text-left text-muted">
               <tr className="border-b border-line">
                 <th className="px-4 py-3 font-normal">Open</th>
@@ -139,11 +141,11 @@ function HedgeView({ h }: { h: HedgeResponse }) {
 function Activity({ a }: { a: NonNullable<HedgeResponse["activity"]> }) {
   const days = Math.round((Date.now() / 1000 - a.since) / 86_400);
   return (
-    <section className="rounded-2xl border border-line bg-surface">
+    <section className="overflow-hidden rounded-2xl border border-line bg-surface">
       <h3 className="border-b border-line px-4 py-3 font-medium">The hedge account&apos;s trades, last {days} days</h3>
       {a.fills.length > 0 && (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+        <div className="scroll-x">
+          <table className="w-full text-sm whitespace-nowrap">
             <thead className="text-left text-muted">
               <tr className="border-b border-line">
                 <th className="px-4 py-3 font-normal">Time</th>
@@ -193,14 +195,4 @@ function counted(vaults: HedgeResponse["vaults"]): string {
     return mine.length ? [`on ${c.name} (${mine.map((v) => `${v.label}: ${v.positions} open`).join("; ")})`] : [];
   });
   return parts.length ? `It counts the protection sold ${parts.join(" and ")}.` : "No vault is deployed for it to count.";
-}
-
-function Stat({ label, value, note }: { label: string; value: string; note?: string }) {
-  return (
-    <div className="rounded-2xl border border-line bg-surface p-5">
-      <div className="text-sm text-muted">{label}</div>
-      <div className="num mt-1 text-2xl font-semibold">{value}</div>
-      {note && <div className="num mt-1 text-sm text-muted">{note}</div>}
-    </div>
-  );
 }

@@ -30,7 +30,18 @@ export function TestFunds({ mint, refreshKey }: { mint: string; refreshKey?: unk
     load();
   }, [load, refreshKey]);
 
-  if (!publicKey) return null;
+  // Before a wallet connects, say up front that this runs on test money and where it comes from.
+  if (!publicKey) {
+    return (
+      <div className="rounded-2xl border border-line bg-surface p-5 text-sm leading-relaxed">
+        <div className="text-muted">Test money</div>
+        <p className="mt-2 text-muted">
+          This runs on Solana devnet with TestUSD, a token with no value. Connect a wallet and get 1,000 TestUSD and a little devnet SOL for fees
+          here, free.
+        </p>
+      </div>
+    );
+  }
 
   async function topUp() {
     if (!publicKey) return;

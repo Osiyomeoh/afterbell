@@ -4,8 +4,26 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import dynamic from "next/dynamic";
 
-// The wallet button reads browser state, so it renders on the client only.
-const WalletButton = dynamic(() => import("@solana/wallet-adapter-react-ui").then((m) => m.WalletMultiButton), { ssr: false });
+// The wallet button reads browser state, so it renders on the client only. Its labels match the
+// page's own buttons ("Connect a wallet", where the adapter's default says "Select Wallet").
+const WalletButton = dynamic(
+  () =>
+    import("@solana/wallet-adapter-react-ui").then(({ BaseWalletMultiButton }) => {
+      const labels = {
+        "change-wallet": "Change wallet",
+        connecting: "Connecting…",
+        "copy-address": "Copy address",
+        copied: "Copied",
+        disconnect: "Disconnect",
+        "has-wallet": "Connect",
+        "no-wallet": "Connect a wallet",
+      };
+      return function WalletButton() {
+        return <BaseWalletMultiButton labels={labels} />;
+      };
+    }),
+  { ssr: false },
+);
 
 const NAV = [
   { href: "/", label: "Protect" },
@@ -23,12 +41,13 @@ export function Header() {
           <Bell />
           Afterbell
         </Link>
-        <nav className="flex gap-1 text-sm">
+        {/* On phones the wallet button stays beside the name and the links take the row below. */}
+        <nav className="order-last -mx-2.5 flex w-[calc(100%+1.25rem)] gap-1 overflow-x-auto text-sm sm:order-none sm:mx-0 sm:w-auto">
           {NAV.map((n) => (
             <Link
               key={n.href}
               href={n.href}
-              className={`rounded-md px-3 py-1.5 ${path === n.href ? "bg-raised text-text" : "text-muted hover:text-text"}`}
+              className={`rounded-md px-2.5 py-1.5 whitespace-nowrap sm:px-3 ${path === n.href ? "bg-raised text-text" : "text-muted hover:text-text"}`}
             >
               {n.label}
             </Link>

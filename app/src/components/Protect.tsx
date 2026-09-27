@@ -2,15 +2,16 @@
 
 import { useAnchorWallet, useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
-import { backtest } from "@root/pricing/backtest";
+import { backtest, type BacktestNight, type BacktestResult } from "@root/pricing/backtest";
 import { priceQuote } from "@root/quoter/quoter";
 
 import { fetchHoldings, fetchMarket, requestEvmQuote, requestQuote, toMarket, type Chain, type MarketResponse, type PriceSource } from "@/lib/api";
 import { buyProtection, NotEnoughTestUsd } from "@/lib/buy";
 import { buyOnRobinhood, evmTxUrl, NeedsGas, useEvmWallet } from "@/lib/evm";
-import { countdown, explorer, nyTime, pct, usd } from "@/lib/format";
+import { countdown, dayLabel, explorer, nyTime, pct, usd } from "@/lib/format";
 
 import { PayoffChart } from "./PayoffChart";
 import { TestFunds } from "./TestFunds";
@@ -190,8 +191,59 @@ export function Protect() {
   const openTs = priced?.openTs ?? market.nextOpen;
   const connected = chain === "solana" ? !!wallet : !!evm.address;
 
+  // The price and the buy button: beside the ticket on wide screens, inside it (under the sliders) on phones,
+  // where the aside only starts below the whole ticket.
+  const checkout = (
+    <>
+      <div className="text-sm text-muted">You pay</div>
+      <div className="num mt-1 text-3xl font-semibold">{priced ? usd(priced.premium) : "—"}</div>
+      <dl className="mt-4 space-y-2 text-sm">
+        <Row label="Pays up to" value={priced ? usd(priced.maxPayout) : "—"} />
+        <Row label="Chance it pays" value={priced ? pct(priced.probabilityOfPayout) : "—"} />
+        <Row label="Priced from" value={priced ? usd(priced.reference.price) : "—"} />
+      </dl>
+      {priced && <p className="mt-1 text-right text-xs text-faint">{BASIS[priced.reference.basis]}</p>}
+      <button
+        onClick={buy}
+        disabled={!!blocked || status.kind === "busy"}
+        className="mt-5 w-full rounded-xl bg-brass px-4 py-3 font-medium text-ink transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
+      >
+        {status.kind === "busy"
+          ? status.step
+          : !connected
+            ? chain === "solana"
+              ? "Connect a wallet"
+              : "Connect an EVM wallet"
+            : priced ? `Protect for ${usd(priced.premium)}` : "Protect"}
+      </button>
+      {blocked && <p className="mt-3 text-sm text-loss">{blocked}</p>}
+      {status.kind === "error" && (
+        <p className="mt-3 text-sm text-loss">
+          {status.message}
+          {status.needsFunds && chain === "solana" && " Use “Get test money” below."}
+        </p>
+      )}
+      {status.kind === "done" && (
+        <p className="mt-3 text-sm text-gain">
+          Protected for {usd(status.premium)}. It settles {nyTime(status.openTs)}.{" "}
+          {status.url && (
+            <a className="underline" href={status.url} target="_blank" rel="noreferrer">
+              View transaction
+            </a>
+          )}
+        </p>
+      )}
+      {status.kind === "done" && status.nft && (
+        <a className="mt-3 block w-40" href={status.nft.art} target="_blank" rel="noreferrer">
+          <img src={status.nft.art} alt={`Your protection, NFT #${status.nft.number}`} className="rounded-lg border border-line" />
+          <span className="mt-1 block text-xs text-muted">NFT #{status.nft.number}: whoever holds it is paid</span>
+        </a>
+      )}
+    </>
+  );
+
   return (
-    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+    <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
       <section className="rounded-2xl border border-line bg-surface p-5 sm:p-6">
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
           <div className="inline-flex rounded-lg border border-line bg-ink p-0.5 text-sm" role="tablist" aria-label="Chain">
@@ -230,7 +282,7 @@ export function Protect() {
           <span className="num text-sm text-muted">opens in {countdown(openTs - now)}</span>
         </div>
 
-        <div className="mt-5 grid gap-5 sm:grid-cols-3">
+        <div className="mt-5 grid gap-5 sm:grid-cols-[8rem_1fr_1fr]">
           <label className="block">
             <span className="text-sm text-muted">Shares</span>
             <input
@@ -251,6 +303,8 @@ export function Protect() {
           <Slider label="Protection stops" value={Math.max(depth, start + 0.01)} min={start + 0.01} max={0.3} step={0.01} onChange={setDepth} price={protection?.lower} />
         </div>
 
+        <div className="mt-6 rounded-xl border border-line bg-ink p-4 lg:hidden">{checkout}</div>
+
         {protection && priced && (
           <div className="mt-6">
             <PayoffChart shares={shares} upper={protection.upper} lower={protection.lower} premium={priced.premium} reference={priced.reference.price} />
@@ -266,52 +320,7 @@ export function Protect() {
       </section>
 
       <aside className="flex flex-col gap-4">
-        <div className="rounded-2xl border border-line bg-surface p-5">
-          <div className="text-sm text-muted">You pay</div>
-          <div className="num mt-1 text-3xl font-semibold">{priced ? usd(priced.premium) : "—"}</div>
-          <dl className="mt-4 space-y-2 text-sm">
-            <Row label="Pays up to" value={priced ? usd(priced.maxPayout) : "—"} />
-            <Row label="Chance it pays" value={priced ? pct(priced.probabilityOfPayout) : "—"} />
-            <Row label="Priced from" value={priced ? usd(priced.reference.price) : "—"} />
-          </dl>
-          {priced && <p className="mt-1 text-right text-xs text-faint">{BASIS[priced.reference.basis]}</p>}
-          <button
-            onClick={buy}
-            disabled={!!blocked || status.kind === "busy"}
-            className="mt-5 w-full rounded-xl bg-brass px-4 py-3 font-medium text-ink transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            {status.kind === "busy"
-              ? status.step
-              : !connected
-                ? chain === "solana"
-                  ? "Connect a wallet"
-                  : "Connect an EVM wallet"
-                : priced ? `Protect for ${usd(priced.premium)}` : "Protect"}
-          </button>
-          {blocked && <p className="mt-3 text-sm text-loss">{blocked}</p>}
-          {status.kind === "error" && (
-            <p className="mt-3 text-sm text-loss">
-              {status.message}
-              {status.needsFunds && chain === "solana" && " Use “Get test money” below."}
-            </p>
-          )}
-          {status.kind === "done" && (
-            <p className="mt-3 text-sm text-gain">
-              Protected for {usd(status.premium)}. It settles {nyTime(status.openTs)}.{" "}
-              {status.url && (
-                <a className="underline" href={status.url} target="_blank" rel="noreferrer">
-                  View transaction
-                </a>
-              )}
-            </p>
-          )}
-          {status.kind === "done" && status.nft && (
-            <a className="mt-3 block w-40" href={status.nft.art} target="_blank" rel="noreferrer">
-              <img src={status.nft.art} alt={`Your protection, NFT #${status.nft.number}`} className="rounded-lg border border-line" />
-              <span className="mt-1 block text-xs text-muted">NFT #{status.nft.number}: whoever holds it is paid</span>
-            </a>
-          )}
-        </div>
+        <div className="hidden rounded-2xl border border-line bg-surface p-5 lg:block">{checkout}</div>
 
         {chain === "solana" ? (
           market.solana && <TestFunds mint={market.solana.collateralMint} refreshKey={status.kind} />
@@ -338,16 +347,38 @@ export function Protect() {
             <Row label={`Close, ${nyTime(market.closeTs)} (${SOURCE[market.closeSource]})`} value={usd(market.close)} />
             {market.live !== null && <Row label={`Now (${SOURCE[market.liveSource]})`} value={usd(market.live)} />}
           </dl>
-          {record && (
-            <p className="mt-4 leading-relaxed text-muted">
-              Replayed on {record.nights.length} past {market.symbol} openings ({SOURCE[market.closeSource === "chainlink" ? "chainlink" : "pyth"]}), each priced only from the ones before it, this protection paid back{" "}
-              <span className="num text-text">{Math.round(record.paidPerDollar * 100)}¢</span> per $1 of premium and paid out on{" "}
-              {record.paidNights} of them.
-            </p>
-          )}
+          {record && <Replay record={record} symbol={market.symbol} shares={shares} oracle={SOURCE[market.closeSource === "chainlink" ? "chainlink" : "pyth"]} />}
         </div>
       </aside>
     </div>
+  );
+}
+
+/**
+ * This protection replayed on the stock's past openings: the night it paid most, and that it
+ * costs more than it pays back on average, like insurance, with the rest staying with the pool.
+ */
+function Replay({ record, symbol, shares, oracle }: { record: BacktestResult; symbol: string; shares: number; oracle: string }) {
+  const best = record.nights.reduce<BacktestNight | null>((b, n) => (n.paid > (b?.paid ?? 0) ? n : b), null);
+  return (
+    <p className="mt-4 leading-relaxed text-muted">
+      Replayed on {record.nights.length} past {symbol} openings ({oracle}), each priced only from the ones before it, this protection{" "}
+      {best ? (
+        <>
+          paid out on {record.paidNights === 1 ? "one" : record.paidNights} of them
+          {record.paidNights > 1 ? ", most" : ""} on {dayLabel(best.to)}, when {symbol} opened {pct(1 - best.open / best.close, 1)} below the close:{" "}
+          <span className="num text-text">{usd(best.paid * shares)}</span> back for <span className="num text-text">{usd(best.premium * shares)}</span>.
+        </>
+      ) : (
+        <>never paid out.</>
+      )}{" "}
+      Across all of them it paid back <span className="num text-text">{Math.round(record.paidPerDollar * 100)}¢</span> per $1 of premium. Like
+      insurance, it costs more than it pays back on average; what it doesn&apos;t pay back stays in the pool, with the{" "}
+      <Link className="underline hover:text-text" href="/vault">
+        underwriters
+      </Link>{" "}
+      who carry the risk.
+    </p>
   );
 }
 
@@ -355,7 +386,7 @@ function Slider(props: { label: string; value: number; min: number; max: number;
   return (
     <label className="block">
       <span className="text-sm text-muted">{props.label}</span>
-      <div className="mt-1.5 flex items-baseline justify-between">
+      <div className="mt-1.5 flex flex-wrap items-baseline justify-between gap-x-2">
         <span className="num text-lg">{pct(props.value, 1)} below</span>
         {props.price !== undefined && <span className="num text-sm text-muted">{usd(props.price)}</span>}
       </div>
