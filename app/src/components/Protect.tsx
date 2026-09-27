@@ -11,6 +11,7 @@ import { priceQuote } from "@root/quoter/quoter";
 import { fetchHoldings, fetchMarket, requestEvmQuote, requestQuote, toMarket, type Chain, type MarketResponse, type PriceSource } from "@/lib/api";
 import { buyProtection, NotEnoughTestUsd } from "@/lib/buy";
 import { buyOnRobinhood, evmTxUrl, NeedsGas, useEvmWallet } from "@/lib/evm";
+import { nextEvent } from "@/lib/events";
 import { countdown, dayLabel, explorer, nyTime, pct, usd } from "@/lib/format";
 
 import { PayoffChart } from "./PayoffChart";
@@ -285,6 +286,7 @@ export function Protect() {
           <h2 className="text-lg font-medium">Protect {market.symbol} until {nyTime(openTs)}</h2>
           <span className="num text-sm text-muted">opens in {countdown(openTs - now)}</span>
         </div>
+        <EventNote symbol={market.symbol} now={now} openTs={openTs} />
 
         <div className="mt-5 grid gap-5 sm:grid-cols-[8rem_1fr_1fr]">
           <label className="block">
@@ -355,6 +357,28 @@ export function Protect() {
         </div>
       </aside>
     </div>
+  );
+}
+
+/** A scheduled event on this stock: covered by this protection, or by protection on sale from the open before it. */
+function EventNote({ symbol, now, openTs }: { symbol: string; now: number; openTs: number }) {
+  const e = nextEvent(symbol, now);
+  if (!e) return null;
+  return (
+    <p className="mt-3 rounded-lg border border-brass/40 bg-brass-soft px-3 py-2 text-sm leading-relaxed">
+      {e.openTs === openTs ? (
+        <>
+          <span className="text-brass">This covers {e.title}.</span> <span className="text-muted">{e.detail}</span>
+        </>
+      ) : (
+        <>
+          <span className="text-brass">
+            {e.title}: expected before the {nyTime(e.openTs)} open.
+          </span>{" "}
+          <span className="text-muted">Protection until that open goes on sale at the open before it. {e.detail}</span>
+        </>
+      )}
+    </p>
   );
 }
 
