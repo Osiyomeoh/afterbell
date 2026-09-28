@@ -15,6 +15,7 @@ const body = [
   `export const afterbellVaultAbi = ${JSON.stringify(abi("AfterbellVault.sol", "AfterbellVault"), null, 2)} as const;`,
   `export const afterbellPositionsAbi = ${JSON.stringify(abi("AfterbellPositions.sol", "AfterbellPositions"), null, 2)} as const;`,
   `export const testUsdAbi = ${JSON.stringify(abi("TestUSD.sol", "TestUSD"), null, 2)} as const;`,
+  `export const afterbellRenewerAbi = ${JSON.stringify(abi("AfterbellRenewer.sol", "AfterbellRenewer"), null, 2)} as const;`,
   "",
 ].join("\n\n");
 writeFileSync(join(import.meta.dirname, "..", "client", "abi.ts"), body);

@@ -78,5 +78,7 @@ export async function deployLocalVault(chain: Chain, client: PublicClient, rpc: 
   await call("roll");
   await call("deposit", [100_000_000_000n, me, me]);
   const positions = await client.readContract({ address: vault, abi: afterbellVaultAbi, functionName: "positionToken" });
-  return { chainId: chain.id, rpc, vault, positions, testUsd: usd, owner: me, quoter, feeds: { TSLA: feed } };
+  // "Protect every night", beside the vault as script/DeployRenewer.s.sol deploys it.
+  const renewer = await deploy(artifact("AfterbellRenewer.sol", "AfterbellRenewer"), [vault]);
+  return { chainId: chain.id, rpc, vault, positions, testUsd: usd, owner: me, quoter, renewer, feeds: { TSLA: feed } };
 }

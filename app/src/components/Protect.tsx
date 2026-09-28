@@ -10,9 +10,10 @@ import { priceQuote } from "@root/quoter/quoter";
 
 import { fetchHoldings, fetchMarket, requestEvmQuote, requestQuote, toMarket, type Chain, type MarketResponse, type PriceSource } from "@/lib/api";
 import { buyProtection, NotEnoughTestUsd } from "@/lib/buy";
-import { buyOnRobinhood, evmTxUrl, NeedsGas, useEvmWallet } from "@/lib/evm";
+import { buyOnRobinhood, evmTxUrl, NeedsGas, protectEveryNight, useEvmWallet } from "@/lib/evm";
 import { nextEvent } from "@/lib/events";
 import { countdown, dayLabel, explorer, MAX_MULTIPLE, nyTime, pct, usd } from "@/lib/format";
+import { CAP_OVER_TONIGHT, NIGHT_OPTIONS, standingOrder } from "@/lib/everyNight";
 import { sharePath } from "@/lib/share";
 import { TestWalletName } from "@/lib/testWallet";
 import { useSendTransaction } from "@/lib/send";
@@ -33,7 +34,15 @@ const BASIS: Record<string, string> = {
 type Status =
   | { kind: "idle" }
   | { kind: "busy"; step: string }
-  | { kind: "done"; premium: number; openTs: number; url: string | null; nft?: { number: string; art: string; share: string } }
+  | {
+      kind: "done";
+      premium: number;
+      openTs: number;
+      url: string | null;
+      nft?: { number: string; art: string; share: string };
+      /** Protect every night: until when and at most what, or why the standing order wasn't set. */
+      renews?: { until: number; cap: number } | { error: string };
+    }
   | { kind: "error"; message: string; needsFunds?: boolean };
 
 const CHAINS: { id: Chain; label: string }[] = [
@@ -77,6 +86,8 @@ export function Protect() {
   const [start, setStart] = useState(0.02);
   const [depth, setDepth] = useState(0.1);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
+  // Protect every night (Robinhood Chain): the nights to renew for, or null for tonight only.
+  const [everyNight, setEveryNight] = useState<number | null>(null);
   const [chain, setChain] = useState<Chain>("solana");
   const [symbol, setSymbol] = useState("TSLA");
   const evm = useEvmWallet();
@@ -197,7 +208,18 @@ export function Protect() {
       setStatus({ kind: "busy", step: "Getting a signed quote" });
       const q = await requestEvmQuote({ symbol, buyer, ...protection });
       const { id, hash } = await buyOnRobinhood(buyer, d, q, (step) => setStatus({ kind: "busy", step }));
-      setStatus({ kind: "done", premium: q.priced.premium, openTs: q.priced.openTs, url: evmTxUrl(d, hash), nft: { number: id.toString(), art: `/api/position-art/${id}`, share: sharePath("robinhood", id.toString()) } });
+      const done = { kind: "done", premium: q.priced.premium, openTs: q.priced.openTs, url: evmTxUrl(d, hash), nft: { number: id.toString(), art: `/api/position-art/${id}`, share: sharePath("robinhood", id.toString()) } } as const;
+      const feed = d.feeds[symbol];
+      if (everyNight === null || !d.renewer || !feed) return setStatus(done);
+      // Tonight is bought; a standing order that fails to set leaves it bought, and says why.
+      try {
+        const { order, allowance } = standingOrder({ shares: protection.shares, start, depth, premium: q.priced.premium, openTs: q.priced.openTs, nights: everyNight });
+        await protectEveryNight(buyer, { ...d, renewer: d.renewer }, feed, order, allowance, (step) => setStatus({ kind: "busy", step }));
+        setStatus({ ...done, renews: { until: Number(order.until), cap: Number(order.maxPremium) / 1e6 } });
+      } catch (e) {
+        const err = e as Error & { shortMessage?: string };
+        setStatus({ ...done, renews: { error: err.shortMessage ?? err.message } });
+      }
     } catch (e) {
       const err = e as Error & { shortMessage?: string };
       setStatus({ kind: "error", message: err.shortMessage ?? err.message, needsFunds: e instanceof NeedsGas });
@@ -285,6 +307,9 @@ export function Protect() {
         <Row label="Priced from" value={priced ? usd(priced.reference.price) : "—"} />
       </dl>
       {priced && <p className="mt-1 text-right text-xs text-faint">{BASIS[priced.reference.basis]}</p>}
+      {chain === "robinhood" && market.robinhood?.renewer && priced && (
+        <EveryNight nights={everyNight} onChange={setEveryNight} cap={priced.premium * CAP_OVER_TONIGHT} />
+      )}
       <button
         onClick={buy}
         disabled={!!blocked || status.kind === "busy"}
@@ -335,6 +360,13 @@ export function Protect() {
           <img src={status.nft.art} alt={`Your protection, NFT #${status.nft.number}`} className="rounded-lg border border-line" />
           <span className="mt-1 block text-xs text-muted">NFT #{status.nft.number}: whoever holds it is paid</span>
         </a>
+      )}
+      {status.kind === "done" && status.renews && (
+        <p className={`mt-2 text-sm ${"error" in status.renews ? "text-loss" : "text-gain"}`}>
+          {"error" in status.renews
+            ? `Tonight is bought, but the standing order wasn't set: ${status.renews.error}`
+            : `It renews every night until ${nyTime(status.renews.until)}, at most ${usd(status.renews.cap)} a night. Stop it any time from My protection.`}
+        </p>
       )}
       {status.kind === "done" && status.nft && (
         <Link href={status.nft.share} className="mt-2 inline-block text-sm text-brass hover:underline">
@@ -592,6 +624,39 @@ function Slider(props: { label: string; value: number; min: number; max: number;
         className="mt-2 w-full"
       />
     </label>
+  );
+}
+
+/** Protect every night: renew tonight's protection each night, within a nightly cap, for the nights chosen. */
+function EveryNight({ nights, onChange, cap }: { nights: number | null; onChange: (n: number | null) => void; cap: number }) {
+  return (
+    <div className="mt-4 rounded-lg border border-line p-3 text-sm">
+      <label className="flex items-start gap-2">
+        <input type="checkbox" className="mt-1" checked={nights !== null} onChange={(e) => onChange(e.target.checked ? NIGHT_OPTIONS[1] : null)} />
+        <span>
+          Protect every night
+          {nights !== null && (
+            <>
+              {" "}
+              for{" "}
+              <select className="rounded border border-line bg-ink px-1" value={nights} onChange={(e) => onChange(Number(e.target.value))} aria-label="Nights">
+                {NIGHT_OPTIONS.map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>{" "}
+              nights
+            </>
+          )}
+          , at most <span className="num">{usd(cap)}</span> a night
+        </span>
+      </label>
+      <p className="mt-1 pl-6 text-xs leading-relaxed text-faint">
+        After each open a keeper buys the next night&apos;s protection at the quote service&apos;s price, never above the cap, and it arrives in your
+        wallet like tonight&apos;s. Stop it any time from My protection.
+      </p>
+    </div>
   );
 }
 

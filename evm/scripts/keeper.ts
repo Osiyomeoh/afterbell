@@ -10,6 +10,10 @@
  * RPC_URL      defaults to the deployment's RPC
  * DEPLOYMENTS  defaults to evm/deployments/robinhood.json
  * KEEPER_PRIVATE_KEY pays gas (any funded account); read from the environment, never stored
+ * AFTERBELL_URL  where to get renewals' quotes; defaults to the hosted app
+ *
+ * Once the deployment names a renewer, each run also renews every standing
+ * order ("protect every night") for the next open, within its limits.
  */
 import { readFileSync } from "node:fs";
 
@@ -17,7 +21,9 @@ import { createPublicClient, createWalletClient, http, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
 import { robinhoodChain, type EvmDeployment } from "../client/vault";
+import { AfterbellClient } from "../../sdk/client";
 import { planEvmKeeper, runEvmKeeper, type EvmPlan } from "../keeper/keeper";
+import { renewOrders, type RenewalPlan } from "../keeper/renew";
 
 const iso = (secs: number) => new Date(secs * 1000).toISOString().replace(".000Z", "Z");
 const amount = (units: bigint) => (Number(units) / 1e6).toFixed(2);
@@ -41,25 +47,36 @@ function printPlan({ now, series, rollBlocked }: EvmPlan) {
   console.log("\nplan only: nothing was sent");
 }
 
+function printRenewals(plans: RenewalPlan[]) {
+  if (plans.length === 0) return;
+  console.log("\nRENEWALS");
+  for (const p of plans) {
+    const price = p.premium === undefined ? "" : ` at $${p.premium.toFixed(2)}${p.openTs ? ` for ${iso(p.openTs)}` : ""}`;
+    console.log(`  ${p.symbol} for ${p.order.holder}${price}: ${p.decision.action === "renew" ? "renew" : `skip, ${p.decision.reason}`}`);
+  }
+}
+
 async function main() {
   const d = JSON.parse(readFileSync(process.env.DEPLOYMENTS ?? "evm/deployments/robinhood.json", "utf8")) as EvmDeployment;
   const rpc = process.env.RPC_URL ?? d.rpc;
   const chain = { ...robinhoodChain, id: d.chainId };
   const client = createPublicClient({ chain, transport: http(rpc) });
+  const api = new AfterbellClient(process.env.AFTERBELL_URL ?? "https://afterbell-nine.vercel.app");
   if (process.argv.includes("--plan")) {
-    return printPlan(await planEvmKeeper({ client, deployment: d }));
+    printPlan(await planEvmKeeper({ client, deployment: d }));
+    return printRenewals(await renewOrders({ client, deployment: d, api }));
   }
   const key = process.env.KEEPER_PRIVATE_KEY;
   if (!key) throw new Error("set KEEPER_PRIVATE_KEY");
-  const report = await runEvmKeeper({
-    client,
-    wallet: createWalletClient({ chain, transport: http(rpc), account: privateKeyToAccount(key as Hex) }),
-    deployment: d,
-    log: (line) => console.log(line),
-  });
+  const wallet = createWalletClient({ chain, transport: http(rpc), account: privateKeyToAccount(key as Hex) });
+  const report = await runEvmKeeper({ client, wallet, deployment: d, log: (line) => console.log(line) });
   for (const w of report.waiting) console.log(`waiting ${w.feed} ${w.openTs}: ${w.reason}`);
   if (report.tips > 0n) console.log(`tips earned ${amount(report.tips)}`);
-  if (report.settled.length + report.voided.length + report.paid.length === 0 && !report.rolled) console.log("nothing to do");
+  // Renewals buy the next open, so they come after this run has settled, paid and rolled.
+  const renewals = await renewOrders({ client, deployment: d, api, wallet, log: (line) => console.log(line) });
+  const renewed = renewals.filter((r) => r.decision.action === "renew").length;
+  for (const r of renewals) if (r.decision.action === "skip") console.log(`renewal skipped, ${r.symbol} for ${r.order.holder}: ${r.decision.reason}`);
+  if (report.settled.length + report.voided.length + report.paid.length === 0 && !report.rolled && renewed === 0) console.log("nothing to do");
 }
 
 main().then(

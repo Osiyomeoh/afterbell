@@ -46,6 +46,8 @@ export type EvmDeployment = {
   testUsd: Address;
   owner: Address;
   quoter: Address;
+  /** The renewer ("protect every night") beside the vault, once it's deployed. */
+  renewer?: Address;
   /** Chainlink feed per stock symbol; Robinhood Chain sells only the stocks listed. */
   feeds: { TSLA: Address } & Partial<Record<string, Address>>;
 };
