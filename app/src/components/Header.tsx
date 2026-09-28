@@ -38,7 +38,7 @@ export function Header() {
   const path = usePathname();
   return (
     <header className="border-b border-line">
-      <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-6 gap-y-3 px-4 py-4 sm:px-6">
+      <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-6 gap-y-3 px-4 py-4 sm:px-6 2xl:max-w-[88rem]">
         <Link href="/" className="flex items-center gap-2 text-lg font-semibold tracking-tight">
           <Bell />
           Afterbell

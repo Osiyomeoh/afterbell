@@ -28,7 +28,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-screen font-sans">
         <Providers>
           <Header />
-          <main className="mx-auto w-full max-w-7xl px-4 pb-24 sm:px-6">{children}</main>
+          <main className="mx-auto w-full max-w-7xl px-4 pb-24 sm:px-6 2xl:max-w-[88rem]">{children}</main>
           <Footer />
         </Providers>
       </body>

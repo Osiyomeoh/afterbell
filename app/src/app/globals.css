@@ -66,3 +66,21 @@ input[type="range"] {
   background-repeat: no-repeat;
   background-attachment: local, local, scroll, scroll;
 }
+
+/* Big monitors: every size here is in rem, so a larger root font scales the whole page up, and it
+   fills more of the screen and stays readable instead of sitting small in the middle. */
+@media (min-width: 1920px) {
+  html {
+    font-size: 17px;
+  }
+}
+@media (min-width: 2400px) {
+  html {
+    font-size: 19px;
+  }
+}
+@media (min-width: 3200px) {
+  html {
+    font-size: 23px;
+  }
+}
