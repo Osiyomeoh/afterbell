@@ -1,6 +1,6 @@
 # Protect every night: a design
 
-Status, 28 September: **built on Robinhood Chain, not deployed yet**: `evm/src/AfterbellRenewer.sol` with Foundry tests (unit and fuzz), the client (`evm/client/renewer.ts`), the keeper's renewal step (`evm/keeper/renew.ts`, run by `npm run evm:keeper`), the checkout option and the list on My protection, and a standing-order round in `npm run evm:cycle`. Deploying it takes `script/DeployRenewer.s.sol` and the address in `evm/deployments/robinhood.json`. **Solana is still a design**: the program upgrade needs about 4 SOL of buffer rent.
+Status, 28 September: **live on Robinhood Chain mainnet** (renewer `0x710Df188d43F6778E84C83025ee589c292544627`): `evm/src/AfterbellRenewer.sol` with Foundry tests (unit and fuzz), the client (`evm/client/renewer.ts`), the keeper's renewal step (`evm/keeper/renew.ts`, run by `npm run evm:keeper`), the checkout option and the list on My protection, and a standing-order round in `npm run evm:cycle`. It was deployed with `script/DeployRenewer.s.sol`, and its address is in `evm/deployments/robinhood.json`. **Solana is still a design**: the program upgrade needs about 4 SOL of buffer rent.
 
 ## What the holder gets
 
