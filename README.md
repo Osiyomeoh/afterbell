@@ -21,7 +21,7 @@ Built for Colosseum's Crypto World's Fair (September to October 2026). Design: [
 
 **Next:** run the keeper on devnet after Monday 28 September's open to settle and claim the first series, then switch the app to the new Solana vault. Deploy the EVM vault to Robinhood Chain mainnet; the app's Robinhood flow is ready for it. Host the app: the production build runs locally, and the steps and settings are in [docs/hosting.md](docs/hosting.md).
 
-**Written, not trading yet:** the Hyperliquid hedger ([below](#hedge-on-hyperliquid)). It sizes a short in Hyperliquid's `xyz:TSLA` to what the protection the vaults have sold (both Solana vaults, and Robinhood Chain's once it's deployed) stands to pay per $1 fall, from the model that prices it, rebalances overnight and buys it back at the open. Its plan mode reads the live vaults and Hyperliquid and prints the order it would send, and the Vault page shows the same. Sending is written and tested against Hyperliquid's documented answers but hasn't traded: it runs on Hyperliquid testnet once its accounts exist.
+**Trading on Hyperliquid testnet since 28 Sep:** the hedger ([below](#hedge-on-hyperliquid)). It sizes a short in Hyperliquid's `xyz:TSLA` to what the protection the vaults have sold (both Solana vaults, and Robinhood Chain's once it's deployed) stands to pay per $1 fall, from the model that prices it, rebalances overnight and buys it back at the open. Its plan mode reads the live vaults and Hyperliquid and prints the order it would send, and the Vault page shows the same. On 28 Sep it opened its first short on HyperCore testnet, 2.72 TSLA at $370.47 against the six positions open for that day's open, filling against our own quoting account (testnet has no other TSLA liquidity); details below.
 
 **Planned:** dates and the cut line are in the design doc.
 
@@ -202,7 +202,7 @@ It's pure: the caller passes the time, market data and keys, so the tests pin ev
 
 ## Hedge on Hyperliquid
 
-Written and tested; **it hasn't traded yet.** Plan and results: [docs/hedger.md](docs/hedger.md).
+**Trading on Hyperliquid testnet since 28 Sep.** A quoting account rests a bid and an ask in `xyz:TSLA` at mainnet's mid (testnet has no other TSLA liquidity), and at 11:57 UTC the hedger opened its first short, 2.72 TSLA at $370.47 (order 61278380787), the delta of the six positions open for that day's open, at isolated 3×, matched against the quoting account's bid. It buys the short back one second after the open. Plan and results: [docs/hedger.md](docs/hedger.md).
 
 [`hedger/`](hedger) holds a short in Hyperliquid's `xyz:TSLA` perp equal to the vaults' delta: how much more the open protection pays for each $1 TSLA falls, from the same openings model the quoter prices with. Protection sold raises it, a fall toward the strikes raises it further, and at the open those positions stop counting and the short is bought back. It reads every open position in both Solana vaults, and in Robinhood Chain's once its deployment file exists; that read is checked on a local chain by `npm run evm:cycle`.
 
