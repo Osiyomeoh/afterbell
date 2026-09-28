@@ -34,6 +34,10 @@ export function TrackRecord() {
   const finished = ledger?.filter((s) => s.state !== "open") ?? [];
   const totals = finished.reduce((t, s) => ({ premiums: t.premiums + s.premiums, paid: t.paid + s.paid }), { premiums: 0, paid: 0 });
   const nights = replay ? [...replay.nights].reverse() : [];
+  const kept =
+    totals.premiums >= totals.paid
+      ? `Settled series: the vaults kept ${usd(totals.premiums - totals.paid)}`
+      : `Settled series: buyers got ${usd(totals.paid - totals.premiums)} more than they paid`;
 
   return (
     <div className="space-y-12">
@@ -48,47 +52,71 @@ export function TrackRecord() {
           ) : !ledger ? (
             <p className="p-5 text-sm text-muted">Reading the vaults…</p>
           ) : (
-            <table className="w-full text-sm whitespace-nowrap">
-              <thead className="text-left text-muted">
-                <tr className="border-b border-line">
-                  <th className="px-4 py-3 font-normal">Open</th>
-                  <th className="px-4 py-3 font-normal">Stock</th>
-                  <th className="px-4 py-3 font-normal">Chain</th>
-                  <th className="px-4 py-3 font-normal">Settled on</th>
-                  <th className="px-4 py-3 text-right font-normal">Sales</th>
-                  <th className="px-4 py-3 text-right font-normal">Premiums</th>
-                  <th className="px-4 py-3 text-right font-normal">Paid out</th>
-                </tr>
-              </thead>
-              <tbody>
+            <>
+              {/* Phones: a card per series, what it settled on first; the columns didn't fit. */}
+              <ul className="divide-y divide-line sm:hidden">
                 {ledger.map((s) => (
-                  <tr key={s.series} className="border-b border-line last:border-0">
-                    <td className="px-4 py-3 whitespace-nowrap">{nyTime(s.openTs)}</td>
-                    <td className="px-4 py-3">{s.symbol}</td>
-                    <td className="px-4 py-3 whitespace-nowrap">{CHAIN[s.chain]}</td>
-                    <td className="px-4 py-3">
+                  <li key={s.series} className="px-4 py-3.5">
+                    <div className="flex items-baseline justify-between gap-3">
+                      <span className="font-medium">
+                        {s.symbol}, {nyTime(s.openTs)}
+                      </span>
+                      <span className="shrink-0 text-xs text-faint">{CHAIN[s.chain]}</span>
+                    </div>
+                    <div className="mt-1 text-sm">
                       <Settlement s={s} />
-                    </td>
-                    <td className="num px-4 py-3 text-right">{s.sales}</td>
-                    <td className="num px-4 py-3 text-right">{usd(s.premiums)}</td>
-                    <td className="num px-4 py-3 text-right">{s.state === "open" ? "—" : usd(s.paid)}</td>
-                  </tr>
+                    </div>
+                    <div className="num mt-1 text-xs text-muted">
+                      {s.sales} sold · {usd(s.premiums)} in · {s.state === "open" ? "pays at the bell" : `${usd(s.paid)} paid`}
+                    </div>
+                  </li>
                 ))}
-              </tbody>
-              {finished.length > 0 && (
-                <tfoot>
-                  <tr className="border-t border-line text-muted">
-                    <td className="px-4 py-3" colSpan={5}>
-                      {totals.premiums >= totals.paid
-                        ? `Settled series: the vaults kept ${usd(totals.premiums - totals.paid)}`
-                        : `Settled series: buyers got ${usd(totals.paid - totals.premiums)} more than they paid`}
-                    </td>
-                    <td className="num px-4 py-3 text-right">{usd(totals.premiums)}</td>
-                    <td className="num px-4 py-3 text-right">{usd(totals.paid)}</td>
+                {finished.length > 0 && (
+                  <li className="num px-4 py-3 text-xs text-muted">
+                    {kept} ({usd(totals.premiums)} in, {usd(totals.paid)} paid)
+                  </li>
+                )}
+              </ul>
+              <table className="hidden w-full text-sm whitespace-nowrap sm:table">
+                <thead className="text-left text-muted">
+                  <tr className="border-b border-line">
+                    <th className="px-4 py-3 font-normal">Open</th>
+                    <th className="px-4 py-3 font-normal">Stock</th>
+                    <th className="px-4 py-3 font-normal">Chain</th>
+                    <th className="px-4 py-3 font-normal">Settled on</th>
+                    <th className="px-4 py-3 text-right font-normal">Sales</th>
+                    <th className="px-4 py-3 text-right font-normal">Premiums</th>
+                    <th className="px-4 py-3 text-right font-normal">Paid out</th>
                   </tr>
-                </tfoot>
-              )}
-            </table>
+                </thead>
+                <tbody>
+                  {ledger.map((s) => (
+                    <tr key={s.series} className="border-b border-line last:border-0">
+                      <td className="px-4 py-3 whitespace-nowrap">{nyTime(s.openTs)}</td>
+                      <td className="px-4 py-3">{s.symbol}</td>
+                      <td className="px-4 py-3 whitespace-nowrap">{CHAIN[s.chain]}</td>
+                      <td className="px-4 py-3">
+                        <Settlement s={s} />
+                      </td>
+                      <td className="num px-4 py-3 text-right">{s.sales}</td>
+                      <td className="num px-4 py-3 text-right">{usd(s.premiums)}</td>
+                      <td className="num px-4 py-3 text-right">{s.state === "open" ? "—" : usd(s.paid)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                {finished.length > 0 && (
+                  <tfoot>
+                    <tr className="border-t border-line text-muted">
+                      <td className="px-4 py-3" colSpan={5}>
+                        {kept}
+                      </td>
+                      <td className="num px-4 py-3 text-right">{usd(totals.premiums)}</td>
+                      <td className="num px-4 py-3 text-right">{usd(totals.paid)}</td>
+                    </tr>
+                  </tfoot>
+                )}
+              </table>
+            </>
           )}
           {ledger && ledger.length === 0 && <p className="px-4 py-3 text-sm text-muted">Nothing sold yet.</p>}
           {ledger && ledger.length > 0 && finished.length === 0 && (
