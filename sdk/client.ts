@@ -35,6 +35,21 @@ export class AfterbellError extends Error {
 
 const round2 = (v: number) => Math.round(v * 100) / 100;
 
+/** Where protection starts and stops, as fractions below the price: each between 0 and 1. */
+export function checkLevels(start: number, depth: number): void {
+  if (!(start > 0 && start < 1 && depth > 0 && depth < 1)) throw new RangeError("start and depth are fractions of the price, between 0 and 1");
+}
+
+/**
+ * Strikes for protection starting `start` below `price` and stopping `depth`
+ * below it (0.02 and 0.10 for 2% to 10%), as the app sets them: in cents,
+ * and stopping at least a point below where it starts.
+ */
+export function strikesBelow(price: number, shares: number, start: number, depth: number): Protection {
+  checkLevels(start, depth);
+  return { shares, upper: round2(price * (1 - start)), lower: round2(price * (1 - Math.max(depth, start + 0.01))) };
+}
+
 export class AfterbellClient {
   /** `baseUrl`: where the app is served, e.g. https://afterbell-nine.vercel.app. */
   constructor(
@@ -67,11 +82,8 @@ export class AfterbellClient {
    * them. Fails while trading in the stock is paused.
    */
   async protectionBelow(symbol: string, shares: number, start: number, depth: number): Promise<Protection> {
-    if (!(start > 0 && start < 1 && depth > 0 && depth < 1)) throw new RangeError("start and depth are fractions of the price, between 0 and 1");
-    const m = await this.market(symbol);
-    if (!m.reference) throw new AfterbellError(`${symbol} can't be priced now${m.paused ? `: ${m.paused}` : ""}`, 409);
-    const p = m.reference.price;
-    return { shares, upper: round2(p * (1 - start)), lower: round2(p * (1 - Math.max(depth, start + 0.01))) };
+    checkLevels(start, depth);
+    return strikesBelow(referencePrice(await this.market(symbol)), shares, start, depth);
   }
 
   positions = (owner: string) => this.call<{ positions: PositionInfo[] }>(`/api/positions?owner=${encodeURIComponent(owner)}`).then((r) => r.positions);
@@ -96,6 +108,12 @@ export class AfterbellClient {
   };
   /** Devnet only: 1,000 TestUSD and a little SOL for a wallet that's short of them. */
   faucet = (owner: string) => this.post<DripResult>("/api/faucet", { owner });
+}
+
+/** The price a stock's protection is quoted from, or why it can't be now. */
+export function referencePrice(m: MarketInfo): number {
+  if (!m.reference) throw new AfterbellError(`${m.symbol} can't be priced now${m.paused ? `: ${m.paused}` : ""}`, 409);
+  return m.reference.price;
 }
 
 /** The quoter's Market from the API's JSON, to price locally exactly as the service does. */

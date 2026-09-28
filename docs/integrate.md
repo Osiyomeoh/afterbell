@@ -59,7 +59,22 @@ const report = await afterbell.gapReport({ book: "TSLA:100,NVDA:$25000", start: 
 // report.totals: the book's value, tonight's premium, what it pays at most, and every stock's worst night at once.
 ```
 
-The same report is `GET /api/gap-report?book=TSLA:100,NVDA:$25000` and the MCP tool `gap_report`. Each line's protection is a quote like any other.
+The same report is `GET /api/gap-report?book=TSLA:100,NVDA:$25000` and the MCP tool `gap_report`.
+
+To buy it, `quoteBook` quotes every line for one buyer. A dollar line is sized at the stock's price, and a line that can't be sold says why rather than failing the rest:
+
+```ts
+import { quoteBook, robinhoodPurchase } from "./sdk";
+
+const book = await quoteBook(afterbell, { chain: "robinhood", book: "TSLA:100,NVDA:$25000", buyer: walletClient.account.address, start: 0.02, depth: 0.1 });
+console.log(`$${book.premium.toFixed(2)} protects the book for up to $${book.maxPayout.toFixed(2)}`);
+for (const line of book.lines) {
+  if ("error" in line) console.warn(`${line.symbol}: ${line.error}`);
+  else await robinhoodPurchase(walletClient, publicClient, line.quote);
+}
+```
+
+The quotes are signed for the wallet that buys (a treasury or keeper account; `buyWithPermit` takes the premium from the caller), and each lasts about a minute, so buy right after quoting. Robinhood Chain sells all 34 stocks; Solana sells TSLA.
 
 ## For agents
 
