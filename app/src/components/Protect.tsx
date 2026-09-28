@@ -14,6 +14,7 @@ import { buyOnRobinhood, evmTxUrl, NeedsGas, useEvmWallet } from "@/lib/evm";
 import { nextEvent } from "@/lib/events";
 import { countdown, dayLabel, explorer, MAX_MULTIPLE, nyTime, pct, usd } from "@/lib/format";
 import { sharePath } from "@/lib/share";
+import { TestWalletName } from "@/lib/testWallet";
 import { useSendTransaction } from "@/lib/send";
 
 import { Board } from "./Board";
@@ -111,7 +112,8 @@ export function Protect() {
     const t = setTimeout(() => setWalletsSettled(true), 1200);
     return () => clearTimeout(t);
   }, []);
-  const noSolanaWallet = walletsSettled && !wallets.some((w) => w.readyState === "Installed" || w.readyState === "Loadable");
+  // No wallet of the person's own: the test wallet is always there, so it doesn't count.
+  const noSolanaWallet = walletsSettled && !wallets.some((w) => w.adapter.name !== TestWalletName && (w.readyState === "Installed" || w.readyState === "Loadable"));
   const { setVisible } = useWalletModal();
   const [holdings, setHoldings] = useState<{ symbol: string; shares: number }[]>([]);
 
@@ -594,18 +596,23 @@ function Slider(props: { label: string; value: number; min: number; max: number;
 }
 
 /**
- * No Solana wallet in this browser: say so before the wallet list does, point
- * to one, and on a phone (where browsers can't hold one) open the page inside
- * a wallet's own browser.
+ * No Solana wallet in this browser: offer the test wallet, which works at
+ * once, then point to a real one, and on a phone (where browsers can't hold
+ * one) open the page inside a wallet's own browser.
  */
 function NoWallet() {
+  const { select } = useWallet();
   const here = typeof window === "undefined" ? "" : window.location.href;
   const origin = typeof window === "undefined" ? "" : window.location.origin;
   const inWallet = (base: string) => `${base}/${encodeURIComponent(here)}?ref=${encodeURIComponent(origin)}`;
   return (
     <div className="mt-3 rounded-lg border border-line p-3 text-sm text-muted">
-      <p>
-        No Solana wallet in this browser. Install{" "}
+      <p>No Solana wallet in this browser? Try it with a test wallet kept here: it gets test money as it connects, and buys in one click.</p>
+      <button type="button" onClick={() => select(TestWalletName)} className="mt-2 w-full rounded-lg bg-brass px-3 py-2 font-medium text-ink hover:opacity-90">
+        Use a test wallet
+      </button>
+      <p className="mt-3">
+        Or install{" "}
         <a className="text-text underline" href="https://phantom.com/download" target="_blank" rel="noreferrer">
           Phantom
         </a>{" "}

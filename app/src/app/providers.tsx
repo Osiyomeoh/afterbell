@@ -3,13 +3,16 @@
 import { ConnectionProvider, useWallet, WalletProvider } from "@solana/wallet-adapter-react";
 import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
 import { clusterApiUrl } from "@solana/web3.js";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import "@solana/wallet-adapter-react-ui/styles.css";
+
+import { TestWalletAdapter } from "@/lib/testWallet";
 
 const endpoint = process.env.NEXT_PUBLIC_SOLANA_RPC || clusterApiUrl("devnet");
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState<string | null>(null);
+  const wallets = useMemo(() => [new TestWalletAdapter()], []);
   // A wallet that fails (to connect, or to sign) would otherwise do nothing visible. An uninstalled
   // one isn't an error here: the adapter opens its install page instead.
   const onError = useCallback((e: Error) => {
@@ -30,8 +33,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <ConnectionProvider endpoint={endpoint}>
-      {/* Wallets that implement the Wallet Standard (Phantom, Solflare, Backpack) register themselves. */}
-      <WalletProvider wallets={[]} autoConnect onError={onError}>
+      {/* Wallets that implement the Wallet Standard (Phantom, Solflare, Backpack) register themselves; the test wallet is ours. */}
+      <WalletProvider wallets={wallets} autoConnect onError={onError}>
         <WalletModalProvider>
           {children}
           <ConnectingHint />
