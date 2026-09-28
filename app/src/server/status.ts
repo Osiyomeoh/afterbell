@@ -2,6 +2,8 @@ import { Connection, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import type { Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
+import { DEFAULT_BAND } from "@root/hedger/target";
+
 import { explorer, nyTime } from "@/lib/format";
 import { keeper, type Check, type CheckState } from "@/lib/status";
 
@@ -37,7 +39,7 @@ export async function statusReport(now = Math.floor(Date.now() / 1000)): Promise
       if (!s) return { state: "warn", detail: "The Robinhood Chain vault isn't deployed here." };
       return keeper((await s).ledger, now, EVM_GRACE_SECS);
     }),
-    run("Hedge on Hyperliquid", hedge),
+    run("Hedge on Hyperliquid", () => hedge(now)),
     run("Quotes on Solana", async () => solanaQuotes()),
     run("Quotes on Robinhood Chain", async () => evmQuotes()),
     run("Test-money faucet", faucet),
@@ -61,15 +63,20 @@ function readError(e: unknown): string {
   return `Couldn't read it: ${first.length > 160 ? `${first.slice(0, 160)}…` : first}`;
 }
 
-async function hedge(): Promise<Omit<Check, "name">> {
+/** The hedger runs every 5 minutes, so a gap it traded on this recently is being closed. */
+const REBALANCE_GRACE_SECS = 10 * 60;
+
+async function hedge(now: number): Promise<Omit<Check, "name">> {
   const h = await hedgeSummary();
   if (!h.account) return { state: "warn", detail: "No hedge account is set, so the hedge isn't running." };
   const held = h.account.position?.short ?? 0;
   const off = Math.abs(held - h.target);
   const lastTrade = h.activity?.fills[0]?.time;
   const traded = lastTrade ? ` Last trade ${nyTime(lastTrade)}.` : "";
-  // The hedger rebalances every 5 minutes inside a dead band, so a small gap is normal.
-  const state: CheckState = off <= Math.max(0.05, h.target * 0.25) ? "ok" : "warn";
+  // Inside the hedger's own dead band it doesn't trade; outside it, it should have traded lately.
+  const band = Math.max(DEFAULT_BAND.minShares, DEFAULT_BAND.minNotional / h.mid);
+  const rebalancing = lastTrade !== undefined && now - lastTrade < REBALANCE_GRACE_SECS;
+  const state: CheckState = off <= band || rebalancing ? "ok" : "warn";
   return { state, detail: `Short ${held.toFixed(3)} ${h.symbol} against a target of ${h.target.toFixed(3)} on ${h.network}.${traded}` };
 }
 

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { cache } from "react";
 
 import { ShareButtons } from "@/components/ShareButtons";
 import { nyTime, usd } from "@/lib/format";
@@ -11,9 +12,11 @@ export const dynamic = "force-dynamic";
 
 type Props = { params: Promise<{ chain: string; id: string }> };
 
+// The metadata and the page read the same position; once per request is enough.
+const view = cache((chain: string, id: string) => shareView(chain, id).catch(() => null));
 const read = async (params: Props["params"]) => {
   const { chain, id } = await params;
-  return shareView(chain, id).catch(() => null);
+  return view(chain, id);
 };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {

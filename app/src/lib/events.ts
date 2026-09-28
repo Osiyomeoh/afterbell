@@ -48,3 +48,32 @@ export function openBefore(openTs: number, holidays: ReadonlySet<string> = new S
   }
   return before;
 }
+
+/** Where an event's open stands for protection, from when its sales open until it settles. */
+export type EventPhase =
+  | { phase: "before-sales"; salesOpen: number }
+  /** Sales time has come, but the vault is still settling the open before (the quote service quotes the next open only once it has). */
+  | { phase: "waiting" }
+  | { phase: "on-sale"; salesClose: number }
+  | { phase: "sales-closed" }
+  | { phase: "bell-rung" }
+  | { phase: "settled"; price: number };
+
+/**
+ * The phase at `now`. `nextOpen` is the open the quote service is selling
+ * protection for; `stopBeforeOpenSecs` how long before an open its sales stop.
+ */
+export function eventPhase(
+  e: MarketEvent,
+  now: number,
+  m: { nextOpen: number; holidays: ReadonlySet<string>; stopBeforeOpenSecs: number },
+  settledPrice: number | null,
+): EventPhase {
+  if (settledPrice !== null) return { phase: "settled", price: settledPrice };
+  if (now >= e.openTs) return { phase: "bell-rung" };
+  const salesClose = e.openTs - m.stopBeforeOpenSecs;
+  if (now >= salesClose) return { phase: "sales-closed" };
+  const salesOpen = openBefore(e.openTs, m.holidays);
+  if (now < salesOpen) return { phase: "before-sales", salesOpen };
+  return m.nextOpen === e.openTs ? { phase: "on-sale", salesClose } : { phase: "waiting" };
+}
