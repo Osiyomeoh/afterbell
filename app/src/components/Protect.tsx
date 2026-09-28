@@ -559,7 +559,7 @@ function EventNote({ symbol, now, openTs }: { symbol: string; now: number; openT
       ) : (
         <>
           <span className="text-brass">
-            {e.title}: expected before the {nyTime(e.openTs)} open.
+            {e.title.charAt(0).toUpperCase() + e.title.slice(1)}: expected before the {nyTime(e.openTs)} open.
           </span>{" "}
           <span className="text-muted">Protection until that open goes on sale at the open before it. {e.detail}</span>
         </>

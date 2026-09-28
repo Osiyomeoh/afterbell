@@ -23,6 +23,13 @@ export const EVENTS: MarketEvent[] = [
     detail:
       "Tesla's second-quarter report came out at about 09:05 ET on 2 July, before the open; if this one does the same, Friday's opening price carries the number.",
   },
+  ...(["SPY", "QQQ"] as const).map((symbol) => ({
+    symbol,
+    // Friday 2 October 2026, 09:30 EDT. The BLS schedule puts September's Employment Situation at 08:30 ET that day.
+    openTs: Date.parse("2026-10-02T13:30:00Z") / 1000,
+    title: "the September jobs report",
+    detail: "The Bureau of Labor Statistics publishes it at 08:30 ET on Friday 2 October, an hour before the open, so Friday's opening price carries it.",
+  })),
 ];
 
 /** The next event on `symbol` whose open hasn't come yet. */

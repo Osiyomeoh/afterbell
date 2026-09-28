@@ -18,6 +18,9 @@ describe("market events", () => {
     expect(currentEvent("TSLA", at("2026-10-04T12:00:00Z"))?.openTs).toBe(FRI);
     expect(currentEvent("TSLA", at("2026-10-05T14:00:00Z"))).toBeUndefined();
     expect(currentEvent("NVDA", at("2026-09-28T17:00:00Z"))).toBeUndefined();
+    // The jobs report lands before the same open, for the index funds.
+    expect(currentEvent("SPY", at("2026-09-28T17:00:00Z"))?.title).toBe("the September jobs report");
+    expect(currentEvent("QQQ", at("2026-09-28T17:00:00Z"))?.openTs).toBe(FRI);
   });
 
   it("says where the event's open stands at every point from its sales to its settlement", () => {
