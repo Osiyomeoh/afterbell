@@ -1,0 +1,41 @@
+{
+  "vault": "89oR2SqBFhrZ3sAUN9j6YrS95FpJvxJVAER87DN4dbeW",
+  "through": "ixBx3wCQEpVhaL7zDiVJzSSg3iFLbfWEQPwfo13yQWXUdmmWiK6KETvt9dhHenRXam1oZhHKMoNf8JUgGaawWM6",
+  "bought": {
+    "FbHqjoFAkjzG93ruPyGDW4JPM2iAdnBwhL2kFHLZtNqx": {
+      "series": "9F8XobFpvczYeMRiMbRgC5CWQBebfiNghhPxxLN1Qriu",
+      "premium": "874887",
+      "maxPayout": "30230000"
+    },
+    "C5K5kcFf2UFWxmK7tPDua13rPsPjGPXnXsZuHTJ7qExp": {
+      "series": "9F8XobFpvczYeMRiMbRgC5CWQBebfiNghhPxxLN1Qriu",
+      "premium": "2227060",
+      "maxPayout": "30230000"
+    },
+    "F48eYPEt5nvoBfnrVoj5xtDegxSHMwqXPPfWUG8SUxfX": {
+      "series": "9F8XobFpvczYeMRiMbRgC5CWQBebfiNghhPxxLN1Qriu",
+      "premium": "2579142",
+      "maxPayout": "89160000"
+    },
+    "9jkpNWswkTNh43FrvSGvYzn3qkqDD7uRyLVZMzSww9AY": {
+      "series": "9F8XobFpvczYeMRiMbRgC5CWQBebfiNghhPxxLN1Qriu",
+      "premium": "1721059",
+      "maxPayout": "59520000"
+    },
+    "4qRaLrfngJu42mBNsWhvWVzXwK2VdnNvJTD5cWqS4WuH": {
+      "series": "9F8XobFpvczYeMRiMbRgC5CWQBebfiNghhPxxLN1Qriu",
+      "premium": "860530",
+      "maxPayout": "29760000"
+    }
+  },
+  "paid": {
+    "4qRaLrfngJu42mBNsWhvWVzXwK2VdnNvJTD5cWqS4WuH": "0",
+    "9jkpNWswkTNh43FrvSGvYzn3qkqDD7uRyLVZMzSww9AY": "0",
+    "C5K5kcFf2UFWxmK7tPDua13rPsPjGPXnXsZuHTJ7qExp": "2229930",
+    "F48eYPEt5nvoBfnrVoj5xtDegxSHMwqXPPfWUG8SUxfX": "0",
+    "FbHqjoFAkjzG93ruPyGDW4JPM2iAdnBwhL2kFHLZtNqx": "2229930"
+  },
+  "settleTx": {
+    "9F8XobFpvczYeMRiMbRgC5CWQBebfiNghhPxxLN1Qriu": "4rpRVBwaPmazsYr7JMohagVKqG8m1KTF5oPig9H2ELvg3EXMxX5MmVryWckuAggYUe2iDs5dd9P2YANMFHBLJKLN"
+  }
+}

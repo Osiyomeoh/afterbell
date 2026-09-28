@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
+import type { V1LedgerJson } from "@root/solana/client/v1";
 import devnet from "@root/solana/deployments/devnet.json";
 
 /** A Solana vault's addresses, as solana/scripts/setup.ts records them. */
@@ -39,3 +40,13 @@ export const SOLANA_DEPLOYMENT: SolanaV2Deployment | null = isV2(current) ? curr
  * devnet.json. next.config traces solana/deployments into the record route.
  */
 export const SOLANA_V1_DEPLOYMENT: SolanaDeployment | null = read(join(process.cwd(), "..", "solana", "deployments", "devnet-v1.json"));
+
+/**
+ * Vault v1's ledger as its events had it when last recorded
+ * (solana/scripts/v1-ledger.ts), so the record route starts from it rather
+ * than reading every v1 transaction again.
+ */
+const v1LedgerFile = join(process.cwd(), "..", "solana", "deployments", "devnet-v1-ledger.json");
+export const SOLANA_V1_LEDGER: V1LedgerJson | null = existsSync(/* turbopackIgnore: true */ v1LedgerFile)
+  ? (JSON.parse(readFileSync(/* turbopackIgnore: true */ v1LedgerFile, "utf8")) as V1LedgerJson)
+  : null;

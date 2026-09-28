@@ -2,11 +2,10 @@ import { Connection, PublicKey } from "@solana/web3.js";
 
 import { stockByFeedId } from "@root/quoter/stocks";
 import * as v1 from "@root/solana/client/v1";
-import { getProgram, parseVaultEvents } from "@root/solana/client/vault";
 import type { SeriesState } from "@root/solana/keeper/plan";
 
-import { readOnly, RPC, solanaVaultState } from "./chain";
-import { SOLANA_V1_DEPLOYMENT, type SolanaDeployment } from "./deployment";
+import { readOnly, RPC, rpcFor, solanaVaultState } from "./chain";
+import { SOLANA_V1_DEPLOYMENT, SOLANA_V1_LEDGER, type SolanaDeployment } from "./deployment";
 
 /** Every series a vault has sold, with what it took in and what it paid out. */
 export type LedgerRow = {
@@ -29,21 +28,33 @@ export type LedgerRow = {
 
 const TTL_MS = 60_000;
 let cache: { at: number; rows: Promise<LedgerRow[]> } | null = null;
+let lastGood: LedgerRow[] | null = null;
 
-/** The Solana ledger: vault v2's, and vault v1's before it, once retired. */
+/**
+ * The Solana ledger: vault v2's, and vault v1's before it, once retired. A
+ * refresh that fails (the public RPC rate-limits) serves the last one read.
+ */
 export function solanaLedger(): Promise<LedgerRow[]> {
   if (!cache || Date.now() - cache.at > TTL_MS) {
-    const rows = Promise.all([v2Ledger(), SOLANA_V1_DEPLOYMENT ? v1Ledger(SOLANA_V1_DEPLOYMENT) : []]).then(([a, b]) => [...a, ...b]);
+    const rows = Promise.all([v2Ledger(), SOLANA_V1_DEPLOYMENT ? v1Ledger(SOLANA_V1_DEPLOYMENT) : []]).then(
+      ([a, b]) => (lastGood = [...a, ...b]),
+      (e: unknown) => {
+        // With nothing to show, let the next request try again; otherwise wait out the TTL.
+        if (lastGood) return lastGood;
+        cache = null;
+        throw e;
+      },
+    );
     cache = { at: Date.now(), rows };
-    rows.catch(() => (cache = null));
   }
   return cache.rows;
 }
 
 /**
- * A vault's transactions since the last read, oldest first, fetched a few at
- * a time so the public RPC doesn't rate-limit us. `cursor` keeps the newest
- * signature read.
+ * A vault's transactions since the last read, oldest first, one at a time.
+ * Devnet's public RPC answers only about ten getTransaction calls at a time
+ * (28 Sep), so this is for the few new ones: v1's ledger starts from its
+ * recorded file. `cursor` keeps the newest signature read.
  */
 async function newTransactions(connection: Connection, vault: PublicKey, cursor: { newest?: string }) {
   const fresh: string[] = [];
@@ -55,63 +66,65 @@ async function newTransactions(connection: Connection, vault: PublicKey, cursor:
   }
   const ordered = [...fresh].reverse();
   const txs: { sig: string; logs: string[] }[] = [];
-  for (let i = 0; i < ordered.length; i += 4) {
-    const batch = ordered.slice(i, i + 4);
-    const read = batch.map((sig) =>
-      connection.getTransaction(sig, { maxSupportedTransactionVersion: 0, commitment: "confirmed" }).then((tx) => ({ sig, logs: tx?.meta?.logMessages ?? [] })),
-    );
-    txs.push(...(await Promise.all(read)));
+  for (const sig of ordered) {
+    const tx = await connection.getTransaction(sig, { maxSupportedTransactionVersion: 0, commitment: "confirmed" });
+    txs.push({ sig, logs: tx?.meta?.logMessages ?? [] });
   }
   if (fresh[0]) cursor.newest = fresh[0];
   return txs;
 }
 
-/** Vault v2's settle transactions, read from its events as they come. */
-const v2Settles = { cursor: {} as { newest?: string }, tx: new Map<string, string>() };
+/** Vault v2's settle transactions, found once each. */
+const v2SettleTx = new Map<string, string>();
+
+/**
+ * The transaction that settled a series: the first to touch it at or after its
+ * open, since buying stops at the open and paying out needs the settlement.
+ * One call per series, rather than reading the vault's transactions.
+ */
+async function settleTxOf(connection: Connection, series: string, openTs: number): Promise<string | null> {
+  const sigs = await connection.getSignaturesForAddress(new PublicKey(series), { limit: 1000 });
+  const after = sigs.filter((s) => !s.err && s.blockTime != null && s.blockTime >= openTs);
+  return after.length ? after[after.length - 1]!.signature : null;
+}
 
 async function v2Ledger(): Promise<LedgerRow[]> {
   const state = solanaVaultState();
   if (!state) return [];
   const s = await state;
-  // Read only while a settled series' transaction is still unknown.
-  if (s.ledger.some((r) => r.state === "settled" && !v2Settles.tx.has(r.series))) {
+  const unknown = s.ledger.filter((r) => r.state === "settled" && !v2SettleTx.has(r.series));
+  if (unknown.length) {
     const connection = new Connection(RPC, "confirmed");
-    const program = getProgram(connection, readOnly);
-    for (const { sig, logs } of await newTransactions(connection, new PublicKey(s.vault), v2Settles.cursor)) {
-      for (const e of parseVaultEvents(program, logs)) if (e.name === "seriesSettled") v2Settles.tx.set(e.data.series.toBase58(), sig);
+    for (const r of unknown) {
+      // Only a link, so a failed read leaves it out (tried again next time) rather than failing the ledger.
+      const sig = await settleTxOf(connection, r.series, r.openTs).catch(() => null);
+      if (sig) v2SettleTx.set(r.series, sig);
     }
   }
-  return s.ledger.map((r) => ({ ...r, settleTx: v2Settles.tx.get(r.series) ?? null }));
+  return s.ledger.map((r) => ({ ...r, settleTx: v2SettleTx.get(r.series) ?? null }));
 }
 
 /**
  * Vault v1's ledger. A claimed v1 position is a closed account, so its sales
- * and payouts come from the program's events, read once each and accumulated,
- * and series state from the series accounts. Read from v1's own cluster.
+ * and payouts come from the program's events: those recorded in
+ * devnet-v1-ledger.json, then any newer ones, read once each and accumulated.
+ * Series state comes from the series accounts.
  */
-const v1Acc = {
-  cursor: {} as { newest?: string },
-  bought: new Map<string, { series: string; premium: bigint; maxPayout: bigint }>(),
-  paid: new Map<string, bigint>(),
-  settleTx: new Map<string, string>(),
-};
+const v1Acc = { cursor: {} as { newest?: string }, ledger: v1.emptyV1Ledger(), seeded: false };
 
 async function v1Ledger(d: SolanaDeployment): Promise<LedgerRow[]> {
-  const connection = new Connection(d.rpc, "confirmed");
+  const connection = new Connection(rpcFor(d), "confirmed");
   const program = v1.getProgram(connection, readOnly);
   const vault = new PublicKey(d.vault);
-  for (const { sig, logs } of await newTransactions(connection, vault, v1Acc.cursor)) {
-    for (const e of v1.parseVaultEvents(program, logs)) {
-      if (e.name === "protectionBought") {
-        const series = v1.seriesAddress(vault, Uint8Array.from(e.data.feedId), BigInt(e.data.openTs.toString())).toBase58();
-        v1Acc.bought.set(e.data.position.toBase58(), { series, premium: BigInt(e.data.premium.toString()), maxPayout: BigInt(e.data.maxPayout.toString()) });
-      } else if (e.name === "seriesSettled") {
-        v1Acc.settleTx.set(e.data.series.toBase58(), sig);
-      } else if (e.name === "claimed") {
-        v1Acc.paid.set(e.data.position.toBase58(), BigInt(e.data.amount.toString()));
-      }
+  if (!v1Acc.seeded) {
+    if (SOLANA_V1_LEDGER?.vault === d.vault) {
+      v1Acc.ledger = v1.v1LedgerFromJson(SOLANA_V1_LEDGER);
+      v1Acc.cursor.newest = SOLANA_V1_LEDGER.through;
     }
+    v1Acc.seeded = true;
   }
+  for (const { sig, logs } of await newTransactions(connection, vault, v1Acc.cursor)) v1.addV1Events(v1Acc.ledger, vault, sig, v1.parseVaultEvents(program, logs));
+  const { bought, paid: paidOut, settleTx } = v1Acc.ledger;
 
   const [v, series] = await Promise.all([program.account.vault.fetch(vault), program.account.series.all([{ memcmp: { offset: 8, bytes: vault.toBase58() } }])]);
   const unit = Number(v.collateralUnit.toString());
@@ -119,8 +132,8 @@ async function v1Ledger(d: SolanaDeployment): Promise<LedgerRow[]> {
     const address = publicKey.toBase58();
     const state = Object.keys(s.state)[0] as SeriesState;
     const feed = Buffer.from(s.feedId).toString("hex");
-    const sales = [...v1Acc.bought.entries()].filter(([, b]) => b.series === address);
-    const paid = sales.map(([position]) => v1Acc.paid.get(position)).filter((x) => x !== undefined);
+    const sales = [...bought.entries()].filter(([, b]) => b.series === address);
+    const paid = sales.map(([position]) => paidOut.get(position)).filter((x) => x !== undefined);
     return {
       chain: "solana",
       series: address,
@@ -129,7 +142,7 @@ async function v1Ledger(d: SolanaDeployment): Promise<LedgerRow[]> {
       state,
       price: state === "settled" ? Number(s.price.toString()) / 1e8 : null,
       priceTime: state === "settled" ? s.publishTime.toNumber() : null,
-      settleTx: v1Acc.settleTx.get(address) ?? null,
+      settleTx: settleTx.get(address) ?? null,
       sales: sales.length,
       premiums: sales.reduce((t, [, b]) => t + Number(b.premium), 0) / unit,
       maxPayouts: sales.reduce((t, [, b]) => t + Number(b.maxPayout), 0) / unit,

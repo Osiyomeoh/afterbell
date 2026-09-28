@@ -29,7 +29,7 @@ Secrets go in the host's dashboard, never in the repo. Every one is optional for
 | `MAINNET_RPC_URL` | if it holds a key | Solana mainnet RPC for "Protect what I hold" (TSLAx and TSLAon balances) | The public RPC, which rate-limits |
 | `QUOTER_EVM_KEY` | yes | The Robinhood Chain vault's quoter key, once that vault is deployed | Robinhood Chain quotes |
 | `SITE_URL` | no | The hosted address (`https://…`), **read at build time**, so link previews use the site's own image | Previews point at `http://localhost:3000` |
-| `NEXT_PUBLIC_SOLANA_RPC`, `SOLANA_RPC` | no | Solana RPC for the browser (read at build time) and the server | Devnet's public RPC, which rate-limits |
+| `NEXT_PUBLIC_SOLANA_RPC`, `SOLANA_RPC` | no | Solana RPC for the browser (read at build time) and the server; `SOLANA_RPC` also serves the first vault's reads, which are on the same cluster. A devnet RPC with its own key (Helius, say) is worth it on a shared host: the public one answers only about ten transaction reads at a time per address | Devnet's public RPC, which rate-limits |
 | `ROBINHOOD_RPC` | no | Robinhood Chain RPC for Chainlink's prices (every stock but TSLA and QQQ, and the Robinhood Chain tab) | The chain's public RPC |
 | `HEDGE_ACCOUNT`, `HYPERLIQUID_NETWORK`, `HEDGE_MAX_NOTIONAL` | no | The hedge panel: the hedge account's address (no key), testnet, the cap | "Not running yet" and the short the vaults call for |
 

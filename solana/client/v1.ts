@@ -155,3 +155,56 @@ export type VaultEvent =
 export function parseVaultEvents(program: Program<AfterbellVault>, logs: string[]): VaultEvent[] {
   return [...new anchor.EventParser(program.programId, program.coder).parseLogs(logs)] as VaultEvent[];
 }
+
+/**
+ * What v1's events say it sold, paid and settled. A claimed v1 position is a
+ * closed account, so its sale and payout survive only in these events.
+ */
+export type V1Ledger = {
+  /** The newest transaction read into it. */
+  through?: string;
+  bought: Map<string, { series: string; premium: bigint; maxPayout: bigint }>;
+  paid: Map<string, bigint>;
+  settleTx: Map<string, string>;
+};
+
+export const emptyV1Ledger = (): V1Ledger => ({ bought: new Map(), paid: new Map(), settleTx: new Map() });
+
+/** Adds one transaction's events, oldest transaction first. */
+export function addV1Events(ledger: V1Ledger, vault: PublicKey, sig: string, events: VaultEvent[]): void {
+  for (const e of events) {
+    if (e.name === "protectionBought") {
+      const series = seriesAddress(vault, Uint8Array.from(e.data.feedId), BigInt(e.data.openTs.toString())).toBase58();
+      ledger.bought.set(e.data.position.toBase58(), { series, premium: BigInt(e.data.premium.toString()), maxPayout: BigInt(e.data.maxPayout.toString()) });
+    } else if (e.name === "seriesSettled") {
+      ledger.settleTx.set(e.data.series.toBase58(), sig);
+    } else if (e.name === "claimed") {
+      ledger.paid.set(e.data.position.toBase58(), BigInt(e.data.amount.toString()));
+    }
+  }
+  ledger.through = sig;
+}
+
+/** The ledger as JSON (amounts in units, as strings), as solana/deployments/devnet-v1-ledger.json keeps it. */
+export type V1LedgerJson = {
+  vault: string;
+  through?: string;
+  bought: Record<string, { series: string; premium: string; maxPayout: string }>;
+  paid: Record<string, string>;
+  settleTx: Record<string, string>;
+};
+
+export const v1LedgerToJson = (vault: PublicKey, l: V1Ledger): V1LedgerJson => ({
+  vault: vault.toBase58(),
+  through: l.through,
+  bought: Object.fromEntries([...l.bought].map(([k, b]) => [k, { series: b.series, premium: b.premium.toString(), maxPayout: b.maxPayout.toString() }])),
+  paid: Object.fromEntries([...l.paid].map(([k, v]) => [k, v.toString()])),
+  settleTx: Object.fromEntries(l.settleTx),
+});
+
+export const v1LedgerFromJson = (j: V1LedgerJson): V1Ledger => ({
+  through: j.through,
+  bought: new Map(Object.entries(j.bought).map(([k, b]) => [k, { series: b.series, premium: BigInt(b.premium), maxPayout: BigInt(b.maxPayout) }])),
+  paid: new Map(Object.entries(j.paid).map(([k, v]) => [k, BigInt(v)])),
+  settleTx: new Map(Object.entries(j.settleTx)),
+});

@@ -9,7 +9,7 @@ import { solanaVault } from "@root/hedger/solana";
 import { readHedgeState, summarize, type HedgeSummary, type VaultSource } from "@root/hedger/state";
 import { TSLA } from "@root/quoter/stocks";
 
-import { RPC } from "./chain";
+import { RPC, rpcFor } from "./chain";
 import { SOLANA_DEPLOYMENT, SOLANA_V1_DEPLOYMENT } from "./deployment";
 import { evmDeployment } from "./evmDeployment";
 import { marketSnapshot } from "./market";
@@ -31,7 +31,7 @@ function settings(): { network: Network; address: `0x${string}` | null; maxNotio
 function vaults(): VaultSource[] {
   const out: VaultSource[] = [];
   if (SOLANA_DEPLOYMENT) out.push(solanaVault("the current vault", "v2", new Connection(RPC, "confirmed"), SOLANA_DEPLOYMENT));
-  if (SOLANA_V1_DEPLOYMENT) out.push(solanaVault("the first vault", "v1", new Connection(SOLANA_V1_DEPLOYMENT.rpc, "confirmed"), SOLANA_V1_DEPLOYMENT));
+  if (SOLANA_V1_DEPLOYMENT) out.push(solanaVault("the first vault", "v1", new Connection(rpcFor(SOLANA_V1_DEPLOYMENT), "confirmed"), SOLANA_V1_DEPLOYMENT));
   const evm = evmDeployment();
   if (evm) out.push(evmVault("the vault", createPublicClient({ chain: evmChain(evm), transport: http(evm.rpc) }), evm));
   return out;

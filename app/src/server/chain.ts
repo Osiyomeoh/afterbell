@@ -12,6 +12,12 @@ import type { LedgerRow } from "./ledger";
 
 export const RPC = process.env.SOLANA_RPC || process.env.NEXT_PUBLIC_SOLANA_RPC || "https://api.devnet.solana.com";
 
+/**
+ * The RPC for another vault's record (v1's): RPC when it's on the current
+ * vault's cluster, so SOLANA_RPC covers it too, else the one its record names.
+ */
+export const rpcFor = (d: { rpc: string }) => (SOLANA_DEPLOYMENT && d.rpc === SOLANA_DEPLOYMENT.rpc ? RPC : d.rpc);
+
 /** Reads only; nothing on the server signs with this wallet. */
 export const readOnly = {
   publicKey: PublicKey.default,

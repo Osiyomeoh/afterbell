@@ -2,6 +2,7 @@ import { Connection } from "@solana/web3.js";
 
 import { openSeries, readVault, type OpenSeries } from "@root/hedger/solana";
 
+import { rpcFor } from "./chain";
 import { SOLANA_V1_DEPLOYMENT } from "./deployment";
 
 /** Solana's first vault, which sells nothing new: each series it still has open, or why it couldn't be read. */
@@ -19,7 +20,7 @@ export function firstVault(): Promise<FirstVault> | null {
   const d = SOLANA_V1_DEPLOYMENT;
   if (!d) return null;
   if (!cache || Date.now() - cache.at > TTL_MS) {
-    const state = readVault(new Connection(d.rpc, "confirmed"), "v1", d).then(
+    const state = readVault(new Connection(rpcFor(d), "confirmed"), "v1", d).then(
       ({ series, positions }): FirstVault => ({ vault: d.vault, open: openSeries(series, positions) }),
       (e: Error): FirstVault => ({ vault: d.vault, error: e.message }),
     );
