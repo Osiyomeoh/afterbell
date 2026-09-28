@@ -14,7 +14,7 @@ const nextConfig: NextConfig = {
   // record once v2 replaces it (solana/deployments/devnet-v1.json), which the record, hedge, vault and status routes read.
   outputFileTracingIncludes: {
     ...Object.fromEntries(
-      ["/api/quote", "/api/market", "/api/positions", "/api/board", "/p/[chain]/[id]", "/p/[chain]/[id]/opengraph-image"].map((r) => [r, ["../evm/deployments/*.json"]]),
+      ["/api/quote", "/api/market", "/api/positions", "/api/board", "/api/gap-report", "/api/kamino", "/kamino", "/p/[chain]/[id]", "/p/[chain]/[id]/opengraph-image"].map((r) => [r, ["../evm/deployments/*.json"]]),
     ),
     ...Object.fromEntries(["/api/record", "/api/hedge", "/api/vault", "/api/status", "/status"].map((r) => [r, ["../evm/deployments/*.json", "../solana/deployments/*.json"]])),
   },

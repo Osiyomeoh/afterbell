@@ -1,11 +1,9 @@
 import { PublicKey } from "@solana/web3.js";
 
-import { gapReport, parseBook, type BookLine } from "@root/quoter/gapReport";
-import { DEFAULT_QUOTER_CONFIG, type Market } from "@root/quoter/quoter";
-import { stockBySymbol } from "@root/quoter/stocks";
+import { parseBook, type BookLine } from "@root/quoter/gapReport";
 
+import { bookReport } from "@/server/gapBook";
 import { tslaHoldings } from "@/server/holdings";
-import { marketSnapshot, pricedStock } from "@/server/market";
 
 export const dynamic = "force-dynamic";
 
@@ -51,28 +49,8 @@ export async function GET(req: Request) {
   const symbols = [...new Set(book.map((l) => l.symbol.toUpperCase()))];
   if (symbols.length > MAX_STOCKS) return Response.json({ error: `at most ${MAX_STOCKS} stocks` }, { status: 400 });
 
-  // Each stock's market as the quoter reads it; one that can't be read right now is reported, not fatal.
-  const unreadable: { symbol: string; reason: string }[] = [];
-  const markets = new Map<string, Market | null>(
-    await Promise.all(
-      symbols.map(async (symbol): Promise<[string, Market | null]> => {
-        const stock = pricedStock(symbol);
-        if (!stock) return [symbol, null];
-        try {
-          return [symbol, (await marketSnapshot(stock)).market];
-        } catch (e) {
-          unreadable.push({ symbol, reason: `couldn't read its price: ${(e as Error).message}` });
-          return [symbol, null];
-        }
-      }),
-    ),
-  );
-
   try {
-    const readable = book.filter((l) => !unreadable.some((u) => u.symbol === l.symbol.toUpperCase()));
-    const report = gapReport(Math.floor(Date.now() / 1000), readable, markets, { deductible: start / 100, depth: stop / 100 }, DEFAULT_QUOTER_CONFIG);
-    const names = Object.fromEntries(report.lines.map((l) => [l.symbol, stockBySymbol(l.symbol)?.name ?? l.symbol]));
-    return Response.json({ ...report, skipped: [...report.skipped, ...unreadable], names, wallet });
+    return Response.json({ ...(await bookReport(book, start, stop)), wallet });
   } catch (e) {
     return Response.json({ error: (e as Error).message }, { status: 400 });
   }

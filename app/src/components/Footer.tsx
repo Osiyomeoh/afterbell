@@ -32,6 +32,9 @@ export function Footer() {
           <Link className="whitespace-nowrap hover:text-text" href="/gap">
             Gap report
           </Link>
+          <Link className="whitespace-nowrap hover:text-text" href="/kamino">
+            Kamino report
+          </Link>
           <Link className="whitespace-nowrap hover:text-text" href="/status">
             Status
           </Link>

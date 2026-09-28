@@ -154,6 +154,13 @@ const paths = {
       responses: { 200: json({ type: "object" }), 400: refused, 503: refused },
     },
   },
+  "/api/kamino": {
+    get: {
+      summary: "Kamino's tokenized-stock collateral, and what protecting it until the next open costs",
+      description: "Read from Kamino's public API: the stocks its lending markets hold as collateral, what's borrowed against them, and a gap report on the ones the quote service prices.",
+      responses: { 200: json({ type: "object" }), 503: refused },
+    },
+  },
   "/api/overnight": { get: { summary: "The stock's price since the close, against its protection", parameters: [symbol], responses: { 200: json({ type: "object" }), 404: refused, 503: refused } } },
   "/api/hedge": { get: { summary: "The hedge on Hyperliquid: the short the open protection calls for, the short held, and its trades", responses: { 200: json({ type: "object" }), 503: refused } } },
   "/api/status": {
