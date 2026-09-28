@@ -19,7 +19,9 @@ Built for Colosseum's Crypto World's Fair (September to October 2026). Design: [
 - `agent/`: Afterbell as an MCP server, hosted (no keys) and local (the agent's own devnet wallet with a spending cap).
 - Tests: 292 TypeScript (including a check of every stock's Chainlink history, that TSLA's agrees with Pyth's, and the hedger's signatures against Hyperliquid's own SDKs), 74 Foundry (3 fuzz and 4 invariants), 5 fork tests of settlement against Chainlink's live TSLA feed, 23 Rust unit and 42 LiteSVM tests of the compiled Solana program (including randomized sequences). CI also runs Slither on the EVM contracts.
 
-**Next:** run the keeper on devnet after Monday 28 September's open to settle and claim the first series, then switch the app to the new Solana vault. Buy from the Robinhood Chain vault, deployed on mainnet on 28 Sep, and settle its first series. Host the app: the production build runs locally, and the steps and settings are in [docs/hosting.md](docs/hosting.md).
+**Settled on 28 Sep:** both Solana vaults' first series, on Pyth's opening print for TSLA, $368.09 (tables below). The app is hosted at [afterbell-nine.vercel.app](https://afterbell-nine.vercel.app) ([docs/hosting.md](docs/hosting.md)) and sells from the new Solana vault.
+
+**Next:** buy from the Robinhood Chain vault, deployed on mainnet on 28 Sep, and settle its first series.
 
 **Trading on Hyperliquid testnet since 28 Sep:** the hedger ([below](#hedge-on-hyperliquid)). It sizes a short in Hyperliquid's `xyz:TSLA` to what the protection the vaults have sold (both Solana vaults and Robinhood Chain's) stands to pay per $1 fall, from the model that prices it, rebalances overnight and buys it back at the open. Its plan mode reads the live vaults and Hyperliquid and prints the order it would send, and the Vault page shows the same. On 28 Sep it opened its first short on HyperCore testnet, 2.72 TSLA at $370.47 against the six positions open for that day's open, filling against our own quoting account (testnet has no other TSLA liquidity); details below.
 
@@ -147,6 +149,7 @@ The keeper ([`solana/keeper`](solana/keeper)) is permissionless. For each series
 | Quoter | `Ajy9Hwcc7FcTfoU9fJbHU4DRTzJDuubdQ3EDRAmMQ9hW` |
 | NFT art | `https://afterbell-nine.vercel.app/api/position-art/solana/` ([set by `3Q1HjS7o…`](https://explorer.solana.com/tx/3Q1HjS7ovp6YoYrJqE71gxZ4s6MwYuqqoitwycTophK9RV5NaPQCoeF6bWh8FXP6MrRVAfUz6f9vGSJXb8J1kcY5?cluster=devnet)) |
 | First purchase | [`42ohiVvW…`](https://explorer.solana.com/tx/42ohiVvWqYQConLnfnrcc1x8NwkGPNRzhpnroUQCJfvbsaCrjDq8qC1i59mj6sHnPRQaHqRwi4bjJstK58XwnyAs?cluster=devnet), from the hosted app with Phantom: position #1, 10 TSLA shares protected from $364.45 down to $334.70 until Monday 28 September's open, for 8.62 TestUSD; its NFT, [`7xLey7Ji…`](https://explorer.solana.com/address/7xLey7JigpSoSj1VSvrQYHXh1Um6cczfuTQEFdLbWSvd?cluster=devnet), is in the buyer's wallet and the vault locked its 297.50 TestUSD maximum |
+| First settlement | [`2si1hswT…`](https://explorer.solana.com/tx/2si1hswTJybyW289DmQ6y51mC9zhjh8z2fEupLUov1Y1HfLKErZruJfWZiLsoY6weqajzfW2TGWRtEar61Nw73DN?cluster=devnet) on 28 Sep, on Pyth's opening print, $368.09 (published 13:30:00 UTC); position #1's protection started at $364.45, so it paid nothing ([`AMSRG8cN…`](https://explorer.solana.com/tx/AMSRG8cNLEpX5DTRdroXaeARNW3LaACiZnyXjx2bYEGeQWGYBKMXHgyTK3Ho51PGYZs5UWwa67bgmcdWNX5VbhE?cluster=devnet) paid it out and rolled the pool into round 3). The pool kept the premium less the keeper's 0.17 tip: 100,008.45 TestUSD, a share worth 1.000084 |
 
 **The first version** (recorded in [`solana/deployments/devnet-v1.json`](solana/deployments/devnet-v1.json)). It sells the same protection and settles the same way, but its collateral is the authority's rather than a pool's, and a position is an account that a claim closes. The new version is a new program, so this one's positions and history stay readable.
 
@@ -157,6 +160,7 @@ The keeper ([`solana/keeper`](solana/keeper)) is permissionless. For each series
 | TestUSD (no value) | [`FDsn8wf4XTYf26vfLp1TNVnaJn2NGFV8tfzten1YajVi`](https://explorer.solana.com/address/FDsn8wf4XTYf26vfLp1TNVnaJn2NGFV8tfzten1YajVi?cluster=devnet) |
 | Quoter | `Ajy9Hwcc7FcTfoU9fJbHU4DRTzJDuubdQ3EDRAmMQ9hW` |
 | First purchase | [`4azwQAH3…`](https://explorer.solana.com/tx/4azwQAH3Az4h7omEkZRtXxiHzkpFP1WPoU4Pp1Um53ARvwiLopZWzYRgunkB5bU4CGztpXDyVvnVGi8YLBsjojvC?cluster=devnet): 1 TSLA share, protected from $370.32 down to $340.09 until Monday 28 September's open, for 0.87 TestUSD |
+| Settlement | [`4rpRVBwa…`](https://explorer.solana.com/tx/4rpRVBwaPmazsYr7JMohagVKqG8m1KTF5oPig9H2ELvg3EXMxX5MmVryWckuAggYUe2iDs5dd9P2YANMFHBLJKLN?cluster=devnet) on 28 Sep at $368.09, the same print. Of its five positions (8 shares, 8.26 TestUSD of premiums, paying at most 238.90), the two protected from $370.32 paid 2.23 each and the three starting lower paid nothing |
 
 ## App
 
@@ -212,7 +216,7 @@ It's pure: the caller passes the time, market data and keys, so the tests pin ev
 
 ## Hedge on Hyperliquid
 
-**Trading on Hyperliquid testnet since 28 Sep.** A quoting account rests a bid and an ask in `xyz:TSLA` at mainnet's mid (testnet has no other TSLA liquidity), and at 11:57 UTC the hedger opened its first short, 2.72 TSLA at $370.47 (order 61278380787), the delta of the six positions open for that day's open, at isolated 3×, matched against the quoting account's bid. It buys the short back one second after the open. Plan and results: [docs/hedger.md](docs/hedger.md).
+**Trading on Hyperliquid testnet since 28 Sep.** A quoting account rests a bid and an ask in `xyz:TSLA` at mainnet's mid (testnet has no other TSLA liquidity), and at 11:57 UTC the hedger opened its first short, 2.72 TSLA at $370.47 (order 61278380787), the delta of the six positions open for that day's open, at isolated 3×, matched against the quoting account's bid. It rebalanced every 5 minutes through the morning and, on its run one second after the open, bought the whole short back: 3.624 TSLA at $368.54 at 13:30:03 UTC, reduce-only. Plan and results: [docs/hedger.md](docs/hedger.md).
 
 [`hedger/`](hedger) holds a short in Hyperliquid's `xyz:TSLA` perp equal to the vaults' delta: how much more the open protection pays for each $1 TSLA falls, from the same openings model the quoter prices with. Protection sold raises it, a fall toward the strikes raises it further, and at the open those positions stop counting and the short is bought back. It reads every open position in both Solana vaults, and in Robinhood Chain's once its deployment file exists; that read is checked on a local chain by `npm run evm:cycle`.
 

@@ -1,6 +1,6 @@
 # Hosting the app
 
-Status, 27 Sep 2026: **not hosted yet.** The production build and `next start` were run locally from this branch with no keys set: every page and read-only route answered 200 (`/`, `/vault`, `/positions`, `/record`, `/actions.json`, `/api/market?symbol=TSLA`, `/api/hedge`, `/api/vault`, `/api/record`, `/mcp`, `/opengraph-image`), the slowest on a cold start being `/api/hedge` at 2.2 s. Quotes, the Blink's purchase and the faucet need the keys below.
+Status, 28 Sep 2026: **hosted on Vercel at [afterbell-nine.vercel.app](https://afterbell-nine.vercel.app)**, deployed from the `hedger` branch's committed files (`git archive` of HEAD, then `vercel deploy --prod`; the project isn't linked to GitHub, so a push doesn't deploy, and the dashboard's Redeploy rebuilds the last upload). The keys below are set in the project's settings by the user, never in the repo. Before that, the production build and `next start` answered 200 locally on every page and read-only route.
 
 ## What the host runs
 
