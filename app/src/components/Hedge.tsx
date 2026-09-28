@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { fetchHedge, type HedgeResponse } from "@/lib/api";
-import { nyTime, usd } from "@/lib/format";
+import { nyTime, signedUsd, usd } from "@/lib/format";
 
 import { Stat, Stats } from "./Stats";
 
@@ -121,7 +121,7 @@ function HedgeView({ h }: { h: HedgeResponse }) {
             on Hyperliquid {h.network}: {usd(h.account.accountValue)} {h.account.unified ? "of USDC in its unified balance" : "on the xyz market"}
             {p && (
               <>
-                , P&amp;L {usd(p.unrealizedPnl)}, {usd(p.marginUsed)} of margin, {p.leverage.type} {p.leverage.value}×
+                , P&amp;L {signedUsd(p.unrealizedPnl)}, {usd(p.marginUsed)} of margin, {p.leverage.type} {p.leverage.value}×
                 {p.liquidationPx !== null && <>, liquidated if TSLA reaches {usd(p.liquidationPx)}</>}
               </>
             )}
@@ -164,7 +164,7 @@ function Activity({ a }: { a: NonNullable<HedgeResponse["activity"]> }) {
                   <td className="num px-4 py-3 text-right">{shares(f.size)}</td>
                   <td className="num px-4 py-3 text-right">{usd(f.price)}</td>
                   <td className="num px-4 py-3 text-right">{usd(f.fee, 4)}</td>
-                  <td className="num px-4 py-3 text-right">{f.closedPnl === 0 ? "–" : usd(f.closedPnl)}</td>
+                  <td className="num px-4 py-3 text-right">{f.closedPnl === 0 ? "–" : signedUsd(f.closedPnl)}</td>
                 </tr>
               ))}
             </tbody>
@@ -174,7 +174,7 @@ function Activity({ a }: { a: NonNullable<HedgeResponse["activity"]> }) {
       <p className={`px-4 py-3 text-sm text-muted ${a.fills.length > 0 ? "border-t border-line" : ""}`}>
         {a.trades === 0
           ? "No trades yet."
-          : `${a.trades} trade${a.trades === 1 ? "" : "s"}${a.trades > a.fills.length ? `, the latest ${a.fills.length} above` : ""}: ${usd(a.fees, 4)} in fees, ${usd(a.closedPnl)} of closed P&L.`}{" "}
+          : `${a.trades} trade${a.trades === 1 ? "" : "s"}${a.trades > a.fills.length ? `, the latest ${a.fills.length} above` : ""}: ${usd(a.fees, 4)} in fees, ${signedUsd(a.closedPnl)} of closed P&L.`}{" "}
         {a.fundingPayments === 0
           ? "No funding yet."
           : `Funding ${a.funding >= 0 ? "received" : "paid"}: ${usd(Math.abs(a.funding), 4)} over ${a.fundingPayments} payment${a.fundingPayments === 1 ? "" : "s"}.`}

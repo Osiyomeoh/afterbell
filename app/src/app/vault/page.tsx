@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import { BookResult } from "@/components/BookResult";
 import { Hedge } from "@/components/Hedge";
 import { Vault } from "@/components/Vault";
 
@@ -16,6 +17,7 @@ export default function Page() {
           Anyone can settle it. On both chains the vault is also a pool anyone can underwrite, and each position is an NFT that pays whoever holds it.
         </p>
       </section>
+      <BookResult />
       <Vault />
       <Hedge />
     </>

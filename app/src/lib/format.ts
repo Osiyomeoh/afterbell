@@ -1,4 +1,9 @@
 export const usd = (v: number, digits = 2) => `$${v.toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits })}`;
+/** "+$5.21", "−$4.46", "$0.00": a result, signed, with the minus sign typeset. */
+export const signedUsd = (v: number, digits = 2) => {
+  const shown = usd(Math.abs(v), digits);
+  return shown === usd(0, digits) ? shown : `${v < 0 ? "−" : "+"}${shown}`;
+};
 export const pct = (v: number, digits = 1) => `${(v * 100).toFixed(digits)}%`;
 
 /** "Mon 28 Sep, 09:30 ET" */
