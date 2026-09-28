@@ -32,6 +32,9 @@ export function Footer() {
           <Link className="whitespace-nowrap hover:text-text" href="/gap">
             Gap report
           </Link>
+          <Link className="whitespace-nowrap hover:text-text" href="/status">
+            Status
+          </Link>
           {links.map((l) => (
             <a key={l.label} className="whitespace-nowrap hover:text-text" href={l.href} target="_blank" rel="noreferrer">
               {l.label}

@@ -1,0 +1,101 @@
+import { Connection, LAMPORTS_PER_SOL } from "@solana/web3.js";
+import type { Hex } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
+
+import { explorer, nyTime } from "@/lib/format";
+import { keeper, type Check, type CheckState } from "@/lib/status";
+
+import { RPC } from "./chain";
+import { SOLANA_DEPLOYMENT } from "./deployment";
+import { keypairFromEnv } from "./env";
+import { evmVaultState } from "./evmChain";
+import { evmDeployment } from "./evmDeployment";
+import { hedgeSummary } from "./hedge";
+import { solanaLedger } from "./ledger";
+
+export type { Check, CheckState };
+export type StatusReport = { now: number; checks: Check[] };
+
+/** How long after an open a series may wait for the keeper before it's flagged. */
+const SOLANA_GRACE_SECS = 20 * 60;
+// Robinhood Chain settles on the first Chainlink round after the open, which can take a while to come.
+const EVM_GRACE_SECS = 3 * 3600;
+/** The faucet's gift per new wallet, and what a transaction costs it. */
+const SOL_PER_WALLET = 0.02;
+const FAUCET_RESERVE = 0.005;
+
+/**
+ * What's running and whether it's keeping up: each vault's keeper, the
+ * hedge, the quote service on each chain and the faucet. Reads public state
+ * and the server's own settings; signs and sends nothing.
+ */
+export async function statusReport(now = Math.floor(Date.now() / 1000)): Promise<StatusReport> {
+  const checks = await Promise.all([
+    run("Solana keeper", () => solanaLedger().then((rows) => keeper(rows, now, SOLANA_GRACE_SECS))),
+    run("Robinhood Chain keeper", async () => {
+      const s = evmVaultState();
+      if (!s) return { state: "warn", detail: "The Robinhood Chain vault isn't deployed here." };
+      return keeper((await s).ledger, now, EVM_GRACE_SECS);
+    }),
+    run("Hedge on Hyperliquid", hedge),
+    run("Quotes on Solana", async () => solanaQuotes()),
+    run("Quotes on Robinhood Chain", async () => evmQuotes()),
+    run("Test-money faucet", faucet),
+  ]);
+  return { now, checks };
+}
+
+async function run(name: string, check: () => Promise<Omit<Check, "name">>): Promise<Check> {
+  try {
+    return { name, ...(await check()) };
+  } catch (e) {
+    return { name, state: "down", detail: readError(e) };
+  }
+}
+
+/** A failed read in a sentence: the public RPC's rate limit named plainly, anything else cut short. */
+function readError(e: unknown): string {
+  const message = e instanceof Error ? e.message : String(e);
+  if (message.includes("429")) return "Couldn't read it: the public RPC is limiting requests right now. Reload in a minute.";
+  const first = message.split("\n")[0]!;
+  return `Couldn't read it: ${first.length > 160 ? `${first.slice(0, 160)}…` : first}`;
+}
+
+async function hedge(): Promise<Omit<Check, "name">> {
+  const h = await hedgeSummary();
+  if (!h.account) return { state: "warn", detail: "No hedge account is set, so the hedge isn't running." };
+  const held = h.account.position?.short ?? 0;
+  const off = Math.abs(held - h.target);
+  const lastTrade = h.activity?.fills[0]?.time;
+  const traded = lastTrade ? ` Last trade ${nyTime(lastTrade)}.` : "";
+  // The hedger rebalances every 5 minutes inside a dead band, so a small gap is normal.
+  const state: CheckState = off <= Math.max(0.05, h.target * 0.25) ? "ok" : "warn";
+  return { state, detail: `Short ${held.toFixed(3)} ${h.symbol} against a target of ${h.target.toFixed(3)} on ${h.network}.${traded}` };
+}
+
+function solanaQuotes(): Omit<Check, "name"> {
+  const d = SOLANA_DEPLOYMENT;
+  if (!d) return { state: "down", detail: "No Solana vault is deployed here." };
+  const key = keypairFromEnv("QUOTER_SOLANA_KEY");
+  if (!key) return { state: "down", detail: "No quoter key is set, so nothing can be sold." };
+  if (key.publicKey.toBase58() !== d.quoter) return { state: "down", detail: "The quoter key set here isn't the vault's quoter." };
+  return { state: "ok", detail: `Signing for the vault's quoter ${d.quoter.slice(0, 4)}…${d.quoter.slice(-4)}.` };
+}
+
+function evmQuotes(): Omit<Check, "name"> {
+  const d = evmDeployment();
+  if (!d) return { state: "warn", detail: "The Robinhood Chain vault isn't deployed here." };
+  const key = process.env.QUOTER_EVM_KEY as Hex | undefined;
+  if (!key) return { state: "down", detail: "No quoter key is set, so nothing can be sold." };
+  if (privateKeyToAccount(key).address.toLowerCase() !== d.quoter.toLowerCase()) return { state: "down", detail: "The quoter key set here isn't the vault's quoter." };
+  return { state: "ok", detail: `Signing for the vault's quoter ${d.quoter.slice(0, 6)}…${d.quoter.slice(-4)}.` };
+}
+
+async function faucet(): Promise<Omit<Check, "name">> {
+  const key = keypairFromEnv("FAUCET_SOLANA_KEY");
+  if (!key) return { state: "down", detail: "No faucet key is set, so new wallets get no test money." };
+  const sol = (await new Connection(RPC, "confirmed").getBalance(key.publicKey)) / LAMPORTS_PER_SOL;
+  const wallets = Math.max(0, Math.floor((sol - FAUCET_RESERVE) / SOL_PER_WALLET));
+  const state: CheckState = wallets < 1 ? "down" : wallets < 25 ? "warn" : "ok";
+  return { state, detail: `${sol.toFixed(3)} devnet SOL: enough for about ${wallets} new wallet${wallets === 1 ? "" : "s"}.`, href: explorer("address", key.publicKey.toBase58()) };
+}
