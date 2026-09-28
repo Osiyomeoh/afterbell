@@ -7,8 +7,8 @@ export type SeriesState = "open" | "settled" | "voided";
 
 /** A series and the strikes it sold, which bound the price it can settle at. */
 export type SeriesView = { address: string; feedId: string; openTs: number; state: SeriesState; lowestLower: bigint; highestUpper: bigint };
-/** A position not yet paid out, and its NFT's mint (whoever holds it is paid). */
-export type PositionView = { address: string; series: string; mint: string };
+/** A position not yet paid out, its NFT's mint (whoever holds it is paid) and its buyer (who usually still does). */
+export type PositionView = { address: string; series: string; mint: string; buyer: string };
 export type VaultTiming = { settleWindowSecs: number; voidDelaySecs: number };
 
 export type Plan = {

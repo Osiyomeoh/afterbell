@@ -1,10 +1,12 @@
-import { PublicKey } from "@solana/web3.js";
+import { ACCOUNT_SIZE, AccountLayout, AccountState, getAssociatedTokenAddressSync, TOKEN_2022_PROGRAM_ID } from "@solana/spl-token";
+import { type AccountInfo, type Connection, PublicKey } from "@solana/web3.js";
 import { describe, expect, it } from "vitest";
 
 import idl from "./idl/afterbell_vault.json" with { type: "json" };
 import {
   feedConfigAddress,
   feedIdBytes,
+  holderOf,
   pendingRate,
   positionAddress,
   positionMintAddress,
@@ -92,5 +94,82 @@ describe("Solana vault client", () => {
     expect(feedIdBytes(TSLA_FEED_ID.slice(2))).toEqual(feedIdBytes(TSLA_FEED_ID));
     expect(feedIdBytes(TSLA_FEED_ID)[0]).toBe(0x16);
     expect(() => feedIdBytes("0x1234")).toThrow("32-byte feed id");
+  });
+
+  describe("holderOf", () => {
+    const mint = new PublicKey(new Uint8Array(32).fill(4));
+    const buyer = new PublicKey(new Uint8Array(32).fill(5));
+    const other = new PublicKey(new Uint8Array(32).fill(6));
+    const otherAccount = new PublicKey(new Uint8Array(32).fill(8));
+    const buyerAccount = getAssociatedTokenAddressSync(mint, buyer, true, TOKEN_2022_PROGRAM_ID);
+
+    const tokenAccount = (owner: PublicKey, amount: bigint): AccountInfo<Buffer> => {
+      const data = Buffer.alloc(ACCOUNT_SIZE);
+      AccountLayout.encode(
+        {
+          mint,
+          owner,
+          amount,
+          delegateOption: 0,
+          delegate: PublicKey.default,
+          state: AccountState.Initialized,
+          isNativeOption: 0,
+          isNative: 0n,
+          delegatedAmount: 0n,
+          closeAuthorityOption: 0,
+          closeAuthority: PublicKey.default,
+        },
+        data,
+      );
+      return { data, owner: TOKEN_2022_PROGRAM_ID, lamports: 1, executable: false, rentEpoch: 0 };
+    };
+
+    /** A cluster holding `accounts`, whose largest-accounts answer is `largest`, counting those calls. */
+    const cluster = (accounts: Map<string, AccountInfo<Buffer>>, largest: { address: PublicKey; amount: string }[] | Error) => {
+      const calls = { largest: 0 };
+      const connection = {
+        getAccountInfo: async (a: PublicKey) => accounts.get(a.toBase58()) ?? null,
+        getTokenLargestAccounts: async () => {
+          calls.largest++;
+          if (largest instanceof Error) throw largest;
+          return { context: { slot: 1 }, value: largest.map((l) => ({ ...l, decimals: 0, uiAmount: Number(l.amount), uiAmountString: l.amount })) };
+        },
+      } as unknown as Connection;
+      return { connection, calls };
+    };
+    const refused = new Error("429 Too Many Requests");
+
+    it("finds the NFT in the buyer's own account without asking for the mint's largest accounts", async () => {
+      const { connection, calls } = cluster(new Map([[buyerAccount.toBase58(), tokenAccount(buyer, 1n)]]), refused);
+      const holder = await holderOf(connection, mint, buyer);
+      expect(holder?.owner.toBase58()).toBe(buyer.toBase58());
+      expect(holder?.account.toBase58()).toBe(buyerAccount.toBase58());
+      expect(calls.largest).toBe(0);
+    });
+
+    it("looks further when the buyer has passed the NFT on", async () => {
+      const accounts = new Map([
+        [buyerAccount.toBase58(), tokenAccount(buyer, 0n)],
+        [otherAccount.toBase58(), tokenAccount(other, 1n)],
+      ]);
+      const { connection } = cluster(accounts, [{ address: otherAccount, amount: "1" }]);
+      const holder = await holderOf(connection, mint, buyer);
+      expect(holder?.owner.toBase58()).toBe(other.toBase58());
+      expect(holder?.account.toBase58()).toBe(otherAccount.toBase58());
+    });
+
+    it("says nobody holds a burned NFT", async () => {
+      const { connection } = cluster(new Map(), [{ address: otherAccount, amount: "0" }]);
+      expect(await holderOf(connection, mint, buyer)).toBeNull();
+    });
+
+    it("fails, rather than looking elsewhere, when the buyer's account can't be read", async () => {
+      const { connection, calls } = cluster(new Map(), []);
+      connection.getAccountInfo = async () => {
+        throw refused;
+      };
+      await expect(holderOf(connection, mint, buyer)).rejects.toThrow("429");
+      expect(calls.largest).toBe(0);
+    });
   });
 });
