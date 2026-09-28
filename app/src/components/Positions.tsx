@@ -11,6 +11,7 @@ import { fetchMarket, fetchPositions, type MarketResponse, type PositionRow } fr
 import { claimPosition } from "@/lib/claim";
 import { claimOnRobinhood, evmTxUrl, useEvmWallet } from "@/lib/evm";
 import { explorer, nyTime, usd } from "@/lib/format";
+import { sharePath, type ShareView } from "@/lib/share";
 import { useSendTransaction } from "@/lib/send";
 
 type Claimed = { key: string; url: string | null };
@@ -97,7 +98,7 @@ function SolanaPositions({ vault, nextOpen }: { vault: { vault: string; collater
       setClaiming(null);
     }
   }
-  return <PositionsTable rows={rows} error={error} claiming={claiming} claimed={claimed} onClaim={claim} />;
+  return <PositionsTable chain="solana" rows={rows} error={error} claiming={claiming} claimed={claimed} onClaim={claim} />;
 }
 
 function RobinhoodPositions({ d }: { d: NonNullable<MarketResponse["robinhood"]> }) {
@@ -135,10 +136,12 @@ function RobinhoodPositions({ d }: { d: NonNullable<MarketResponse["robinhood"]>
       setClaiming(null);
     }
   }
-  return <PositionsTable rows={rows} error={error} claiming={claiming} claimed={claimed} onClaim={claim} />;
+  return <PositionsTable chain="robinhood" rows={rows} error={error} claiming={claiming} claimed={claimed} onClaim={claim} />;
 }
 
-function PositionsTable(props: { rows: PositionRow[] | null; error: string | null; claiming: string | null; claimed: Claimed[]; onClaim: (p: PositionRow) => void }) {
+function PositionsTable(props: {
+  chain: ShareView["chain"];
+  rows: PositionRow[] | null; error: string | null; claiming: string | null; claimed: Claimed[]; onClaim: (p: PositionRow) => void }) {
   const { error, claiming, claimed, onClaim } = props;
   // The server's read is cached for a few seconds, so drop what was just claimed here.
   const rows = props.rows?.filter((p) => !claimed.some((c) => c.key === p.address)) ?? null;
@@ -180,6 +183,9 @@ function PositionsTable(props: { rows: PositionRow[] | null; error: string | nul
                 ) : (
                   p.symbol
                 )}
+                <Link href={sharePath(props.chain, p.address)} className="mt-1 block text-xs text-muted underline hover:text-text">
+                  Share
+                </Link>
               </td>
               <td className="px-4 py-3">{nyTime(p.openTs)}</td>
               <td className="num px-4 py-3">{p.shares}</td>

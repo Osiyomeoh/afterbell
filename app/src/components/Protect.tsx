@@ -13,6 +13,7 @@ import { buyProtection, NotEnoughTestUsd } from "@/lib/buy";
 import { buyOnRobinhood, evmTxUrl, NeedsGas, useEvmWallet } from "@/lib/evm";
 import { nextEvent } from "@/lib/events";
 import { countdown, dayLabel, explorer, MAX_MULTIPLE, nyTime, pct, usd } from "@/lib/format";
+import { sharePath } from "@/lib/share";
 import { useSendTransaction } from "@/lib/send";
 
 import { Board } from "./Board";
@@ -31,7 +32,7 @@ const BASIS: Record<string, string> = {
 type Status =
   | { kind: "idle" }
   | { kind: "busy"; step: string }
-  | { kind: "done"; premium: number; openTs: number; url: string | null; nft?: { number: string; art: string } }
+  | { kind: "done"; premium: number; openTs: number; url: string | null; nft?: { number: string; art: string; share: string } }
   | { kind: "error"; message: string; needsFunds?: boolean };
 
 const CHAINS: { id: Chain; label: string }[] = [
@@ -179,7 +180,7 @@ export function Protect() {
       const q = await requestQuote({ symbol, buyer: wallet.publicKey.toBase58(), ...protection });
       setStatus({ kind: "busy", step: "Confirm in your wallet" });
       const { signature, position, number } = await buyProtection(connection, wallet, sendTransaction, q.solana);
-      const nft = { number: number.toString(), art: `/api/position-art/solana/${position}/image` };
+      const nft = { number: number.toString(), art: `/api/position-art/solana/${position}/image`, share: sharePath("solana", position.toString()) };
       setStatus({ kind: "done", premium: q.priced.premium, openTs: q.priced.openTs, url: explorer("tx", signature), nft });
     } catch (e) {
       setStatus({ kind: "error", message: (e as Error).message, needsFunds: e instanceof NotEnoughTestUsd });
@@ -194,7 +195,7 @@ export function Protect() {
       setStatus({ kind: "busy", step: "Getting a signed quote" });
       const q = await requestEvmQuote({ symbol, buyer, ...protection });
       const { id, hash } = await buyOnRobinhood(buyer, d, q, (step) => setStatus({ kind: "busy", step }));
-      setStatus({ kind: "done", premium: q.priced.premium, openTs: q.priced.openTs, url: evmTxUrl(d, hash), nft: { number: id.toString(), art: `/api/position-art/${id}` } });
+      setStatus({ kind: "done", premium: q.priced.premium, openTs: q.priced.openTs, url: evmTxUrl(d, hash), nft: { number: id.toString(), art: `/api/position-art/${id}`, share: sharePath("robinhood", id.toString()) } });
     } catch (e) {
       const err = e as Error & { shortMessage?: string };
       setStatus({ kind: "error", message: err.shortMessage ?? err.message, needsFunds: e instanceof NeedsGas });
@@ -332,6 +333,11 @@ export function Protect() {
           <img src={status.nft.art} alt={`Your protection, NFT #${status.nft.number}`} className="rounded-lg border border-line" />
           <span className="mt-1 block text-xs text-muted">NFT #{status.nft.number}: whoever holds it is paid</span>
         </a>
+      )}
+      {status.kind === "done" && status.nft && (
+        <Link href={status.nft.share} className="mt-2 inline-block text-sm text-brass hover:underline">
+          Share your protection →
+        </Link>
       )}
     </>
   );

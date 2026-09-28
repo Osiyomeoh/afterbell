@@ -11,10 +11,12 @@ const nextConfig: NextConfig = {
   // The Pyth receiver (used by the keeper) only loads through its CommonJS build.
   serverExternalPackages: ["@pythnetwork/pyth-solana-receiver"],
   // The Robinhood Chain deployment is read from disk at request time (it may not exist yet), and so is Solana vault v1's
-  // record once v2 replaces it (solana/deployments/devnet-v1.json), which the record, hedge and vault routes read.
+  // record once v2 replaces it (solana/deployments/devnet-v1.json), which the record, hedge, vault and status routes read.
   outputFileTracingIncludes: {
-    ...Object.fromEntries(["/api/quote", "/api/market", "/api/positions", "/api/board"].map((r) => [r, ["../evm/deployments/*.json"]])),
-    ...Object.fromEntries(["/api/record", "/api/hedge", "/api/vault"].map((r) => [r, ["../evm/deployments/*.json", "../solana/deployments/*.json"]])),
+    ...Object.fromEntries(
+      ["/api/quote", "/api/market", "/api/positions", "/api/board", "/p/[chain]/[id]", "/p/[chain]/[id]/opengraph-image"].map((r) => [r, ["../evm/deployments/*.json"]]),
+    ),
+    ...Object.fromEntries(["/api/record", "/api/hedge", "/api/vault", "/api/status", "/status"].map((r) => [r, ["../evm/deployments/*.json", "../solana/deployments/*.json"]])),
   },
 };
 
