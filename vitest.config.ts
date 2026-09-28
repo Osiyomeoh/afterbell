@@ -1,6 +1,10 @@
+import { fileURLToPath } from "node:url";
+
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
+  // The app's alias for the repo root, so its lib modules test as they build.
+  resolve: { alias: { "@root": fileURLToPath(new URL(".", import.meta.url)) } },
   test: {
     // Our TypeScript tests only; evm/lib holds OpenZeppelin's own JavaScript tests.
     include: ["research/**/*.test.ts", "pricing/**/*.test.ts", "solana/client/**/*.test.ts", "solana/keeper/**/*.test.ts", "quoter/**/*.test.ts", "evm/keeper/**/*.test.ts", "agent/**/*.test.ts", "hedger/**/*.test.ts", "app/src/lib/**/*.test.ts"],

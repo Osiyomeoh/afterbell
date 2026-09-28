@@ -1,4 +1,5 @@
 import { Activity } from "@/components/Activity";
+import { EventBanner } from "@/components/EventBanner";
 import { ForAgents } from "@/components/ForAgents";
 import { HowItWorks } from "@/components/HowItWorks";
 import { Protect } from "@/components/Protect";
@@ -17,10 +18,14 @@ export default function Home() {
             opening print. Pay once, and if the stock opens below your level, the vault pays the difference, settled on-chain by the oracle&apos;s price
             at the 09:30 ET open.
           </p>
+          <EventBanner />
         </div>
         <Activity />
       </section>
-      <Protect />
+      {/* The event banner's button scrolls here. */}
+      <div id="protect" className="scroll-mt-6">
+        <Protect />
+      </div>
       <HowItWorks />
       <ForAgents />
     </>

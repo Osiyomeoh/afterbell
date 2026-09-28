@@ -25,7 +25,11 @@ export function Activity() {
   const settled = rows.filter((r) => r.state === "settled");
   const next = open.length ? Math.min(...open.map((r) => r.openTs)) : null;
   const sum = (xs: LedgerRow[], f: (r: LedgerRow) => number) => xs.reduce((t, r) => t + f(r), 0);
+  // Both chains' vaults can settle the same opening, so count and sum by opening, not by vault.
+  const openings = new Set(settled.map((r) => r.openTs)).size;
   const last = [...settled].sort((a, b) => b.openTs - a.openTs)[0];
+  const atLast = last ? settled.filter((r) => r.openTs === last.openTs && r.symbol === last.symbol) : [];
+  const positionsAtLast = sum(atLast, (r) => r.claims);
 
   const protectedNow = (
     <Stat
@@ -46,11 +50,11 @@ export function Activity() {
   return (
     <div className="mt-6 grid grid-cols-3 gap-3 lg:mt-0 lg:grid-cols-1">
       {protectedNow}
-      <Stat label="Paid out" value={usd(sum(rows, (r) => r.paid))} note={`on ${settled.length} settled opening${settled.length === 1 ? "" : "s"}`} />
+      <Stat label="Paid out" value={usd(sum(rows, (r) => r.paid))} note={`on ${openings} settled opening${openings === 1 ? "" : "s"}`} />
       <Stat
         label="Last settlement"
         value={`${last.symbol} ${usd(last.price ?? 0)}`}
-        note={`${nyTime(last.openTs)}: ${usd(last.paid)} to ${last.claims} holder${last.claims === 1 ? "" : "s"}`}
+        note={`${nyTime(last.openTs)}: ${usd(sum(atLast, (r) => r.paid))} across ${positionsAtLast} position${positionsAtLast === 1 ? "" : "s"}`}
         href="/record"
       />
     </div>
