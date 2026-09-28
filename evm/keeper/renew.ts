@@ -7,16 +7,35 @@ import type { Account, Address, Chain, PublicClient, Transport, WalletClient } f
 
 import { AfterbellClient } from "../../sdk/client";
 import { toEvmQuote } from "../../sdk/robinhood";
+import { afterbellPositionsAbi, afterbellVaultAbi } from "../client/abi";
 import { activeOrders, renewOrder, type HolderOrder, type RenewerOrder } from "../client/renewer";
-import type { EvmDeployment } from "../client/vault";
+import type { EvmDeployment, EvmPosition } from "../client/vault";
+
+/** "holder:feed:openTs" for every unpaid position, under whoever holds its NFT. */
+async function heldOpens(client: PublicClient, d: EvmDeployment): Promise<Set<string>> {
+  const next = await client.readContract({ address: d.vault, abi: afterbellVaultAbi, functionName: "nextPositionId" });
+  const held = new Set<string>();
+  for (let id = 0n; id < next; id++) {
+    const p = (await client.readContract({ address: d.vault, abi: afterbellVaultAbi, functionName: "position", args: [id] })) as EvmPosition;
+    if (p.closed) continue;
+    const owner = await client.readContract({ address: d.positions, abi: afterbellPositionsAbi, functionName: "ownerOf", args: [id] });
+    held.add(`${owner.toLowerCase()}:${p.feed.toLowerCase()}:${p.openTs}`);
+  }
+  return held;
+}
 
 export type RenewalDecision = { action: "renew" } | { action: "skip"; reason: string };
 
-/** Whether an order should buy protection for `openTs` at `premium` (collateral units). The renewer checks the same again. */
-export function renewalDecision(o: RenewerOrder, openTs: bigint, premium: bigint): RenewalDecision {
+/**
+ * Whether an order should buy protection for `openTs` at `premium` (collateral units). The renewer checks
+ * the same again, except `held`: whether the holder already has protection for that open, bought directly
+ * (as at checkout, where the order is set after tonight's purchase), which the renewer can't see.
+ */
+export function renewalDecision(o: RenewerOrder, openTs: bigint, premium: bigint, held = false): RenewalDecision {
   if (o.maxShares === 0n) return { action: "skip", reason: "cancelled" };
   if (openTs > o.until) return { action: "skip", reason: "the order has ended" };
   if (openTs <= o.lastOpenTs) return { action: "skip", reason: "already renewed for this open" };
+  if (held) return { action: "skip", reason: "the holder already has protection for this open" };
   if (premium > o.maxPremium) return { action: "skip", reason: `the price, ${premium} units, is above the order's cap of ${o.maxPremium}` };
   return { action: "renew" };
 }
@@ -42,7 +61,9 @@ export async function renewOrders(opts: {
   const now = BigInt(Math.floor(Date.now() / 1000));
   const symbolOf = (feed: Address) => Object.entries(d.feeds).find(([, a]) => a?.toLowerCase() === feed.toLowerCase())?.[0];
   const plans: RenewalPlan[] = [];
-  for (const order of await activeOrders(client, renewer, now)) {
+  const orders = await activeOrders(client, renewer, now);
+  const held = orders.length ? await heldOpens(client, d) : new Set<string>();
+  for (const order of orders) {
     const symbol = symbolOf(order.feed);
     if (!symbol) {
       plans.push({ order, symbol: order.feed, decision: { action: "skip", reason: "a feed this deployment doesn't list" } });
@@ -52,7 +73,7 @@ export async function renewOrders(opts: {
       const protection = await api.protectionBelow(symbol, Number(order.maxShares) / 1e6, order.startBps / 10_000, order.depthBps / 10_000);
       const q = await api.quote({ chain: "robinhood", symbol, buyer: renewer, ...protection });
       const quote = toEvmQuote(q.evm.quote);
-      const decision = renewalDecision(order, quote.openTs, quote.premium);
+      const decision = renewalDecision(order, quote.openTs, quote.premium, held.has(`${order.holder.toLowerCase()}:${order.feed.toLowerCase()}:${quote.openTs}`));
       plans.push({ order, symbol, openTs: Number(quote.openTs), premium: q.priced.premium, decision });
       if (wallet && decision.action === "renew") {
         const hash = await renewOrder(wallet, client, renewer, order.holder, quote, q.evm.signature);
