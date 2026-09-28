@@ -11,9 +11,9 @@ import { dirname, join } from "node:path";
 import { createAssociatedTokenAccountIdempotentInstruction, getAssociatedTokenAddressSync } from "@solana/spl-token";
 import { Connection, Keypair, LAMPORTS_PER_SOL, PublicKey, sendAndConfirmTransaction, Transaction } from "@solana/web3.js";
 
+import { solanaPurchase, type AfterbellClient } from "../sdk";
 import { getProgram, processInstruction } from "../solana/client/vault";
-import type { AfterbellApi } from "./api";
-import { describe, protectionFor, purchase, SOLANA_RPC, type AgentWalletTools } from "./tools";
+import { describe, protectionFor, SOLANA_RPC, type AgentWalletTools } from "./tools";
 
 // Positions paid out per transaction: well inside the seven one `process` fits, next to creating the TestUSD account.
 const CLAIMS_PER_TX = 3;
@@ -38,7 +38,7 @@ function load(): { keypair: Keypair; created: boolean } {
   return { keypair, created: true };
 }
 
-export function localWallet(api: AfterbellApi): AgentWalletTools {
+export function localWallet(api: AfterbellClient): AgentWalletTools {
   const cap = maxSpend();
   const { keypair } = load();
   const connection = new Connection(SOLANA_RPC, "confirmed");
@@ -73,11 +73,11 @@ export function localWallet(api: AfterbellApi): AgentWalletTools {
 
     async buy(symbol, shares, startsBelow, stopsBelow, maxCost) {
       const b = await balances(symbol);
-      const r = await api.quote(b.market.symbol, me.toBase58(), protectionFor(b.market, shares, startsBelow, stopsBelow));
+      const r = await api.quote({ chain: "solana", symbol: b.market.symbol, buyer: me.toBase58(), ...protectionFor(b.market, shares, startsBelow, stopsBelow) });
       const limit = Math.min(cap, maxCost ?? cap);
       if (r.priced.premium > limit) throw new Error(`Not bought: it costs ${r.priced.premium.toFixed(2)} TestUSD, above the ${maxCost !== undefined && maxCost < cap ? "max_cost" : "spending cap"} of ${limit}.\n${describe(r.priced)}`);
       if (r.priced.premium > b.testUsd) throw new Error(`Not bought: it costs ${r.priced.premium.toFixed(2)} TestUSD and the wallet has ${b.testUsd}. Use get_test_funds.`);
-      const tx = await purchase(connection, me, r);
+      const { transaction: tx } = await solanaPurchase(connection, me, r.solana);
       const sig = await sendAndConfirmTransaction(connection, tx, [keypair], { commitment: "confirmed" });
       return `Bought.\n${describe(r.priced)}\n${explorer(sig)}`;
     },

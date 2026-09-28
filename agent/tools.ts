@@ -10,16 +10,13 @@
  * Both price through the app's public routes, exactly as the site does.
  */
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { getAssociatedTokenAddressSync } from "@solana/spl-token";
-import { Connection, PublicKey, Transaction } from "@solana/web3.js";
+import { Connection, PublicKey } from "@solana/web3.js";
 import { z } from "zod";
 
 import { backtest } from "../pricing/backtest";
-import type { SolanaQuote } from "../pricing/solanaQuote";
 import { formatBook, type GapReport } from "../quoter/gapReport";
 import { priceQuote, type PricedProtection } from "../quoter/quoter";
-import { buyInstructions, getProgram } from "../solana/client/vault";
-import { AfterbellApi, toMarket, type MarketInfo, type PriceSource, type SolanaQuoteResponse } from "./api";
+import { AfterbellClient, solanaPurchase, toMarket, type MarketInfo, type PriceSource } from "../sdk";
 
 export const SOLANA_RPC = process.env.SOLANA_RPC || "https://api.devnet.solana.com";
 
@@ -112,43 +109,13 @@ export function describeGapReport(r: GapReport & { names: Record<string, string>
 }
 
 /** How many shares: given, or the TSLA `holder` holds on mainnet (tokenized TSLA is all it can read). */
-export async function sharesFor(api: AfterbellApi, shares: number | undefined, holder: string | undefined, symbol = "TSLA"): Promise<number> {
+export async function sharesFor(api: AfterbellClient, shares: number | undefined, holder: string | undefined, symbol = "TSLA"): Promise<number> {
   if (shares !== undefined) return shares;
   if (!holder) throw new Error("Give shares, or holder (a Solana mainnet wallet) to size protection to what it holds.");
   if (symbol.toUpperCase() !== "TSLA") throw new Error(`Sizing to a wallet's holdings works for TSLA only; give shares of ${symbol}.`);
   const held = (await api.holdings(holder)).reduce((a, h) => a + h.shares, 0);
   if (!(held > 0)) throw new Error(`${holder} holds no TSLAx or TSLAon on mainnet.`);
   return held;
-}
-
-export function toSolanaQuote(q: SolanaQuoteResponse["solana"]["quote"]): SolanaQuote {
-  const bytes = (hex: string) => Uint8Array.from(Buffer.from(hex, "hex"));
-  return {
-    feedId: bytes(q.feedId),
-    openTs: BigInt(q.openTs),
-    shares: BigInt(q.shares),
-    upper: BigInt(q.upper),
-    lower: BigInt(q.lower),
-    premium: BigInt(q.premium),
-    expiry: BigInt(q.expiry),
-    nonce: bytes(q.nonce),
-  };
-}
-
-/** The purchase for `buyer` to sign: the Ed25519 check of the quote, then `buy`. */
-export async function purchase(connection: Connection, buyer: PublicKey, r: SolanaQuoteResponse): Promise<Transaction> {
-  const unsigned = { publicKey: buyer, signTransaction: () => Promise.reject(new Error("unsigned")), signAllTransactions: () => Promise.reject(new Error("unsigned")) };
-  const mint = new PublicKey(r.solana.collateralMint);
-  const ixs = await buyInstructions(getProgram(connection, unsigned), {
-    buyer,
-    vault: new PublicKey(r.solana.vault),
-    collateralMint: mint,
-    buyerToken: getAssociatedTokenAddressSync(mint, buyer),
-    quote: toSolanaQuote(r.solana.quote),
-    ed25519Data: Uint8Array.from(Buffer.from(r.solana.ed25519Data, "base64")),
-  });
-  const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
-  return new Transaction({ feePayer: buyer, blockhash, lastValidBlockHeight }).add(...ixs);
 }
 
 export type AgentWalletTools = {
@@ -159,7 +126,7 @@ export type AgentWalletTools = {
   address(): string;
 };
 
-export function createServer(kind: "hosted" | "local", api: AfterbellApi, wallet?: AgentWalletTools): McpServer {
+export function createServer(kind: "hosted" | "local", api: AfterbellClient, wallet?: AgentWalletTools): McpServer {
   const server = new McpServer({ name: "afterbell", version: "0.1.0" }, { instructions: kind === "local" ? LOCAL : HOSTED });
 
   server.registerTool(
@@ -280,11 +247,11 @@ export function createServer(kind: "hosted" | "local", api: AfterbellApi, wallet
     const transactionFor = async (buyer: string, symbol: string | undefined, shares: number, startsBelow?: number, stopsBelow?: number) => {
       const owner = new PublicKey(buyer);
       const m = await api.market(symbol);
-      const r = await api.quote(m.symbol, buyer, protectionFor(m, shares, startsBelow, stopsBelow));
+      const r = await api.quote({ chain: "solana", symbol: m.symbol, buyer, ...protectionFor(m, shares, startsBelow, stopsBelow) });
       const connection = new Connection(SOLANA_RPC, "confirmed");
       // A fresh devnet wallet gets test money first, so it can pay.
       const funded = await api.faucet(buyer).catch(() => null);
-      const tx = await purchase(connection, owner, r);
+      const { transaction: tx } = await solanaPurchase(connection, owner, r.solana);
       return [
         describe(r.priced),
         funded && !funded.alreadyFunded ? `Sent ${buyer} ${funded.testUsd} TestUSD and ${funded.sol} SOL first.` : "",

@@ -2,26 +2,10 @@ import type { AnchorWallet } from "@solana/wallet-adapter-react";
 import { getAccount, getAssociatedTokenAddressSync } from "@solana/spl-token";
 import { Connection, PublicKey, Transaction } from "@solana/web3.js";
 
-import type { SolanaQuote } from "@root/pricing/solanaQuote";
-import { buyInstructions, getProgram, positionAddress } from "@root/solana/client/vault";
+import { solanaPurchase, toSolanaQuote } from "@root/sdk/solana";
+import { getProgram, positionAddress } from "@root/solana/client/vault";
 
 import type { QuoteResponse } from "./api";
-
-const hexBytes = (hex: string) => Uint8Array.from(hex.match(/../g)!.map((b) => parseInt(b, 16)));
-
-/** The signed quote in the program's types. */
-export function toSolanaQuote(q: QuoteResponse["solana"]["quote"]): SolanaQuote {
-  return {
-    feedId: hexBytes(q.feedId),
-    openTs: BigInt(q.openTs),
-    shares: BigInt(q.shares),
-    upper: BigInt(q.upper),
-    lower: BigInt(q.lower),
-    premium: BigInt(q.premium),
-    expiry: BigInt(q.expiry),
-    nonce: hexBytes(q.nonce),
-  };
-}
 
 export class NotEnoughTestUsd extends Error {}
 
@@ -43,21 +27,11 @@ export async function buyProtection(
   const balance = await getAccount(connection, buyerToken).then((a) => a.amount, () => 0n);
   if (balance < quote.premium) throw new NotEnoughTestUsd("You need TestUSD to pay the premium.");
 
-  const program = getProgram(connection, wallet);
-  const ixs = await buyInstructions(program, {
-    buyer: wallet.publicKey,
-    vault: new PublicKey(q.vault),
-    collateralMint: mint,
-    buyerToken,
-    quote,
-    ed25519Data: Uint8Array.from(atob(q.ed25519Data), (c) => c.charCodeAt(0)),
-  });
-  const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
-  const tx = new Transaction({ feePayer: wallet.publicKey, blockhash, lastValidBlockHeight }).add(...ixs);
-  const signature = await sendTransaction(tx, connection);
+  const { transaction, blockhash, lastValidBlockHeight } = await solanaPurchase(connection, wallet.publicKey, q);
+  const signature = await sendTransaction(transaction, connection);
   const result = await connection.confirmTransaction({ signature, blockhash, lastValidBlockHeight }, "confirmed");
   if (result.value.err) throw new Error(`the purchase failed on-chain: ${JSON.stringify(result.value.err)}`);
   const position = positionAddress(new PublicKey(q.vault), quote.nonce);
-  const { number } = await program.account.position.fetch(position, "confirmed");
+  const { number } = await getProgram(connection, wallet).account.position.fetch(position, "confirmed");
   return { signature, position: position.toBase58(), number: number.toNumber() };
 }

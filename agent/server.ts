@@ -14,10 +14,10 @@
  */
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 
-import { AfterbellApi } from "./api";
+import { AfterbellClient } from "../sdk";
 import { createServer } from "./tools";
 import { localWallet } from "./wallet";
 
-const api = new AfterbellApi(process.env.AFTERBELL_URL || "http://localhost:3000");
+const api = new AfterbellClient(process.env.AFTERBELL_URL || "http://localhost:3000");
 const server = createServer("local", api, localWallet(api));
 await server.connect(new StdioServerTransport());

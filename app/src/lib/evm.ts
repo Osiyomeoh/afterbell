@@ -3,7 +3,7 @@ import { createPublicClient, createWalletClient, custom, http, numberToHex, type
 
 import { testUsdAbi } from "@root/evm/client/abi";
 import { buyProtection, claimFilled, claimProtection, evmChain, mintTestUsd, requestDeposit, requestRedeem, robinhoodChain, type EvmDeployment } from "@root/evm/client/vault";
-import type { EvmQuote } from "@root/pricing/quote";
+import { toEvmQuote } from "@root/sdk/robinhood";
 
 import type { EvmQuoteResponse } from "./api";
 
@@ -72,20 +72,6 @@ function clients(account: Address, d: EvmDeployment) {
   return {
     wallet: createWalletClient({ account, chain, transport: custom(provider()) }),
     client: createPublicClient({ chain, transport: http(d.rpc) }),
-  };
-}
-
-export function toEvmQuote(q: EvmQuoteResponse["evm"]["quote"]): EvmQuote {
-  return {
-    buyer: q.buyer as Address,
-    feed: q.feed as Address,
-    openTs: BigInt(q.openTs),
-    shares: BigInt(q.shares),
-    upper: BigInt(q.upper),
-    lower: BigInt(q.lower),
-    premium: BigInt(q.premium),
-    expiry: BigInt(q.expiry),
-    nonce: BigInt(q.nonce),
   };
 }
 
