@@ -13,8 +13,18 @@ export const sh = (x: number) => x.toFixed(3);
  * margins separately, so USDC elsewhere in the account can't back an order
  * there. Null when there's something to trade with.
  */
-export function emptyDexNote(accountValue: number, dex: string): string | null {
-  return accountValue > 0 ? null : `note: the account holds nothing on the ${dex} dex; move USDC there first, its orders need margin on that dex`;
+export function emptyDexNote(accountValue: number, dex: string, unified = false): string | null {
+  if (accountValue > 0) return null;
+  return unified
+    ? "note: the account holds no USDC; its unified balance backs every dex, so fund it first"
+    : `note: the account holds nothing on the ${dex} dex; move USDC there first, its orders need margin on that dex`;
+}
+
+/** What backs an account's orders, as the plans print it. */
+export function funds(account: { accountValue: number; withdrawable: number; unified: boolean }, dex: string): string {
+  return account.unified
+    ? `${usd(account.accountValue)} USDC in its unified balance (which backs the ${dex} dex), ${usd(account.withdrawable)} free`
+    : `${usd(account.accountValue)} on the ${dex} dex, ${usd(account.withdrawable)} withdrawable`;
 }
 
 /** Where the hedge trades: testnet unless HYPERLIQUID_NETWORK says mainnet. */

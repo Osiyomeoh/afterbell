@@ -59,6 +59,8 @@ describe("loop", () => {
 describe("emptyDexNote", () => {
   it("warns only when the account holds nothing on the dex", () => {
     expect(emptyDexNote(0, "xyz")).toMatch(/nothing on the xyz dex; move USDC there/);
+    expect(emptyDexNote(0, "xyz", true)).toMatch(/no USDC; its unified balance backs every dex/);
+    expect(emptyDexNote(498, "xyz", true)).toBeNull();
     expect(emptyDexNote(0.01, "xyz")).toBeNull();
   });
 });

@@ -26,6 +26,7 @@ const testnet: Market = { coin: "xyz:TSLA", asset: 120_001, szDecimals: 3, maxLe
 const holding = (short: number): HedgeAccount => ({
   address: "0x000000000000000000000000000000000000dEaD",
   accountValue: 500,
+  unified: false,
   withdrawable: 300,
   position: { short, entryPx: 371, unrealizedPnl: 0, liquidationPx: 480, marginUsed: 150, leverage: { type: "isolated", value: 3 } },
 });

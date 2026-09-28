@@ -62,9 +62,14 @@ export type HedgePosition = {
 
 export type HedgeAccount = {
   address: Address;
-  /** What the account holds on the coin's dex (each builder dex margins separately). */
+  /**
+   * What backs its orders: what it holds on the coin's dex (each builder dex
+   * margins separately), or for a unified account its USDC, which backs every dex.
+   */
   accountValue: number;
   withdrawable: number;
+  /** A unified (or portfolio-margin) account: one USDC balance, kept in its spot state, backs every dex. */
+  unified: boolean;
   /** Its position in the coin, or null when it has none. */
   position: HedgePosition | null;
 };
@@ -77,6 +82,7 @@ export function hedgeAccount(address: Address, state: ClearinghouseState, coin: 
     address,
     accountValue: Number(state.marginSummary.accountValue),
     withdrawable: Number(state.withdrawable),
+    unified: false,
     position: p
       ? {
           short: -Number(p.szi),
@@ -91,9 +97,27 @@ export function hedgeAccount(address: Address, state: ClearinghouseState, coin: 
 }
 
 /** The hedge account's position in `coin` on `network`, from the public endpoint: an address, no key. */
+/** Account modes that keep one balance per collateral asset in the spot state, backing every dex. */
+const POOLED = new Set(["unifiedAccount", "portfolioMargin"]);
+
+type SpotState = { balances: { coin: string; total: string; hold: string }[] };
+
+/**
+ * The account's position in the coin and what backs its orders. A unified
+ * account's balance is in its spot state, and Hyperliquid says its per-dex
+ * states aren't meaningful for balances, so its USDC is read from there.
+ */
 export async function fetchHedgeAccount(post: Post, network: Network, address: Address, coin: string): Promise<HedgeAccount> {
-  const state = (await post(network, { type: "clearinghouseState", user: address, dex: dexOf(coin) })) as ClearinghouseState;
-  return hedgeAccount(address, state, coin);
+  const [state, mode] = await Promise.all([
+    post(network, { type: "clearinghouseState", user: address, dex: dexOf(coin) }) as Promise<ClearinghouseState>,
+    post(network, { type: "userAbstraction", user: address }).catch(() => null),
+  ]);
+  const account = hedgeAccount(address, state, coin);
+  if (typeof mode !== "string" || !POOLED.has(mode)) return account;
+  const spot = (await post(network, { type: "spotClearinghouseState", user: address })) as SpotState;
+  const usdc = spot.balances.find((b) => b.coin === "USDC");
+  const total = Number(usdc?.total ?? 0);
+  return { ...account, accountValue: total, withdrawable: total - Number(usdc?.hold ?? 0), unified: true };
 }
 
 /** An entry of /info {type: "openOrders"}: side "B" is a bid, "A" an ask; `sz` is what's left unfilled. */

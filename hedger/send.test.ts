@@ -30,6 +30,7 @@ const planWith = (order: OrderWire | null) => ({ order }) as HedgePlan;
 const account = (short: number | null): HedgeAccount => ({
   address: "0x000000000000000000000000000000000000dEaD",
   accountValue: 500,
+  unified: false,
   withdrawable: 500,
   position: short === null ? null : { short, entryPx: 373, unrealizedPnl: 0, liquidationPx: 480, marginUsed: 100, leverage: { type: "isolated", value: 3 } },
 });

@@ -44,7 +44,7 @@ import { nextRunMs, type HedgePlan } from "../plan";
 import { sendHedge, type SentHedge } from "../send";
 import { solanaVault } from "../solana";
 import { readHedgeState, type HedgeState, type ModelInputs, type VaultSource } from "../state";
-import { agentKey, emptyDexNote, envNumber, everyMs, hedgeNetwork, iso, loop, maxNotional, sh, usd } from "./common";
+import { agentKey, emptyDexNote, envNumber, funds, everyMs, hedgeNetwork, iso, loop, maxNotional, sh, usd } from "./common";
 
 const stock = TSLA;
 const coin = stock.hyperliquid!;
@@ -82,12 +82,12 @@ function printAccount(account: HedgeAccount | null, network: Network) {
     console.log("  none given (HEDGE_ACCOUNT): the short held is taken as 0");
     return;
   }
-  const funds = `${usd(account.accountValue)} on the ${dexOf(coin)} dex, ${usd(account.withdrawable)} withdrawable`;
+  const backing = funds(account, dexOf(coin));
   const p = account.position;
   console.log(`  ${account.address} on ${network}`);
-  const empty = emptyDexNote(account.accountValue, dexOf(coin));
+  const empty = emptyDexNote(account.accountValue, dexOf(coin), account.unified);
   if (!p) {
-    console.log(`  no ${coin} position; ${funds}`);
+    console.log(`  no ${coin} position; ${backing}`);
     if (empty) console.log(`  ${empty}`);
     return;
   }
@@ -95,7 +95,7 @@ function printAccount(account: HedgeAccount | null, network: Network) {
   const entry = p.entryPx === null ? "" : ` from ${usd(p.entryPx)}`;
   const liq = p.liquidationPx === null ? "no liquidation price" : `liquidation at ${usd(p.liquidationPx)}`;
   console.log(`  ${side}${entry}, P&L ${usd(p.unrealizedPnl)}, ${liq}, ${p.leverage.type} ${p.leverage.value}×`);
-  console.log(`  ${usd(p.marginUsed)} margin used; ${funds}`);
+  console.log(`  ${usd(p.marginUsed)} margin used; ${backing}`);
   if (empty) console.log(`  ${empty}`);
 }
 
@@ -154,7 +154,7 @@ function printActivity(a: HedgeActivity) {
 function printLine(st: HedgeState) {
   const held = st.plan.current;
   console.log(`${iso(st.now)}  mid ${usd(st.mid)}  hedge ${sh(st.plan.exposure.hedge)}  short ${sh(held)}  ${st.plan.rebalance.note}`);
-  const empty = st.account && emptyDexNote(st.account.accountValue, dexOf(coin));
+  const empty = st.account && emptyDexNote(st.account.accountValue, dexOf(coin), st.account.unified);
   if (empty) console.log(`  ${empty}`);
 }
 

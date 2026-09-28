@@ -71,8 +71,28 @@ describe("fetchHedgeAccount", () => {
       accountValue: 500,
       withdrawable: 356.63,
       position: { short: 1.157, entryPx: 371.5, unrealizedPnl: -0.35, liquidationPx: 482.91, marginUsed: 143.37, leverage: { type: "isolated", value: 3 } },
+      unified: false,
     });
-    expect(asked).toEqual([{ network: "testnet", body: { type: "clearinghouseState", user: ACCOUNT, dex: "xyz" } }]);
+    expect(asked).toEqual([
+      { network: "testnet", body: { type: "clearinghouseState", user: ACCOUNT, dex: "xyz" } },
+      { network: "testnet", body: { type: "userAbstraction", user: ACCOUNT } },
+    ]);
+  });
+
+  it("reads a unified account's USDC from its spot state, which backs every dex", async () => {
+    const { post, asked } = fakeInfo({
+      clearinghouseState: state(position("xyz:TSLA", "-1.157")),
+      userAbstraction: "unifiedAccount",
+      spotClearinghouseState: { balances: [{ coin: "USDC", token: 0, total: "498.0", hold: "143.37", entryNtl: "0.0" }, { coin: "USDH", token: 5, total: "0.0", hold: "0.0" }] },
+    });
+    const got = await fetchHedgeAccount(post, "testnet", ACCOUNT, "xyz:TSLA");
+    expect(got).toMatchObject({ accountValue: 498, withdrawable: 498 - 143.37, unified: true, position: { short: 1.157 } });
+    expect(asked.map((a) => a.body.type)).toEqual(["clearinghouseState", "userAbstraction", "spotClearinghouseState"]);
+  });
+
+  it("treats an account in the default mode as margining each dex separately", async () => {
+    const got = await fetchHedgeAccount(fakeInfo({ clearinghouseState: state(), userAbstraction: "disabled" }).post, "testnet", ACCOUNT, "xyz:TSLA");
+    expect(got).toMatchObject({ accountValue: 500, unified: false, position: null });
   });
 
   it("reads a long as a negative short, and no position as none", async () => {

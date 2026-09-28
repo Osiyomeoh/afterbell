@@ -29,7 +29,7 @@ import { cancelAction, orderAction, type Market, type Network, type OrderWire } 
 import { dexOf, fetchHedgeAccount, fetchMarket, fetchOpenOrders, fetchTopOfBook, postInfo, type BookLevel, type HedgeAccount } from "../info";
 import { DEFAULT_QUOTE_RULES, quoteOrders, refreshQuotes, type QuoteRefresh, type QuoteRules, type RestingOrder } from "../quotes";
 import { sendQuotes, type SentQuotes } from "../send";
-import { agentKey, emptyDexNote, envNumber, everyMs, iso, loop, maxNotional, sh, usd } from "./common";
+import { agentKey, emptyDexNote, envNumber, funds, everyMs, iso, loop, maxNotional, sh, usd } from "./common";
 
 const NETWORK: Network = "testnet";
 const coin = TSLA.hyperliquid!;
@@ -93,10 +93,10 @@ function printState(st: State, rules: QuoteRules, cap: number) {
     console.log("  none given (QUOTE_ACCOUNT): no resting orders read, so both quotes would be placed");
   } else {
     const p = st.account.position;
-    const funds = `${usd(st.account.accountValue)} on the ${dexOf(coin)} dex, ${usd(st.account.withdrawable)} withdrawable`;
+    const backing = funds(st.account, dexOf(coin));
     const held = !p ? `no ${coin} position` : p.short > 0 ? `short ${sh(p.short)}` : `long ${sh(-p.short)}`;
-    console.log(`  ${st.account.address} on ${NETWORK}: ${held}; ${funds}`);
-    const empty = emptyDexNote(st.account.accountValue, dexOf(coin));
+    console.log(`  ${st.account.address} on ${NETWORK}: ${held}; ${backing}`);
+    const empty = emptyDexNote(st.account.accountValue, dexOf(coin), st.account.unified);
     if (empty) console.log(`  ${empty}`);
     if (st.orders.length === 0) console.log("  nothing resting");
     for (const o of st.orders) console.log(`  resting ${resting(o)}`);
@@ -119,7 +119,7 @@ function printLine(st: State) {
   const p = st.account?.position;
   const held = !p ? "flat" : p.short > 0 ? `short ${sh(p.short)}` : `long ${sh(-p.short)}`;
   console.log(`${iso(st.now)}  mid ${usd(st.mid)}  ${wanted(st.bid)}  ${wanted(st.ask)}  ${held}  ${change}`);
-  const empty = st.account && emptyDexNote(st.account.accountValue, dexOf(coin));
+  const empty = st.account && emptyDexNote(st.account.accountValue, dexOf(coin), st.account.unified);
   if (empty) console.log(`  ${empty}`);
 }
 
