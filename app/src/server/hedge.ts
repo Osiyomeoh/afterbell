@@ -37,11 +37,11 @@ function vaults(): VaultSource[] {
   return out;
 }
 
-/** The hedge as the Vault page shows it, and the account's trading over the last week once there is an account. */
+/** The hedge as the Vault page shows it, and the account's trading over the last 30 days (the whole contest) once there is an account. */
 export type HedgeView = HedgeSummary & { activity: HedgeActivity | null };
 
 const TTL_MS = 15_000;
-const ACTIVITY_DAYS = 7;
+const ACTIVITY_DAYS = 30;
 let cached: { at: number; summary: Promise<HedgeView> } | null = null;
 
 /** The hedge as the Vault page shows it, sized with the model the quotes are priced from; refreshed at most every 15 seconds. */

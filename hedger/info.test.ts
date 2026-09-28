@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { Network } from "./hyperliquid";
-import { dexOf, fetchHedgeAccount, fetchHedgeActivity, fetchMarket, fetchOpenOrders, fetchTopOfBook, type Post } from "./info";
+import { dexOf, FILLS_PER_PAGE, FUNDING_PER_PAGE, fetchHedgeAccount, fetchHedgeActivity, fetchMarket, fetchOpenOrders, fetchTopOfBook, type Post } from "./info";
 
 const ACCOUNT = "0x000000000000000000000000000000000000dEaD";
 
@@ -183,6 +183,26 @@ describe("fetchHedgeActivity", () => {
     expect(a.fills[0]?.time).toBe(SINCE + 11);
     expect(a.trades).toBe(12);
     expect(a.fees).toBeCloseTo(0.012, 9);
+  });
+
+  it("pages through more fills and funding than one answer holds, and counts them all", async () => {
+    const fills = Array.from({ length: FILLS_PER_PAGE + 3 }, (_, i) => fill("xyz:TSLA", "A", "0.01", "372.0", "0.001", "0.5", "Close Short", SINCE + i));
+    const paid = Array.from({ length: FUNDING_PER_PAGE + 1 }, (_, i) => funding("xyz:TSLA", "0.002", "-1.0", SINCE + i));
+    const asked: Record<string, unknown>[] = [];
+    // As Hyperliquid pages: the earliest entries from startTime on, up to a page.
+    const post: Post = async (_network, body) => {
+      asked.push(body);
+      const all = body.type === "userFillsByTime" ? fills : paid;
+      const size = body.type === "userFillsByTime" ? FILLS_PER_PAGE : FUNDING_PER_PAGE;
+      return all.filter((x) => x.time >= Number(body.startTime)).slice(0, size);
+    };
+    const a = await fetchHedgeActivity(post, "testnet", ACCOUNT, "xyz:TSLA", SINCE);
+    expect(a.trades).toBe(FILLS_PER_PAGE + 3);
+    expect(a.closedPnl).toBeCloseTo(0.5 * (FILLS_PER_PAGE + 3), 6);
+    expect(a.fundingPayments).toBe(FUNDING_PER_PAGE + 1);
+    // Each next page starts a millisecond after the last page's latest entry.
+    expect(asked.filter((q) => q.type === "userFillsByTime").map((q) => q.startTime)).toEqual([ms(SINCE), ms(SINCE + FILLS_PER_PAGE - 1) + 1]);
+    expect(asked.filter((q) => q.type === "userFunding").map((q) => q.startTime)).toEqual([ms(SINCE), ms(SINCE + FUNDING_PER_PAGE - 1) + 1]);
   });
 
   it("reads an account that hasn't traded as nothing", async () => {

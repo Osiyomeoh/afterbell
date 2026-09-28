@@ -179,16 +179,35 @@ export function hedgeActivity(since: number, fills: readonly Fill[], funding: re
   };
 }
 
+/** Hyperliquid answers at most this many fills, and funding payments, per request; a full page may have more after it. */
+export const FILLS_PER_PAGE = 2000;
+export const FUNDING_PER_PAGE = 500;
+/** Far more than a month of hedging needs; past it the read fails rather than undercount. */
+const MAX_PAGES = 25;
+
+/** Everything from `startMs` on, a page at a time, each page starting just after the latest entry the last one held. */
+async function allPages<T extends { time: number }>(page: (startMs: number) => Promise<T[]>, startMs: number, pageSize: number): Promise<T[]> {
+  const all: T[] = [];
+  for (let n = 0, from = startMs; n < MAX_PAGES; n++) {
+    const got = await page(from);
+    all.push(...got);
+    if (got.length < pageSize) return all;
+    from = Math.max(...got.map((x) => x.time)) + 1;
+  }
+  throw new Error(`more than ${MAX_PAGES} pages of history since ${new Date(startMs).toISOString()}; read a shorter window`);
+}
+
 /**
  * The account's fills and funding in `coin` since `since`, from the public
  * endpoint. Neither request takes a dex: they cover every market the account
  * trades, so each is filtered to the coin. Partial fills of one order are
- * combined, as Hyperliquid's own history shows them.
+ * combined, as Hyperliquid's own history shows them. Both are paged, so a
+ * long window counts every trade.
  */
 export async function fetchHedgeActivity(post: Post, network: Network, address: Address, coin: string, since: number): Promise<HedgeActivity> {
   const [fills, funding] = await Promise.all([
-    post(network, { type: "userFillsByTime", user: address, startTime: since * 1000, aggregateByTime: true }) as Promise<Fill[]>,
-    post(network, { type: "userFunding", user: address, startTime: since * 1000 }) as Promise<FundingPayment[]>,
+    allPages((startTime) => post(network, { type: "userFillsByTime", user: address, startTime, aggregateByTime: true }) as Promise<Fill[]>, since * 1000, FILLS_PER_PAGE),
+    allPages((startTime) => post(network, { type: "userFunding", user: address, startTime }) as Promise<FundingPayment[]>, since * 1000, FUNDING_PER_PAGE),
   ]);
   return hedgeActivity(since, fills, funding, coin);
 }
