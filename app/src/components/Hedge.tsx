@@ -118,7 +118,7 @@ function HedgeView({ h }: { h: HedgeResponse }) {
             <a className="num text-text hover:underline" href={accountUrl(h.network, h.account.address)} target="_blank" rel="noreferrer">
               {h.account.address.slice(0, 6)}…{h.account.address.slice(-4)}
             </a>{" "}
-            on Hyperliquid {h.network}: {usd(h.account.accountValue)} on the xyz market
+            on Hyperliquid {h.network}: {usd(h.account.accountValue)} {h.account.unified ? "of USDC in its unified balance" : "on the xyz market"}
             {p && (
               <>
                 , P&amp;L {usd(p.unrealizedPnl)}, {usd(p.marginUsed)} of margin, {p.leverage.type} {p.leverage.value}×
