@@ -31,10 +31,11 @@ export function Activity() {
   const atLast = last ? settled.filter((r) => r.openTs === last.openTs && r.symbol === last.symbol) : [];
   const positionsAtLast = sum(atLast, (r) => r.claims);
 
+  const protectedCount = sum(open, (r) => r.sales);
   const protectedNow = (
     <Stat
       label="Protected now"
-      value={open.length ? `${sum(open, (r) => r.sales)} positions` : "None open"}
+      value={open.length ? `${protectedCount} position${protectedCount === 1 ? "" : "s"}` : "None open"}
       note={next !== null ? `${usd(sum(open, (r) => r.maxPayouts))} locked for ${nyTime(next)}` : "The next sale opens a series"}
     />
   );
