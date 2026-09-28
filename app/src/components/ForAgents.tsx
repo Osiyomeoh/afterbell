@@ -4,8 +4,9 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 /**
- * The other ways in: the Blink for any Solana wallet, and the MCP servers for
- * agents. Addresses use the page's own origin, so they're right wherever it's hosted.
+ * The other ways in: the Blink for any Solana wallet, the MCP servers for
+ * agents, the gap report for a whole book, and the API with its SDK.
+ * Addresses use the page's own origin, so they're right wherever it's hosted.
  */
 export function ForAgents() {
   // Empty until mounted, so the server render shows paths rather than a guessed host.
@@ -36,7 +37,7 @@ export function ForAgents() {
           <Copyable text={`claude mcp add --transport http afterbell ${origin}/mcp`} />
           <Copyable text={`claude mcp add afterbell -e AFTERBELL_URL=${origin} -- npx tsx agent/server.ts`} />
         </div>
-        <div className="rounded-2xl border border-line bg-surface p-5 lg:col-span-2">
+        <div className="rounded-2xl border border-line bg-surface p-5">
           <h3 className="font-medium">A gap report, for a whole book</h3>
           <p className="mt-2 text-sm leading-relaxed text-muted">
             A vault or lending market holding tokenized stocks carries every stock&apos;s opening at once. The{" "}
@@ -47,6 +48,18 @@ export function ForAgents() {
             next open costs now. The same report is a JSON endpoint and an MCP tool.
           </p>
           <Copyable text={`${origin}/api/gap-report?book=TSLA:100,NVDA:$25000`} />
+        </div>
+        <div className="rounded-2xl border border-line bg-surface p-5">
+          <h3 className="font-medium">An API and a TypeScript SDK</h3>
+          <p className="mt-2 text-sm leading-relaxed text-muted">
+            Everything here is a public API: prices, quotes signed for one buyer, positions, every settlement, the hedge and{" "}
+            <Link className="text-text underline" href="/status">
+              the service&apos;s status
+            </Link>
+            . The SDK in the source (<code className="num text-text">sdk/</code>) turns a quote into the purchase a wallet signs, on either chain, and
+            docs/integrate.md shows a wallet, a protocol or an agent adding it.
+          </p>
+          <Copyable text={`${origin}/api/openapi.json`} />
         </div>
       </div>
     </section>
