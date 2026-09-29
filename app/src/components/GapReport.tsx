@@ -8,6 +8,7 @@ import { formatBook, type BookLine } from "@root/quoter/gapReport";
 import { fetchGapReport, fetchMarket, type GapReportResponse } from "@/lib/api";
 import { dayLabel, nyTime, pct, usd } from "@/lib/format";
 
+import { DataTable } from "./DataTable";
 import { Stat, Stats } from "./Stats";
 
 type Row = { symbol: string; amount: string; unit: "shares" | "usd" };
@@ -198,81 +199,104 @@ function Results({ report, copied, onCopy }: { report: GapReportResponse; copied
       </Stats>
 
       <div className="overflow-hidden rounded-2xl border border-line bg-surface">
-        <div className="scroll-x">
-          <table className="w-full text-sm whitespace-nowrap">
-            <thead className="text-left text-muted">
-              <tr className="border-b border-line">
-                <th className="px-3 py-3 font-normal">Stock</th>
-                <th className="px-3 py-3 text-right font-normal">Value</th>
-                <th className="px-3 py-3 text-right font-normal">Opened 2%+ down</th>
-                <th className="px-3 py-3 text-right font-normal">Worst opening</th>
-                <th className="px-3 py-3 text-right font-normal">That night, now</th>
-                <th className="px-3 py-3 text-right font-normal">Protect until the open</th>
-                <th className="px-3 py-3 text-right font-normal">Replayed</th>
-                <th className="px-3 py-3 font-normal" />
-              </tr>
-            </thead>
-            <tbody>
-              {report.lines.map((l) => {
-                const down2 = l.history.downAtLeast.find((d) => d.move === 0.02)?.nights ?? 0;
-                const shares = Math.round(l.shares * 10_000) / 10_000;
-                return (
-                  <tr key={l.symbol} className="border-b border-line align-top last:border-0">
-                    <td className="px-3 py-3">
-                      <div>{l.symbol}</div>
-                      <div className="text-xs text-muted">{report.names[l.symbol]}</div>
-                    </td>
-                    <td className="num px-3 py-3 text-right">
-                      <div>{usd(l.value, 0)}</div>
-                      <div className="text-xs text-muted">{shares} sh at {usd(l.reference.price)}</div>
-                    </td>
-                    <td className="num px-3 py-3 text-right">
-                      <div>{down2}</div>
-                      <div className="text-xs text-muted">of {l.history.openings}</div>
-                    </td>
-                    <td className="num px-3 py-3 text-right">
-                      <div className={l.history.worst.gap < 0 ? "text-loss" : ""}>{pct(l.history.worst.gap, 1)}</div>
-                      <div className="text-xs text-muted">{dayLabel(l.history.worst.to)}</div>
-                    </td>
-                    <td className="num px-3 py-3 text-right">
-                      <div>{l.worstNight.loss > 0 ? `−${usd(l.worstNight.loss, 0)}` : usd(0, 0)}</div>
-                      <div className="text-xs text-muted">cover pays {usd(l.worstNight.protectionPays, 0)}</div>
-                    </td>
-                    <td className="num px-3 py-3 text-right">
-                      {"premium" in l.tonight ? (
-                        <>
-                          <div>{usd(l.tonight.premium)}</div>
-                          <div className="text-xs text-muted">pays up to {usd(l.tonight.maxPayout, 0)}</div>
-                        </>
-                      ) : (
-                        <div className="max-w-56 text-xs whitespace-normal text-muted">{l.tonight.unavailable}</div>
-                      )}
-                    </td>
-                    <td className="num px-3 py-3 text-right">
-                      {l.replay ? (
-                        <>
-                          <div>{Math.round(l.replay.paidPerDollar * 100)}¢ per $1</div>
-                          <div className="text-xs text-muted">
-                            paid {l.replay.paidNights} of {l.replay.nights}
-                          </div>
-                        </>
-                      ) : (
-                        <div className="text-xs text-muted">too few openings</div>
-                      )}
-                    </td>
-                    <td className="px-3 py-3">
-                      {"premium" in l.tonight && shares <= MAX_SHARES_PER_QUOTE ? (
-                        <Link className="text-brass hover:underline" href={`/?symbol=${l.symbol}&shares=${shares}`}>
-                          Protect
-                        </Link>
-                      ) : null}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          dense
+          top
+          rows={report.lines.map((l) => ({ ...l, rounded: Math.round(l.shares * 10_000) / 10_000 }))}
+          rowKey={(l) => l.symbol}
+          columns={[
+            {
+              label: "Stock",
+              phone: "title",
+              cell: (l) => (
+                <>
+                  <div>{l.symbol}</div>
+                  <div className="text-xs font-normal text-muted">{report.names[l.symbol]}</div>
+                </>
+              ),
+            },
+            {
+              label: "Value",
+              numeric: true,
+              cell: (l) => (
+                <>
+                  <div>{usd(l.value, 0)}</div>
+                  <div className="text-xs text-muted">
+                    {l.rounded} sh at {usd(l.reference.price)}
+                  </div>
+                </>
+              ),
+            },
+            {
+              label: "Opened 2%+ down",
+              numeric: true,
+              cell: (l) => (
+                <>
+                  <div>{l.history.downAtLeast.find((d) => d.move === 0.02)?.nights ?? 0}</div>
+                  <div className="text-xs text-muted">of {l.history.openings}</div>
+                </>
+              ),
+            },
+            {
+              label: "Worst opening",
+              numeric: true,
+              cell: (l) => (
+                <>
+                  <div className={l.history.worst.gap < 0 ? "text-loss" : ""}>{pct(l.history.worst.gap, 1)}</div>
+                  <div className="text-xs text-muted">{dayLabel(l.history.worst.to)}</div>
+                </>
+              ),
+            },
+            {
+              label: "That night, now",
+              numeric: true,
+              cell: (l) => (
+                <>
+                  <div>{l.worstNight.loss > 0 ? `−${usd(l.worstNight.loss, 0)}` : usd(0, 0)}</div>
+                  <div className="text-xs text-muted">cover pays {usd(l.worstNight.protectionPays, 0)}</div>
+                </>
+              ),
+            },
+            {
+              label: "Protect until the open",
+              numeric: true,
+              cell: (l) =>
+                "premium" in l.tonight ? (
+                  <>
+                    <div>{usd(l.tonight.premium)}</div>
+                    <div className="text-xs text-muted">pays up to {usd(l.tonight.maxPayout, 0)}</div>
+                  </>
+                ) : (
+                  <div className="ml-auto max-w-56 text-xs whitespace-normal text-muted">{l.tonight.unavailable}</div>
+                ),
+            },
+            {
+              label: "Replayed",
+              numeric: true,
+              cell: (l) =>
+                l.replay ? (
+                  <>
+                    <div>{Math.round(l.replay.paidPerDollar * 100)}¢ per $1</div>
+                    <div className="text-xs text-muted">
+                      paid {l.replay.paidNights} of {l.replay.nights}
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-xs text-muted">too few openings</div>
+                ),
+            },
+            {
+              label: "",
+              phone: "corner",
+              cell: (l) =>
+                "premium" in l.tonight && l.rounded <= MAX_SHARES_PER_QUOTE ? (
+                  <Link className="text-brass hover:underline" href={`/?symbol=${l.symbol}&shares=${l.rounded}`}>
+                    Protect
+                  </Link>
+                ) : null,
+            },
+          ]}
+        />
       </div>
 
       {report.skipped.length > 0 && (

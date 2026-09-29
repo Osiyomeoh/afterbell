@@ -6,6 +6,7 @@ import { fetchVault, type Chain, type VaultResponse } from "@/lib/api";
 import { evmAddressUrl } from "@/lib/evm";
 import { explorer, nyTime, usd } from "@/lib/format";
 
+import { DataTable } from "./DataTable";
 import { Stat, Stats } from "./Stats";
 import { Pool } from "./Underwrite";
 
@@ -73,40 +74,32 @@ function ChainVault({ chain }: { chain: Chain }) {
 
       <section className="overflow-hidden rounded-2xl border border-line bg-surface">
         <h2 className="border-b border-line px-4 py-3 font-medium">Series</h2>
-        <div className="scroll-x">
-        <table className="w-full text-sm whitespace-nowrap">
-          <thead className="text-left text-muted">
-            <tr className="border-b border-line">
-              <th className="px-4 py-3 font-normal">Open</th>
-              <th className="px-4 py-3 font-normal">Stock</th>
-              <th className="px-4 py-3 font-normal">State</th>
-              <th className="px-4 py-3 text-right font-normal">Positions</th>
-              <th className="px-4 py-3 text-right font-normal">Premiums</th>
-              <th className="px-4 py-3 text-right font-normal">Locked</th>
-            </tr>
-          </thead>
-          <tbody>
-            {v.series.map((s) => (
-              <tr key={s.address} className="border-b border-line last:border-0">
-                <td className="px-4 py-3">
-                  {solana ? (
-                    <a className="hover:underline" href={explorer("address", s.address)} target="_blank" rel="noreferrer">
-                      {nyTime(s.openTs)}
-                    </a>
-                  ) : (
-                    nyTime(s.openTs)
-                  )}
-                </td>
-                <td className="px-4 py-3">{s.symbol}</td>
-                <td className="px-4 py-3">{s.state === "settled" ? `Settled at ${usd(s.price ?? 0)}` : s.state === "voided" ? "Voided, refunded" : "Open"}</td>
-                <td className="num px-4 py-3 text-right">{s.positions}</td>
-                <td className="num px-4 py-3 text-right">{usd(s.premiums)}</td>
-                <td className="num px-4 py-3 text-right">{usd(s.maxPayouts)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        </div>
+        <DataTable
+          rows={v.series}
+          rowKey={(s) => s.address}
+          columns={[
+            {
+              label: "Open",
+              phone: "title",
+              cell: (s) =>
+                solana ? (
+                  <a className="hover:underline" href={explorer("address", s.address)} target="_blank" rel="noreferrer">
+                    {nyTime(s.openTs)}
+                  </a>
+                ) : (
+                  nyTime(s.openTs)
+                ),
+            },
+            { label: "Stock", phone: "corner", cell: (s) => s.symbol },
+            {
+              label: "State",
+              cell: (s) => (s.state === "settled" ? `Settled at ${usd(s.price ?? 0)}` : s.state === "voided" ? "Voided, refunded" : "Open"),
+            },
+            { label: "Positions", numeric: true, cell: (s) => s.positions },
+            { label: "Premiums", numeric: true, cell: (s) => usd(s.premiums) },
+            { label: "Locked", numeric: true, cell: (s) => usd(s.maxPayouts) },
+          ]}
+        />
         {v.series.length === 0 && <p className="px-4 py-3 text-sm text-muted">No protection sold here yet.</p>}
         {v.series.length > 0 && settled.length === 0 && (
           <p className="border-t border-line px-4 py-3 text-sm text-muted">No series has settled yet. Each settles at the open it protects until.</p>
@@ -155,33 +148,26 @@ function FirstVault({ f }: { f: NonNullable<VaultResponse["firstVault"]> }) {
       {"error" in f ? (
         <p className="border-t border-line px-4 py-3 text-sm">Couldn&apos;t read it: {f.error}</p>
       ) : (
-        <div className="scroll-x border-t border-line">
-          <table className="w-full text-sm whitespace-nowrap">
-            <thead className="text-left text-muted">
-              <tr className="border-b border-line">
-                <th className="px-4 py-3 font-normal">Open</th>
-                <th className="px-4 py-3 font-normal">Stock</th>
-                <th className="px-4 py-3 text-right font-normal">Positions</th>
-                <th className="px-4 py-3 text-right font-normal">Shares</th>
-                <th className="px-4 py-3 text-right font-normal">Locked</th>
-              </tr>
-            </thead>
-            <tbody>
-              {f.open.map((s) => (
-                <tr key={s.address} className="border-b border-line last:border-0">
-                  <td className="whitespace-nowrap px-4 py-3">
-                    <a className="hover:underline" href={explorer("address", s.address)} target="_blank" rel="noreferrer">
-                      {nyTime(s.openTs)}
-                    </a>
-                  </td>
-                  <td className="px-4 py-3">{s.symbol}</td>
-                  <td className="num px-4 py-3 text-right">{s.positions}</td>
-                  <td className="num px-4 py-3 text-right">{Number(s.shares.toFixed(6))}</td>
-                  <td className="num px-4 py-3 text-right">{usd(s.maxPayout)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="border-t border-line">
+          <DataTable
+            rows={f.open}
+            rowKey={(s) => s.address}
+            columns={[
+              {
+                label: "Open",
+                phone: "title",
+                cell: (s) => (
+                  <a className="hover:underline" href={explorer("address", s.address)} target="_blank" rel="noreferrer">
+                    {nyTime(s.openTs)}
+                  </a>
+                ),
+              },
+              { label: "Stock", phone: "corner", cell: (s) => s.symbol },
+              { label: "Positions", numeric: true, cell: (s) => s.positions },
+              { label: "Shares", numeric: true, cell: (s) => Number(s.shares.toFixed(6)) },
+              { label: "Locked", numeric: true, cell: (s) => usd(s.maxPayout) },
+            ]}
+          />
         </div>
       )}
     </section>

@@ -16,6 +16,8 @@ import { explorer, nyTime, usd } from "@/lib/format";
 import { sharePath, type ShareView } from "@/lib/share";
 import { useSendTransaction } from "@/lib/send";
 
+import { DataTable } from "./DataTable";
+
 type Claimed = { key: string; url: string | null };
 
 /** A wallet's protection on each chain, with a claim button once its series has settled or voided. */
@@ -216,23 +218,16 @@ function PositionsTable(props: {
     );
   }
   return (
-    <div className="scroll-x rounded-2xl border border-line bg-surface">
-      <table className="w-full text-sm whitespace-nowrap">
-        <thead className="text-left text-muted">
-          <tr className="border-b border-line">
-            <th className="px-4 py-3 font-normal">Stock</th>
-            <th className="px-4 py-3 font-normal">Settles</th>
-            <th className="px-4 py-3 font-normal">Shares</th>
-            <th className="px-4 py-3 font-normal">Protected</th>
-            <th className="px-4 py-3 text-right font-normal">Cost</th>
-            <th className="px-4 py-3 text-right font-normal">Pays up to</th>
-            <th className="px-4 py-3 font-normal">Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((p) => (
-            <tr key={p.address} className="border-b border-line last:border-0">
-              <td className="px-4 py-3">
+    <div className="overflow-hidden rounded-2xl border border-line bg-surface">
+      <DataTable
+        rows={rows}
+        rowKey={(p) => p.address}
+        columns={[
+          {
+            label: "Stock",
+            phone: "title",
+            cell: (p) => (
+              <>
                 {p.art ? (
                   <a className="flex items-center gap-3 hover:underline" href={p.art} target="_blank" rel="noreferrer" title="Its NFT: whoever holds it is paid">
                     <img src={p.art} alt={`${p.symbol} protection NFT`} className="h-12 w-auto rounded border border-line" />
@@ -241,24 +236,24 @@ function PositionsTable(props: {
                 ) : (
                   p.symbol
                 )}
-                <Link href={sharePath(props.chain, p.address)} className="mt-1 block text-xs text-muted underline hover:text-text">
+                <Link href={sharePath(props.chain, p.address)} className="mt-1 block text-xs font-normal text-muted underline hover:text-text">
                   Share
                 </Link>
-              </td>
-              <td className="px-4 py-3">{nyTime(p.openTs)}</td>
-              <td className="num px-4 py-3">{p.shares}</td>
-              <td className="num px-4 py-3">
-                {usd(p.upper)} → {usd(p.lower)}
-              </td>
-              <td className="num px-4 py-3 text-right">{usd(p.premium)}</td>
-              <td className="num px-4 py-3 text-right">{usd(p.maxPayout)}</td>
-              <td className="px-4 py-3">
-                <Status p={p} busy={claiming === p.address} onClaim={() => onClaim(p)} />
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+              </>
+            ),
+          },
+          { label: "Settles", cell: (p) => nyTime(p.openTs) },
+          { label: "Shares", numeric: true, cell: (p) => p.shares },
+          { label: "Protected", numeric: true, cell: (p) => `${usd(p.upper)} → ${usd(p.lower)}` },
+          { label: "Cost", numeric: true, cell: (p) => usd(p.premium) },
+          { label: "Pays up to", numeric: true, cell: (p) => usd(p.maxPayout) },
+          {
+            label: "Status",
+            phone: "corner",
+            cell: (p) => <Status p={p} busy={claiming === p.address} onClaim={() => onClaim(p)} />,
+          },
+        ]}
+      />
       {error && <p className="border-t border-line px-4 py-3 text-sm text-loss">{error}</p>}
       {claimed.map((c) => (
         <p key={c.key} className="border-t border-line px-4 py-3 text-sm text-gain">

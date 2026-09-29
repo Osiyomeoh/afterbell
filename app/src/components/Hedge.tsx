@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { fetchHedge, type HedgeResponse } from "@/lib/api";
 import { nyTime, signedUsd, usd } from "@/lib/format";
 
+import { DataTable } from "./DataTable";
 import { Stat, Stats } from "./Stats";
 
 const shares = (x: number) => `${x.toFixed(3)} TSLA`;
@@ -72,30 +73,17 @@ function HedgeView({ h }: { h: HedgeResponse }) {
 
       <section className="overflow-hidden rounded-2xl border border-line bg-surface">
         <h3 className="border-b border-line px-4 py-3 font-medium">Open protection in TSLA</h3>
-        <div className="scroll-x">
-          <table className="w-full text-sm whitespace-nowrap">
-            <thead className="text-left text-muted">
-              <tr className="border-b border-line">
-                <th className="px-4 py-3 font-normal">Open</th>
-                <th className="px-4 py-3 text-right font-normal">Positions</th>
-                <th className="px-4 py-3 text-right font-normal">Shares</th>
-                <th className="px-4 py-3 text-right font-normal">Pays at most</th>
-                <th className="px-4 py-3 text-right font-normal">Short for it</th>
-              </tr>
-            </thead>
-            <tbody>
-              {h.opens.map((o) => (
-                <tr key={o.openTs} className="border-b border-line last:border-0">
-                  <td className="px-4 py-3">{nyTime(o.openTs)}</td>
-                  <td className="num px-4 py-3 text-right">{o.positions}</td>
-                  <td className="num px-4 py-3 text-right">{o.shares}</td>
-                  <td className="num px-4 py-3 text-right">{usd(o.maxPayout)}</td>
-                  <td className="num px-4 py-3 text-right">{shares(o.hedge)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          rows={h.opens}
+          rowKey={(o) => o.openTs}
+          columns={[
+            { label: "Open", phone: "title", cell: (o) => nyTime(o.openTs) },
+            { label: "Positions", numeric: true, cell: (o) => o.positions },
+            { label: "Shares", numeric: true, cell: (o) => o.shares },
+            { label: "Pays at most", numeric: true, cell: (o) => usd(o.maxPayout) },
+            { label: "Short for it", numeric: true, cell: (o) => shares(o.hedge) },
+          ]}
+        />
         {h.opens.length === 0 && <p className="px-4 py-3 text-sm text-muted">Nothing open in TSLA, so no short is needed.</p>}
       </section>
 
@@ -144,32 +132,18 @@ function Activity({ a }: { a: NonNullable<HedgeResponse["activity"]> }) {
     <section className="overflow-hidden rounded-2xl border border-line bg-surface">
       <h3 className="border-b border-line px-4 py-3 font-medium">The hedge account&apos;s trades, last {days} days</h3>
       {a.fills.length > 0 && (
-        <div className="scroll-x">
-          <table className="w-full text-sm whitespace-nowrap">
-            <thead className="text-left text-muted">
-              <tr className="border-b border-line">
-                <th className="px-4 py-3 font-normal">Time</th>
-                <th className="px-4 py-3 font-normal">Trade</th>
-                <th className="px-4 py-3 text-right font-normal">Size</th>
-                <th className="px-4 py-3 text-right font-normal">Price</th>
-                <th className="px-4 py-3 text-right font-normal">Fee</th>
-                <th className="px-4 py-3 text-right font-normal">Closed P&amp;L</th>
-              </tr>
-            </thead>
-            <tbody>
-              {a.fills.map((f, i) => (
-                <tr key={`${f.time}-${i}`} className="border-b border-line last:border-0">
-                  <td className="px-4 py-3">{nyTime(f.time)}</td>
-                  <td className="px-4 py-3">{f.dir}</td>
-                  <td className="num px-4 py-3 text-right">{shares(f.size)}</td>
-                  <td className="num px-4 py-3 text-right">{usd(f.price)}</td>
-                  <td className="num px-4 py-3 text-right">{usd(f.fee, 4)}</td>
-                  <td className="num px-4 py-3 text-right">{f.closedPnl === 0 ? "–" : signedUsd(f.closedPnl)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          rows={a.fills.map((f, i) => ({ ...f, key: `${f.time}-${i}` }))}
+          rowKey={(f) => f.key}
+          columns={[
+            { label: "Time", phone: "title", cell: (f) => nyTime(f.time) },
+            { label: "Trade", phone: "corner", cell: (f) => f.dir },
+            { label: "Size", numeric: true, cell: (f) => shares(f.size) },
+            { label: "Price", numeric: true, cell: (f) => usd(f.price) },
+            { label: "Fee", numeric: true, cell: (f) => usd(f.fee, 4) },
+            { label: "Closed P&L", numeric: true, cell: (f) => (f.closedPnl === 0 ? "–" : signedUsd(f.closedPnl)) },
+          ]}
+        />
       )}
       <p className={`px-4 py-3 text-sm text-muted ${a.fills.length > 0 ? "border-t border-line" : ""}`}>
         {a.trades === 0

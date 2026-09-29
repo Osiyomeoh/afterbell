@@ -7,6 +7,7 @@ import { backtest } from "@root/pricing/backtest";
 import { fetchMarket, fetchRecord, type LedgerRow, type MarketResponse } from "@/lib/api";
 import { dayLabel, explorer, nyClock, nyTime, pct, usd } from "@/lib/format";
 
+import { DataTable } from "./DataTable";
 import { Stat, Stats } from "./Stats";
 
 // The shape the Blink sells: protection from 2% to 10% below the close.
@@ -140,39 +141,32 @@ export function TrackRecord() {
                 <Stat label="Paid back per $1 of premium" value={`${Math.round(replay.paidPerDollar * 100)}¢`} />
               </Stats>
             </div>
-            <div className="scroll-x mt-4 rounded-2xl border border-line bg-surface">
-              <table className="w-full text-sm whitespace-nowrap">
-                <thead className="text-left text-muted">
-                  <tr className="border-b border-line">
-                    <th className="px-4 py-3 font-normal">Close → open</th>
-                    <th className="px-4 py-3 text-right font-normal">Close</th>
-                    <th className="px-4 py-3 text-right font-normal">Open</th>
-                    <th className="px-4 py-3 text-right font-normal">Move</th>
-                    <th className="px-4 py-3 text-right font-normal">Premium</th>
-                    <th className="px-4 py-3 text-right font-normal">Paid</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(showAll ? nights : nights.slice(0, 12)).map((n) => {
-                    const move = n.open / n.close - 1;
-                    return (
-                      <tr key={n.from} className="border-b border-line last:border-0">
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          {dayLabel(n.from)} → {dayLabel(n.to)}
-                        </td>
-                        <td className="num px-4 py-3 text-right">{usd(n.close)}</td>
-                        <td className="num px-4 py-3 text-right">{usd(n.open)}</td>
-                        <td className={`num px-4 py-3 text-right ${move < 0 ? "text-loss" : "text-gain"}`}>
+            <div className="mt-4 overflow-hidden rounded-2xl border border-line bg-surface">
+              <DataTable
+                rows={showAll ? nights : nights.slice(0, 12)}
+                rowKey={(n) => n.from}
+                columns={[
+                  { label: "Close → open", phone: "title", cell: (n) => `${dayLabel(n.from)} → ${dayLabel(n.to)}` },
+                  { label: "Close", numeric: true, cell: (n) => usd(n.close) },
+                  { label: "Open", numeric: true, cell: (n) => usd(n.open) },
+                  {
+                    label: "Move",
+                    numeric: true,
+                    phone: "corner",
+                    cell: (n) => {
+                      const move = n.open / n.close - 1;
+                      return (
+                        <span className={`num ${move < 0 ? "text-loss" : "text-gain"}`}>
                           {move > 0 ? "+" : ""}
                           {pct(move, 1)}
-                        </td>
-                        <td className="num px-4 py-3 text-right">{usd(n.premium)}</td>
-                        <td className={`num px-4 py-3 text-right ${n.paid > 0 ? "text-text" : "text-faint"}`}>{usd(n.paid)}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                        </span>
+                      );
+                    },
+                  },
+                  { label: "Premium", numeric: true, cell: (n) => usd(n.premium) },
+                  { label: "Paid", numeric: true, cell: (n) => <span className={n.paid > 0 ? "text-text" : "text-faint"}>{usd(n.paid)}</span> },
+                ]}
+              />
               {nights.length > 12 && (
                 <button onClick={() => setShowAll((v) => !v)} className="w-full border-t border-line px-4 py-3 text-sm text-muted hover:text-text">
                   {showAll ? "Show the latest 12" : `Show all ${nights.length}`}

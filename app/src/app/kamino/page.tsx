@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { DataTable } from "@/components/DataTable";
 import { Stat, Stats } from "@/components/Stats";
 import { dayLabel, nyTime, pct, usd } from "@/lib/format";
 import { kaminoView } from "@/server/kamino";
@@ -51,43 +52,45 @@ export default async function KaminoPage() {
         <Stat label="Every worst opening at once" value={`−${millions(t.worstNightLoss)}`} note={`protection would pay ${millions(t.worstNightPaid)} of it`} />
       </Stats>
 
-      <div className="scroll-x mt-6 overflow-hidden rounded-2xl border border-line bg-surface">
-        <table className="w-full text-sm whitespace-nowrap">
-          <thead className="text-left text-muted">
-            <tr className="border-b border-line">
-              <th className="px-4 py-3 font-normal">Stock</th>
-              <th className="px-4 py-3 text-right font-normal">Collateral</th>
-              <th className="px-4 py-3 text-right font-normal">Opened 1%+ down</th>
-              <th className="px-4 py-3 text-right font-normal">Worst opening</th>
-              <th className="px-4 py-3 text-right font-normal">That, today</th>
-              <th className="px-4 py-3 text-right font-normal">Tonight</th>
-              <th className="px-4 py-3 text-right font-normal">Pays up to</th>
-            </tr>
-          </thead>
-          <tbody>
-            {report.lines.map((l) => {
-              const down1 = l.history.downAtLeast.find((d) => d.move === 0.01)?.nights ?? 0;
-              return (
-                <tr key={l.symbol} className="border-b border-line last:border-0">
-                  <td className="px-4 py-3">
-                    {l.symbol} <span className="text-faint">{report.names[l.symbol]}</span>
-                  </td>
-                  <td className="num px-4 py-3 text-right">{millions(l.value)}</td>
-                  <td className="num px-4 py-3 text-right">
-                    {down1} <span className="text-faint">of {l.history.openings}</span>
-                  </td>
-                  <td className="num px-4 py-3 text-right">
-                    <span className={l.history.worst.gap < 0 ? "text-loss" : ""}>{pct(l.history.worst.gap, 1)}</span>{" "}
-                    <span className="text-faint">{dayLabel(l.history.worst.to)}</span>
-                  </td>
-                  <td className="num px-4 py-3 text-right">−{usd(l.worstNight.loss, 0)}</td>
-                  <td className="num px-4 py-3 text-right">{"premium" in l.tonight ? dollars(l.tonight.premium) : "—"}</td>
-                  <td className="num px-4 py-3 text-right">{"maxPayout" in l.tonight ? usd(l.tonight.maxPayout, 0) : "—"}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+      <div className="mt-6 overflow-hidden rounded-2xl border border-line bg-surface">
+        <DataTable
+          rows={report.lines}
+          rowKey={(l) => l.symbol}
+          columns={[
+            {
+              label: "Stock",
+              phone: "title",
+              cell: (l) => (
+                <>
+                  {l.symbol} <span className="font-normal text-faint">{report.names[l.symbol]}</span>
+                </>
+              ),
+            },
+            { label: "Collateral", numeric: true, cell: (l) => millions(l.value) },
+            {
+              label: "Opened 1%+ down",
+              numeric: true,
+              cell: (l) => (
+                <>
+                  {l.history.downAtLeast.find((d) => d.move === 0.01)?.nights ?? 0} <span className="text-faint">of {l.history.openings}</span>
+                </>
+              ),
+            },
+            {
+              label: "Worst opening",
+              numeric: true,
+              cell: (l) => (
+                <>
+                  <span className={l.history.worst.gap < 0 ? "text-loss" : ""}>{pct(l.history.worst.gap, 1)}</span>{" "}
+                  <span className="text-faint">{dayLabel(l.history.worst.to)}</span>
+                </>
+              ),
+            },
+            { label: "That, today", numeric: true, cell: (l) => `−${usd(l.worstNight.loss, 0)}` },
+            { label: "Tonight", numeric: true, cell: (l) => ("premium" in l.tonight ? dollars(l.tonight.premium) : "—") },
+            { label: "Pays up to", numeric: true, cell: (l) => ("maxPayout" in l.tonight ? usd(l.tonight.maxPayout, 0) : "—") },
+          ]}
+        />
       </div>
 
       <div className="mt-6 max-w-3xl space-y-2 text-sm leading-relaxed text-muted">
