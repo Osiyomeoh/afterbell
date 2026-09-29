@@ -1,24 +1,24 @@
 {
   "network": "devnet",
-  "ranAt": "2026-09-29T17:46:04.483Z",
-  "throwaway": true,
-  "desk": "Dmqcim6dHaPkxxzLVjXYrEwyhnzSzbBw4GvoLqtboCNV",
+  "ranAt": "2026-09-29T18:18:06.767Z",
+  "throwaway": false,
+  "desk": "3iiuzCYxzCW9SKMAqFSGjL5cmTYGMahVivHkcdygo3Hk",
   "mint": "FDsn8wf4XTYf26vfLp1TNVnaJn2NGFV8tfzten1YajVi",
   "entry": {
     "symbol": "TSLA",
     "shares": 1,
-    "upper": 346,
-    "lower": 317.75,
+    "upper": 347.11,
+    "lower": 318.77,
     "openTs": 1790775000,
-    "premium": 1.730192,
-    "holder": "01707808384a2774ae7480be2510d620f1bd57c4238f717dbe2f8a283ea0c2dfef0013488e7df7d871a36c1ac28b4b6395c24e9d7240b5eb81b1e70a989112d89abb03767c5da4ed4975e6cec11ed88bc962194110c8cac92f6c74017aef0b61085037",
-    "holderWallet": "8a2pWdwozLdR4JDKFdS9n3yhpcneCHAmr5mjTKKWG81C",
-    "position": "BgyMBph4bhfYzAaWPWWmi14wrjqzJdEXi8f7eJ6YwJ6y",
+    "premium": 1.495444,
+    "holder": "01d4e216fe2e30cbb0957ed012f3cd51e48427ea1364ad7369064821ba36915ed4000f82682edcb43152cf30cddc8bfddfb9794430389526c7c96dc40d1777e2eca0027ed924ab7e7424fd2bc4e25b7603c788e25e63bc37862a89c755c440fc28b63d",
+    "holderWallet": "FL1PSYmNFZxgE4WHyMXSojnCZuYhSGAdZghjRPkhxaWf",
+    "position": "FFPfCeTRqECtWD3rnQTjy4LnBn76wUt2RWNmTNh55xJE",
     "series": "GgEwjiZKBYKrZbeoVo3qqNLj57CGiQEpn7UoJUQeHsRT",
     "txs": {
-      "deposit": "5sM8aeGpMqTU1JR9dcic5418uienx1sNtR1KJJgXXocpL4hv8zLgJxVi4fJ5RnaLBK2LxkGhSw47LfXswM6YjpyR",
-      "premium": "5PANZq8Zi2pkbLXiNT8DrhrDb7aomooBq1CtFPqrvDd1qy5MDwLr1WxR5UT9cTfRVYbL3uUhF9pCkStFJfA2QfFu",
-      "buy": "55eLz3aJSpKRbDureMZJgP8HEKpg2WMRZcTdkx4ny6VLJt1qjECV4XMt7ojhfmGe9fA2927TvVqFQJjEZTZrbFEx"
+      "deposit": "5S2qzAYHspWgpoUMfNG4cqFahpP1enNZWpTxQBwJ2smpU1oUGNnmQTEhYQNwnGuTnSLZjgu9sF7WugKfqEaxPkhi",
+      "premium": "Kku9m8HqTTi222PeVnK1GNK8tBZBYJhbrkdZVibZeSJ4t6T6vnxepcHGTi9UmUrczPDewo5UyFu7WwByaTkqNe5",
+      "buy": "5jdqb4qdjuCxGp8GkSLVYwiyrdYsBxxJdPZbENbsHJAK1kBRaWDW3qrT21vBXK3nvApzXWuu9aM8GX3GS9DyXeCh"
     }
   }
 }
