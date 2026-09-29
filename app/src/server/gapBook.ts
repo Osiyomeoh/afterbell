@@ -1,4 +1,4 @@
-import { gapReport, type BookLine, type GapReport } from "@root/quoter/gapReport";
+import { DOWN_AT_LEAST, gapReport, type BookLine, type GapReport } from "@root/quoter/gapReport";
 import { DEFAULT_QUOTER_CONFIG, type Market } from "@root/quoter/quoter";
 import { stockBySymbol } from "@root/quoter/stocks";
 
@@ -10,8 +10,9 @@ export type BookReport = GapReport & { names: Record<string, string> };
  * A gap report for `book`, with protection from `start` to `stop` percent
  * below each price: each stock's market read as the quoter reads it, and one
  * that can't be read right now reported in `skipped` rather than failing the rest.
+ * `moves` are the drops each line counts nights for.
  */
-export async function bookReport(book: BookLine[], start: number, stop: number): Promise<BookReport> {
+export async function bookReport(book: BookLine[], start: number, stop: number, moves: readonly number[] = DOWN_AT_LEAST): Promise<BookReport> {
   const symbols = [...new Set(book.map((l) => l.symbol.toUpperCase()))];
   const unreadable: { symbol: string; reason: string }[] = [];
   const markets = new Map<string, Market | null>(
@@ -29,7 +30,7 @@ export async function bookReport(book: BookLine[], start: number, stop: number):
     ),
   );
   const readable = book.filter((l) => !unreadable.some((u) => u.symbol === l.symbol.toUpperCase()));
-  const report = gapReport(Math.floor(Date.now() / 1000), readable, markets, { deductible: start / 100, depth: stop / 100 }, DEFAULT_QUOTER_CONFIG);
+  const report = gapReport(Math.floor(Date.now() / 1000), readable, markets, { deductible: start / 100, depth: stop / 100 }, DEFAULT_QUOTER_CONFIG, moves);
   const names = Object.fromEntries(report.lines.map((l) => [l.symbol, stockBySymbol(l.symbol)?.name ?? l.symbol]));
   return { ...report, skipped: [...report.skipped, ...unreadable], names };
 }

@@ -161,6 +161,15 @@ const paths = {
       responses: { 200: json({ type: "object" }), 503: refused },
     },
   },
+  "/api/kamino/loans": {
+    get: {
+      summary: "A wallet's Kamino loans against tokenized stocks: the opening that liquidates each, and protection down to it",
+      description:
+        "Read from Kamino's public API. For each loan: how far its stocks can open below their price before it can be liquidated (together, and each alone), how many recorded openings went that far, and protection from 2% down to that point until the next open.",
+      parameters: [query("wallet", "A Solana wallet", true)],
+      responses: { 200: json({ type: "object" }), 400: refused, 503: refused },
+    },
+  },
   "/api/overnight": { get: { summary: "The stock's price since the close, against its protection", parameters: [symbol], responses: { 200: json({ type: "object" }), 404: refused, 503: refused } } },
   "/api/hedge": { get: { summary: "The hedge on Hyperliquid: the short the open protection calls for, the short held, and its trades", responses: { 200: json({ type: "object" }), 503: refused } } },
   "/api/status": {

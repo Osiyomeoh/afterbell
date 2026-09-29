@@ -75,6 +75,8 @@ On this sample, buyers paid more than they got back, which is where the underwri
 
 **The protocol pitch, with real numbers.** Kamino's lending markets hold $29.1M of tokenized stocks as collateral with $6.3M borrowed against it (its public API, 28 September). If each stock repeated its worst recorded opening at once, that collateral would lose about $1.3M; protecting all of it from 2% to 10% below until the next open costs about $94,000, 0.38% a night, for up to $1.96M of cover. The live report is at [/kamino](https://afterbell-nine.vercel.app/kamino).
 
+**Loan-aware protection.** The same page checks a single borrower's loan. It reads the wallet's Kamino obligations and finds the opening that would make each loan liquidatable, for its stocks falling together and for each one alone. It then counts how many recorded openings went that far and prices protection from 2% below down to exactly that price. That's the product a lending protocol can put beside its "borrow" button: cover sized to your own liquidation price, not a generic band. The protection pays after the open, so it pays back what the gap took rather than preventing the liquidation; we say so on the page.
+
 **Distribution partners to approach (none contacted yet):** wallets that show tokenized stocks (a "protect overnight" button beside the holding), the issuers (Ondo, xStocks, Robinhood), and lending protocols that take tokenized stocks as collateral.
 
 **What we'll measure:** value protected per night, premiums, how many nights each buyer comes back for, the pool's size and return, and how much the hedge cuts the pool's nightly swings.
@@ -111,7 +113,7 @@ Anyone can write a put spread. What's hard to copy is everything around it:
 - **Priced from how each stock actually opens.** The model uses each stock's own history of openings, and the backtest replays every night using only the nights before it. Competitors price from a volatility guess or a fixed table.
 - **A hedged book.** The pool's exposure is shorted on Hyperliquid through the night, so it can sell more cover on the same capital. It already hedges protection sold on another chain, within two minutes.
 - **Recurring by design.** "Protect every night" is a standing order a keeper renews within the holder's limits: a subscription, where competitors sell one-off notes.
-- **Everywhere a holder is.** The app, a Blink, an MCP server for agents, a typed SDK and an OpenAPI description, and a gap report that prices a protocol's whole book. Kamino's $29.1M of tokenized-stock collateral is priced live at /kamino.
+- **Everywhere a holder is.** The app, a Blink, an MCP server for agents, a typed SDK and an OpenAPI description, and a gap report that prices a protocol's whole book. Kamino's $29.1M of tokenized-stock collateral is priced live at /kamino, and any borrower's loan can be checked there: the opening that liquidates it, and protection down to it.
 - **Two oracles, two chains, 34 stocks.** Pyth on Solana, Chainlink on Robinhood Chain, with settlement on the exact opening print measured against both.
 
 ## Risks

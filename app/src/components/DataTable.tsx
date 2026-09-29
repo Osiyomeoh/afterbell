@@ -60,7 +60,7 @@ export function DataTable<T>({
               {lines.map((c, i) => (
                 <Fragment key={i}>
                   <dt className="text-muted">{c.label}</dt>
-                  <dd className={`text-right ${c.numeric ? "num" : ""}`}>{c.cell(r)}</dd>
+                  <dd className={`text-right whitespace-nowrap ${c.numeric ? "num" : ""}`}>{c.cell(r)}</dd>
                 </Fragment>
               ))}
             </dl>

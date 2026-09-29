@@ -2,34 +2,68 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { DataTable } from "@/components/DataTable";
+import { LoanForm, LoanResults } from "@/components/KaminoLoans";
 import { Stat, Stats } from "@/components/Stats";
 import { dayLabel, nyTime, pct, usd } from "@/lib/format";
 import { kaminoView } from "@/server/kamino";
+import { kaminoLoans } from "@/server/kaminoLoans";
 
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Kamino's tokenized stocks overnight",
-  description: "The tokenized stocks Kamino holds as collateral, read live, what their worst openings would cost, and what protecting them until the next open costs now.",
+  description:
+    "The tokenized stocks Kamino holds as collateral, read live, what their worst openings would cost, and what protecting them until the next open costs now. Check a loan: the opening that liquidates it, and protection down to it.",
 };
 
 const millions = (v: number) => `$${(v / 1e6).toFixed(v >= 10e6 ? 1 : 2)}M`;
 /** Whole dollars, but not "$0" for a price that's only small. */
 const dollars = (v: number) => (v > 0 && v < 1 ? "under $1" : usd(v, 0));
 
-/** A gap report on real collateral: Kamino's lending markets for tokenized stocks, read from its public API. */
-export default async function KaminoPage() {
-  let view: Awaited<ReturnType<typeof kaminoView>>;
-  try {
-    view = await kaminoView();
-  } catch (e) {
+/**
+ * A gap report on real collateral: Kamino's lending markets for tokenized stocks, read from its public
+ * API. With `?wallet=`, that wallet's loans too: the opening that liquidates each, and protection down to it.
+ */
+export default async function KaminoPage({ searchParams }: { searchParams: Promise<{ wallet?: string | string[] }> }) {
+  const { wallet: raw } = await searchParams;
+  const wallet = (Array.isArray(raw) ? raw[0] : raw)?.trim() || undefined;
+  const [viewResult, loans] = await Promise.all([
+    kaminoView().then(
+      (v) => ({ ok: true as const, v }),
+      (e: Error) => ({ ok: false as const, error: e.message }),
+    ),
+    wallet ? kaminoLoans(wallet).catch((e: Error) => ({ error: e.message })) : null,
+  ]);
+
+  const loanCheck = (
+    <section id="loan" className="mt-10 scroll-mt-6 rounded-2xl border border-line bg-surface p-5">
+      <h2 className="font-medium">Check a loan</h2>
+      <p className="mt-2 mb-4 max-w-3xl text-sm leading-relaxed text-muted">
+        Borrowing against tokenized stocks on Kamino? Paste the wallet. We read its loans from Kamino&apos;s public API and work out the opening that
+        would make each one liquidatable, how often its stocks have opened that far down, and what protection down to that price costs until the
+        next open.
+      </p>
+      <LoanForm wallet={wallet} />
+      {loans && (
+        <div className="mt-6">
+          <LoanResults result={loans} />
+        </div>
+      )}
+    </section>
+  );
+
+  if (!viewResult.ok) {
     return (
-      <section className="py-10">
-        <h1 className="text-2xl font-semibold tracking-tight">Kamino&apos;s tokenized stocks overnight</h1>
-        <p className="mt-3 text-muted">Couldn&apos;t read Kamino&apos;s markets right now: {(e as Error).message}</p>
-      </section>
+      <>
+        <section className="py-10">
+          <h1 className="text-2xl font-semibold tracking-tight">Kamino&apos;s tokenized stocks overnight</h1>
+          <p className="mt-3 text-muted">Couldn&apos;t read Kamino&apos;s markets right now: {viewResult.error}</p>
+        </section>
+        {loanCheck}
+      </>
     );
   }
+  const view = viewResult.v;
   const { report } = view;
   const t = report.totals;
   const open = report.lines.find((l) => "openTs" in l.tonight)?.tonight;
@@ -52,7 +86,10 @@ export default async function KaminoPage() {
         <Stat label="Every worst opening at once" value={`−${millions(t.worstNightLoss)}`} note={`protection would pay ${millions(t.worstNightPaid)} of it`} />
       </Stats>
 
-      <div className="mt-6 overflow-hidden rounded-2xl border border-line bg-surface">
+      {loanCheck}
+
+      <h2 className="mt-10 font-medium">Every stock Kamino holds</h2>
+      <div className="mt-4 overflow-hidden rounded-2xl border border-line bg-surface">
         <DataTable
           rows={report.lines}
           rowKey={(l) => l.symbol}

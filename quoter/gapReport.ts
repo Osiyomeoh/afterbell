@@ -61,7 +61,7 @@ const round2 = (v: number) => Math.round(v * 100) / 100;
  * The report for `book`, with protection from `structure.deductible` to
  * `structure.depth` below each stock's price. `markets` has each stock's
  * Market, or null for one the caller can't price. Lines for the same stock
- * are added together.
+ * are added together. `moves` are the drops each line counts nights for.
  */
 export function gapReport(
   now: number,
@@ -69,6 +69,7 @@ export function gapReport(
   markets: ReadonlyMap<string, Market | null>,
   structure: Structure,
   cfg: QuoterConfig = DEFAULT_QUOTER_CONFIG,
+  moves: readonly number[] = DOWN_AT_LEAST,
 ): GapReport {
   if (!(structure.deductible >= 0 && structure.depth > structure.deductible)) throw new Error("protection must stop further below the price than it starts");
   const bySymbol = new Map<string, BookLine[]>();
@@ -103,7 +104,7 @@ export function gapReport(
       skipped.push({ symbol, reason: "no shares" });
       continue;
     }
-    lines.push(line(now, market, shares, reference, paused, structure, cfg));
+    lines.push(line(now, market, shares, reference, paused, structure, cfg, moves));
   }
 
   const priced = lines.flatMap((l) => ("premium" in l.tonight ? [l.tonight] : []));
@@ -129,6 +130,7 @@ function line(
   paused: string | null,
   structure: Structure,
   cfg: QuoterConfig,
+  moves: readonly number[],
 ): GapLine {
   const h = market.history;
   const gaps = h.map((o) => ({ from: o.from, to: o.to, gap: o.open / o.close - 1 }));
@@ -157,7 +159,7 @@ function line(
       openings: h.length,
       from: h[0]!.from,
       to: h[h.length - 1]!.to,
-      downAtLeast: DOWN_AT_LEAST.map((move) => ({ move, nights: gaps.filter((g) => g.gap <= -move).length })),
+      downAtLeast: moves.map((move) => ({ move, nights: gaps.filter((g) => g.gap <= -move).length })),
       worst,
     },
     worstNight: {
