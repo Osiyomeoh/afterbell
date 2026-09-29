@@ -148,7 +148,12 @@ function Loan({ loan }: { loan: LoanView }) {
           : g === 0
             ? "The loan can be liquidated already, so no protection until the open helps it; this prices the usual 2% to 10% for its stocks. "
             : "No opening on record comes close to liquidating this loan, so this prices the usual 2% to 10% for its stocks. "}
-        Protection pays after the open, from the oracle&apos;s price: it doesn&apos;t stop a liquidation at the bell, it pays back what the gap took.
+        Protection pays after the open, from the oracle&apos;s price: it doesn&apos;t stop a liquidation at the bell, it pays back what the gap took.{" "}
+        Buying it shows the chain where the loan breaks, unless you{" "}
+        <Link href="/private" className="text-brass hover:underline">
+          buy it privately
+        </Link>
+        .
         {report.skipped.length > 0 && <> Not priced here: {report.skipped.map((s) => s.symbol).join(", ")}.</>}
       </p>
     </section>

@@ -7,6 +7,6 @@ export default defineConfig({
   resolve: { alias: { "@root": fileURLToPath(new URL(".", import.meta.url)) } },
   test: {
     // Our TypeScript tests only; evm/lib holds OpenZeppelin's own JavaScript tests.
-    include: ["research/**/*.test.ts", "pricing/**/*.test.ts", "solana/client/**/*.test.ts", "solana/keeper/**/*.test.ts", "quoter/**/*.test.ts", "evm/keeper/**/*.test.ts", "agent/**/*.test.ts", "hedger/**/*.test.ts", "sdk/**/*.test.ts", "app/src/lib/**/*.test.ts"],
+    include: ["research/**/*.test.ts", "pricing/**/*.test.ts", "solana/client/**/*.test.ts", "solana/keeper/**/*.test.ts", "quoter/**/*.test.ts", "evm/keeper/**/*.test.ts", "agent/**/*.test.ts", "hedger/**/*.test.ts", "sdk/**/*.test.ts", "app/src/lib/**/*.test.ts", "privacy/book.test.ts"],
   },
 });
