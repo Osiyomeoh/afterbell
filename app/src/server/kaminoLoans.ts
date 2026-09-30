@@ -1,20 +1,17 @@
 import { PublicKey } from "@solana/web3.js";
 
-import { KAMINO_STOCK_MARKETS } from "@/lib/kamino";
-import { loanBand, loanRisk, toLoan, type KaminoLoan, type KaminoObligation } from "@/lib/kaminoLoan";
+import type { KaminoLoanInfo, KaminoLoansResponse } from "@root/sdk/types";
 
-import { bookReport, type BookReport } from "./gapBook";
+import { KAMINO_STOCK_MARKETS } from "@/lib/kamino";
+import { loanBand, loanRisk, toLoan, type KaminoObligation } from "@/lib/kaminoLoan";
+
+import { bookReport } from "./gapBook";
 import { pricedStock } from "./market";
 
 const API = "https://api.kamino.finance";
 
-export type LoanView = KaminoLoan & {
-  marketName: string;
-  risk: ReturnType<typeof loanRisk>;
-  band: ReturnType<typeof loanBand>;
-  /** The loan's stocks, with protection over `band`; each line counts the nights it opened past the loan's gaps. */
-  report: BookReport;
-};
+/** The API's shape is the SDK's, so the two can't drift apart. */
+export type LoanView = KaminoLoanInfo;
 
 /** A wallet that isn't a Solana address: the caller's mistake, not Kamino's. */
 export class NotAWallet extends Error {}
@@ -30,7 +27,7 @@ async function get<T>(path: string): Promise<T> {
  * stocks can open down before it can be liquidated, how often they have, and protection priced down
  * to that point. Throws NotAWallet on a wallet that isn't a Solana address.
  */
-export async function kaminoLoans(wallet: string): Promise<{ wallet: string; loans: LoanView[]; readAt: number }> {
+export async function kaminoLoans(wallet: string): Promise<KaminoLoansResponse> {
   try {
     new PublicKey(wallet);
   } catch {

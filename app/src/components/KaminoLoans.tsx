@@ -131,7 +131,11 @@ function Loan({ loan }: { loan: LoanView }) {
                 cell: (l) => {
                   const shares = Math.round(l.shares * 10_000) / 10_000;
                   return "premium" in l.tonight && shares <= MAX_SHARES_PER_QUOTE ? (
-                    <Link className="text-brass hover:underline" href={`/?symbol=${l.symbol}&shares=${shares}`}>
+                    <Link
+                      className="text-brass hover:underline"
+                      href={`/?symbol=${l.symbol}&shares=${shares}&start=${band.start}&stop=${band.stop}`}
+                      title={band.toLiquidation ? "Protection down to the price that makes the loan liquidatable" : undefined}
+                    >
                       Protect
                     </Link>
                   ) : null;

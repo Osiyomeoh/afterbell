@@ -16,7 +16,7 @@ import { z } from "zod";
 import { backtest } from "../pricing/backtest";
 import { formatBook, type GapReport } from "../quoter/gapReport";
 import { priceQuote, type PricedProtection } from "../quoter/quoter";
-import { AfterbellClient, solanaPurchase, toMarket, type MarketInfo, type PriceSource } from "../sdk";
+import { AfterbellClient, solanaPurchase, toMarket, type KaminoLoansResponse, type MarketInfo, type PriceSource } from "../sdk";
 
 export const SOLANA_RPC = process.env.SOLANA_RPC || "https://api.devnet.solana.com";
 
@@ -25,7 +25,7 @@ around the clock but the stock doesn't, so whatever happens while the exchange i
 Protection is a put spread: pay a premium once; if the stock opens below where protection starts, the vault pays the
 difference per share, down to where it stops. Each position is an NFT, and whoever holds it is paid. On Solana devnet
 it is settled on-chain by the first Pyth price at or after 09:30 ET; market says which stocks are on sale there. Every stock the app covers can be priced; the rest settle
-on Robinhood Chain's Chainlink feeds, where the vault isn't deployed yet. All money is TestUSD, which has no value.`;
+on Robinhood Chain's Chainlink feeds, where the app sells them. All money is TestUSD, which has no value.`;
 
 const HOSTED = `${ABOUT}
 This hosted server holds no keys and spends nothing. market shows a stock's price and the next open; quote_protection
@@ -33,7 +33,8 @@ prices protection (show the user the cost and what it pays before buying); prote
 TSLAx and TSLAon a Solana wallet holds. To buy, protection_transaction or protect_portfolio returns an unsigned
 transaction for the buyer's own wallet to sign (a fresh devnet wallet is sent test money first). positions follows any
 wallet; vault shows the vault's collateral and every series; gap_report prices a whole book (a wallet, a vault, a lending
-market's collateral) against each stock's worst openings and until the next open. An agent that should hold its own wallet and buy by itself
+market's collateral) against each stock's worst openings and until the next open; kamino_loan finds the opening that
+would make a wallet's Kamino loan liquidatable and prices protection down to it. An agent that should hold its own wallet and buy by itself
 can run the local server from the Afterbell repo (agent/server.ts).`;
 
 const LOCAL = `${ABOUT}
@@ -41,7 +42,8 @@ Typical flow: wallet, then get_test_funds the first time. market shows a stock's
 quote_protection prices protection; show the user the cost and what it pays and get their agreement before
 buy_protection, which spends from the agent's wallet up to its spending cap. protect_portfolio does the same sized to
 what a mainnet wallet holds. positions follows the agent's protection; after the open settles, claim collects payouts
-(a keeper also pays every position out). gap_report prices a whole book against each stock's worst openings.`;
+(a keeper also pays every position out). gap_report prices a whole book against each stock's worst openings;
+kamino_loan finds the opening that would make a Kamino loan liquidatable and prices protection down to it.`;
 
 export const read = { readOnlyHint: true, openWorldHint: true } as const;
 
@@ -106,6 +108,43 @@ export function describeGapReport(r: GapReport & { names: Record<string, string>
   }
   if (r.skipped.length) out.push(`Not in the report: ${r.skipped.map((s) => `${s.symbol} (${s.reason})`).join("; ")}.`);
   return out.join("\n");
+}
+
+/** A wallet's Kamino loans as text: for each, where it breaks, how often its stocks have gone that far, and the cover. */
+export function describeLoans(r: KaminoLoansResponse): string {
+  if (r.loans.length === 0) return `${r.wallet} has no loan against tokenized stocks in Kamino's markets.`;
+  const pct = (v: number) => `${(v * 100).toFixed(1)}%`;
+  return r.loans
+    .map((loan) => {
+      const { risk, band, report } = loan;
+      const g = risk.together;
+      const breaks =
+        g === 0
+          ? "It can be liquidated already: its debt is past the limit."
+          : g === null
+            ? "Its stocks can't make it liquidatable on their own."
+            : `It becomes liquidatable if its stocks open ${pct(g)} below today's price together.`;
+      const alone = risk.alone.filter((a) => a.gap !== null && a.gap > 0).map((a) => `${a.symbol} ${pct(a.gap!)}`);
+      const history = report.lines.map((l) => {
+        const n = g && g > 0 ? l.history.downAtLeast.find((d) => d.move === g)?.nights : undefined;
+        return `${l.symbol} has opened that far down on ${n ?? "none"} of ${l.history.openings} recorded openings (worst ${pct(l.history.worst.gap)} on ${l.history.worst.to})`;
+      });
+      const t = report.totals;
+      const openTs = report.lines.flatMap((l) => ("openTs" in l.tonight ? [l.tonight.openTs] : []))[0];
+      const cover = openTs
+        ? `Protection from ${band.start}% to ${band.stop}% below each price${band.toLiquidation ? ", down to where the loan becomes liquidatable," : ""} until ${nyTime(openTs)} costs ${usd(t.premium)} and pays up to ${usd(t.maxPayout)}. It pays after the open, from the oracle's price: it doesn't stop a liquidation, it pays back what the gap took.`
+        : "Protection can't be priced right now.";
+      return [
+        `${loan.marketName} loan ${loan.obligation}: ${usd(loan.debtUsd)} borrowed against ${usd(loan.depositUsd)} of collateral (${loan.stocks.map((st) => `${st.symbol} ${usd(st.usd)}`).join(", ")}).`,
+        `${breaks}${alone.length ? ` Each alone: ${alone.join(", ")}.` : ""}`,
+        history.length ? `${history.join("; ")}.` : "",
+        cover,
+        report.skipped.length ? `Not priced: ${report.skipped.map((sk) => sk.symbol).join(", ")}.` : "",
+      ]
+        .filter(Boolean)
+        .join("\n");
+    })
+    .join("\n\n");
 }
 
 /** How many shares: given, or the TSLA `holder` holds on mainnet (tokenized TSLA is all it can read). */
@@ -201,6 +240,18 @@ export function createServer(kind: "hosted" | "local", api: AfterbellClient, wal
         const r = await api.gapReport({ book: lines.length ? formatBook(lines) : undefined, owner: holder, start: starts_below ?? 2, stop: stops_below ?? 10 });
         return describeGapReport(r);
       }),
+  );
+
+  server.registerTool(
+    "kamino_loan",
+    {
+      title: "Where a Kamino loan breaks, and cover down to it",
+      description:
+        "A Solana wallet's loans against tokenized stocks on Kamino, read from Kamino's public API: for each, how far its stocks can open below today's price before it can be liquidated (together, and each alone), how many recorded openings went that far, and protection until the next open from 2% below down to exactly that price. Prices only; spends nothing.",
+      inputSchema: { wallet: z.string().describe("A Solana wallet that borrows on Kamino.") },
+      annotations: read,
+    },
+    ({ wallet: owner }) => respond(async () => describeLoans(await api.kaminoLoans(owner))),
   );
 
   server.registerTool(

@@ -24,6 +24,8 @@ import { PayoffChart } from "./PayoffChart";
 import { TestFunds } from "./TestFunds";
 
 const round2 = (v: number) => Math.round(v * 100) / 100;
+/** The deepest a link may set protection to stop, as a fraction below the price: as deep as the gap report prices. */
+const MAX_STOP = 0.5;
 
 const BASIS: Record<string, string> = {
   live: "the live price",
@@ -92,7 +94,8 @@ export function Protect() {
   const [symbol, setSymbol] = useState("TSLA");
   const evm = useEvmWallet();
 
-  // A link can open the ticket on a chain, a stock and a size: /?chain=robinhood&symbol=NVDA&shares=40.
+  // A link can open the ticket on a chain, a stock, a size and levels in percent below the price:
+  // /?chain=robinhood&symbol=NVDA&shares=40&start=2&stop=25 (the loan check links down to a loan's liquidation price).
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
     if (q.get("chain") === "robinhood") setChain("robinhood");
@@ -100,6 +103,10 @@ export function Protect() {
     if (s && /^[A-Za-z.]{1,10}$/.test(s)) setSymbol(s.toUpperCase());
     const n = Number(q.get("shares"));
     if (n > 0) setShares(Math.max(0.01, Math.min(n, market?.config.maxShares ?? 1_000)));
+    const from = q.has("start") ? Number(q.get("start")) : 2;
+    const to = Number(q.get("stop"));
+    if (from >= 0 && from <= 10) setStart(from / 100);
+    if (q.has("stop") && to >= from + 1 && to <= MAX_STOP * 100) setDepth(to / 100);
     // Read once, on arrival.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -462,7 +469,7 @@ export function Protect() {
             )}
           </label>
           <Slider label="Protection starts" value={start} min={0} max={0.1} step={0.005} onChange={setStart} price={protection?.upper} />
-          <Slider label="Protection stops" value={Math.max(depth, start + 0.01)} min={start + 0.01} max={0.3} step={0.01} onChange={setDepth} price={protection?.lower} />
+          <Slider label="Protection stops" value={Math.max(depth, start + 0.01)} min={start + 0.01} max={Math.max(0.3, depth)} step={0.01} onChange={setDepth} price={protection?.lower} />
         </div>
 
         <div ref={checkoutRef} className="mt-6 rounded-xl border border-line bg-ink p-4 lg:hidden">

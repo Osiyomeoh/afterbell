@@ -134,6 +134,29 @@ export type LedgerRow = {
 /** A book's gap history and tonight's protection for it: `GET /api/gap-report`. */
 export type GapReportResponse = GapReport & { names: Record<string, string>; wallet?: string };
 
+/** One of a wallet's loans against tokenized stocks on Kamino. */
+export type KaminoLoanInfo = {
+  obligation: string;
+  market: string;
+  marketName: string;
+  /** Borrowed, weighted by each asset's borrow factor as Kamino compares it with the limit, in dollars. */
+  debtUsd: number;
+  /** Debt above this makes the loan liquidatable. */
+  liquidationLimitUsd: number;
+  depositUsd: number;
+  /** The tokenized stocks deposited as collateral, at current prices. */
+  stocks: { symbol: string; usd: number }[];
+  /** How far its stocks can open below their price before it can be liquidated, as fractions: together, and each alone. 0: it can be already; null: they can't. */
+  risk: { together: number | null; alone: { symbol: string; gap: number | null }[] };
+  /** The protection priced, in percent below each price: down to the liquidation price when `toLiquidation`. */
+  band: { start: number; stop: number; toLiquidation: boolean };
+  /** The loan's stocks with that protection; each line counts the openings past the loan's gaps. */
+  report: GapReportResponse;
+};
+
+/** A wallet's loans against tokenized stocks on Kamino: `GET /api/kamino/loans`. */
+export type KaminoLoansResponse = { wallet: string; loans: KaminoLoanInfo[]; readAt: number };
+
 /** The hedge on Hyperliquid and its trades: `GET /api/hedge`. */
 export type HedgeInfo = HedgeSummary & { activity: HedgeActivity | null };
 
