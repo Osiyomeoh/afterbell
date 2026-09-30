@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { dayLabel, pct, usd } from "@/lib/format";
+import { aChance, chance, dayLabel, pct, usd } from "@/lib/format";
 import type { LoanView } from "@/server/kaminoLoans";
 
 import { DataTable } from "./DataTable";
@@ -10,6 +10,10 @@ const MAX_SHARES_PER_QUOTE = 1_000;
 const short = (a: string) => `${a.slice(0, 4)}…${a.slice(-4)}`;
 /** A premium, but not "$0.00" for protection so deep it costs next to nothing. */
 const premium = (v: number) => (v > 0 && v < 0.01 ? "under 1¢" : usd(v));
+
+/** The pricing model's chance a line's stock opens at least `move` below its price at the next open. */
+const chanceOf = (l: LoanView["report"]["lines"][number], move: number | null) =>
+  move === null || !("chanceDown" in l.tonight) ? null : (l.tonight.chanceDown.find((c) => c.move === move)?.probability ?? null);
 
 /** Nights a line's stock opened at least `move` below its close, as the report counted them. */
 const nightsPast = (l: LoanView["report"]["lines"][number], move: number | null) =>
@@ -59,8 +63,16 @@ function Loan({ loan }: { loan: LoanView }) {
   const g = risk.together;
   const t = report.totals;
   const liquidates = g === 0 ? "Now" : g === null ? "Not by its stocks" : `${pct(g, 1)} down`;
+  const main = report.lines.find((l) => l.symbol === loan.stocks[0]?.symbol);
+  const tonight = main && g !== null && g > 0 ? chanceOf(main, g) : null;
   const liquidatesNote =
-    g === 0 ? "its debt is past the limit already" : g === null ? "they'd have to lose everything" : "all its stocks together, from today's price";
+    g === 0
+      ? "its debt is past the limit already"
+      : g === null
+        ? "they'd have to lose everything"
+        : `all its stocks together, from today's price${
+            tonight === null ? "" : `; the pricing model gives ${main!.symbol}${report.lines.length > 1 ? ", its largest," : ""} ${aChance(tonight)} of that tonight`
+          }`;
   const range = `${band.start}% to ${band.stop}% below`;
 
   return (
@@ -112,6 +124,14 @@ function Loan({ loan }: { loan: LoanView }) {
                       {n} <span className="text-faint">of {l.history.openings}</span>
                     </>
                   );
+                },
+              },
+              {
+                label: "Chance tonight",
+                numeric: true,
+                cell: (l) => {
+                  const p = chanceOf(l, g !== null && g > 0 ? g : null);
+                  return p === null ? "—" : chance(p);
                 },
               },
               {

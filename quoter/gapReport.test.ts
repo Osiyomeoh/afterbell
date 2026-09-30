@@ -37,11 +37,22 @@ describe("gapReport", () => {
   it("prices tonight exactly as a quote would, and past the per-quote limit for a whole book", () => {
     const small = gapReport(FRIDAY_EVENING, [{ symbol: "TSLA", shares: 10 }], MARKETS, TWO_TO_TEN).lines[0]!.tonight;
     const quote = priceQuote(FRIDAY_EVENING, TSLA, { shares: 10, upper: 372.4, lower: 342 });
-    expect(small).toEqual({ openTs: quote.openTs, premium: quote.premium, maxPayout: quote.maxPayout, probabilityOfPayout: quote.probabilityOfPayout, upper: 372.4, lower: 342 });
+    expect(small).toMatchObject({ openTs: quote.openTs, premium: quote.premium, maxPayout: quote.maxPayout, probabilityOfPayout: quote.probabilityOfPayout, upper: 372.4, lower: 342 });
 
     const book = gapReport(FRIDAY_EVENING, [{ symbol: "TSLA", shares: 5_000 }], MARKETS, TWO_TO_TEN).lines[0]!.tonight;
     expect(5_000).toBeGreaterThan(DEFAULT_QUOTER_CONFIG.maxShares);
     expect("premium" in book && book.premium).toBeCloseTo(quote.premium * 500, 6);
+  });
+
+  it("gives the model's chance of opening each drop down: at 2% it's the chance 2%-to-10% protection pays", () => {
+    const t = gapReport(FRIDAY_EVENING, [{ symbol: "TSLA", shares: 10 }], MARKETS, TWO_TO_TEN, undefined, [0.02, 0.1, 0.25]).lines[0]!.tonight;
+    if (!("chanceDown" in t)) throw new Error("expected tonight to be priced");
+    const [two, ten, quarter] = t.chanceDown.map((c) => c.probability);
+    expect(two).toBeCloseTo(t.probabilityOfPayout, 12);
+    // Further down is less likely, and a 25% gap is far outside anything TSLA has done.
+    expect(two!).toBeGreaterThan(ten!);
+    expect(ten!).toBeGreaterThan(quarter!);
+    expect(quarter!).toBeLessThan(0.001);
   });
 
   it("adds lines for the same stock, taking dollars at the price it's priced from", () => {

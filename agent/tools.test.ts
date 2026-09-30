@@ -47,7 +47,7 @@ describe("describeLoans", () => {
     });
     expect(text).toContain("xStocks Market loan obligation: $11,400.00 borrowed against $38,000.00 of collateral (TSLA $38,000.00).");
     expect(text).toContain("It becomes liquidatable if its stocks open 25.0% below today's price together. Each alone: TSLA 25.0%.");
-    expect(text).toContain("TSLA has opened that far down on 0 of 46 recorded openings (worst -8.8% on 2026-07-23).");
+    expect(text).toContain("TSLA has opened that far down on 0 of 46 recorded openings (worst -8.8% on 2026-07-23), and the pricing model gives it less than a 0.01% chance of opening that far down tonight.");
     expect(text).toContain("Protection from 2% to 25% below each price, down to where the loan becomes liquidatable, until Mon, Sep 28, 09:30 ET");
     expect(text).toContain("it doesn't stop a liquidation");
   });

@@ -8,8 +8,8 @@
  * one the quoter prices from.
  */
 import { backtest, type Structure } from "../pricing/backtest";
-import { payout } from "../pricing/putSpread";
-import { DEFAULT_QUOTER_CONFIG, priceQuote, referencePrice, type Market, type QuoterConfig } from "./quoter";
+import { payout, probabilityBelow } from "../pricing/putSpread";
+import { DEFAULT_QUOTER_CONFIG, modelFor, priceQuote, referencePrice, type Market, type QuoterConfig } from "./quoter";
 
 /** A holding, as shares or as a dollar value at the price protection is priced from. */
 export type BookLine = { symbol: string; shares?: number; value?: number };
@@ -33,8 +33,22 @@ export type GapLine = {
   };
   /** That worst opening, applied to this position at today's price: what it would lose, and what the protection would pay. */
   worstNight: { loss: number; protectionPays: number };
-  /** Protection until the next open, priced now for the whole position; or why it can't be. */
-  tonight: { openTs: number; premium: number; maxPayout: number; probabilityOfPayout: number; upper: number; lower: number } | { unavailable: string };
+  /**
+   * Protection until the next open, priced now for the whole position, and the pricing model's chance
+   * the stock opens at least each of the report's drops below the price it's priced from; or why it
+   * can't be priced.
+   */
+  tonight:
+    | {
+        openTs: number;
+        premium: number;
+        maxPayout: number;
+        probabilityOfPayout: number;
+        upper: number;
+        lower: number;
+        chanceDown: { move: number; probability: number }[];
+      }
+    | { unavailable: string };
   /** The same protection replayed on every past opening, each priced only from the ones before it. Null with too little history. */
   replay: { nights: number; paidNights: number; paidPerDollar: number } | null;
 };
@@ -143,7 +157,16 @@ function line(
     try {
       // A book can be bigger than one quote may be; this prices all of it, as an indication.
       const p = priceQuote(now, market, protection, { ...cfg, maxShares: Number.POSITIVE_INFINITY });
-      tonight = { openTs: p.openTs, premium: p.premium, maxPayout: p.maxPayout, probabilityOfPayout: p.probabilityOfPayout, upper: protection.upper, lower: protection.lower };
+      const model = modelFor(now, p.openTs, market);
+      tonight = {
+        openTs: p.openTs,
+        premium: p.premium,
+        maxPayout: p.maxPayout,
+        probabilityOfPayout: p.probabilityOfPayout,
+        upper: protection.upper,
+        lower: protection.lower,
+        chanceDown: moves.map((move) => ({ move, probability: probabilityBelow(model, reference.price, reference.price * (1 - move)) })),
+      };
     } catch (e) {
       tonight = { unavailable: (e as Error).message };
     }

@@ -5,6 +5,10 @@ export const signedUsd = (v: number, digits = 2) => {
   return shown === usd(0, digits) ? shown : `${v < 0 ? "−" : "+"}${shown}`;
 };
 export const pct = (v: number, digits = 1) => `${(v * 100).toFixed(digits)}%`;
+/** A probability, without rounding a tiny one to "0.00%". */
+export const chance = (p: number) => (p < 0.0001 ? "under 0.01%" : `${(p * 100).toFixed(p < 0.1 ? 2 : 1)}%`);
+/** The same, in a sentence: "a 2.35% chance", "less than a 0.01% chance". */
+export const aChance = (p: number) => (p < 0.0001 ? "less than a 0.01% chance" : `a ${chance(p)} chance`);
 
 /** "Mon 28 Sep, 09:30 ET" */
 export function nyTime(unix: number): string {

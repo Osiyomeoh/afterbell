@@ -127,7 +127,9 @@ export function describeLoans(r: KaminoLoansResponse): string {
       const alone = risk.alone.filter((a) => a.gap !== null && a.gap > 0).map((a) => `${a.symbol} ${pct(a.gap!)}`);
       const history = report.lines.map((l) => {
         const n = g && g > 0 ? l.history.downAtLeast.find((d) => d.move === g)?.nights : undefined;
-        return `${l.symbol} has opened that far down on ${n ?? "none"} of ${l.history.openings} recorded openings (worst ${pct(l.history.worst.gap)} on ${l.history.worst.to})`;
+        const p = g && g > 0 && "chanceDown" in l.tonight ? l.tonight.chanceDown.find((d) => d.move === g)?.probability : undefined;
+        const model = p === undefined ? "" : `, and the pricing model gives it ${p < 0.0001 ? "less than a 0.01%" : `a ${(p * 100).toFixed(2)}%`} chance of opening that far down tonight`;
+        return `${l.symbol} has opened that far down on ${n ?? "none"} of ${l.history.openings} recorded openings (worst ${pct(l.history.worst.gap)} on ${l.history.worst.to})${model}`;
       });
       const t = report.totals;
       const openTs = report.lines.flatMap((l) => ("openTs" in l.tonight ? [l.tonight.openTs] : []))[0];
