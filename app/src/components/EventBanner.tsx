@@ -49,7 +49,7 @@ export function EventBanner() {
   switch (phase.phase) {
     case "settled":
       status = `${event.symbol} opened at ${usd(phase.price)}. ${protections} settled on it, paying ${usd(mine.reduce((t, r) => t + r.paid, 0))} in all.`;
-      action = { href: "/record", label: "See every settlement" };
+      action = { href: "/event", label: "See how it settled" };
       break;
     case "bell-rung":
       status = sold ? `The bell has rung: ${protections} settle on ${event.symbol}'s opening price.` : "The bell has rung.";
@@ -68,6 +68,9 @@ export function EventBanner() {
       status = `Expected before the ${open} open. Protection until that open goes on sale at the ${nyTime(phase.salesOpen)} open, in ${countdown(phase.salesOpen - now)}.`;
       break;
   }
+
+  // Until it's on sale or settled, the event's own page follows it.
+  action ??= { href: "/event", label: "Follow it" };
 
   return (
     <div className="mt-8 flex flex-col gap-3 rounded-2xl border border-brass/40 bg-brass-soft px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-5">
