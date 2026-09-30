@@ -1,6 +1,6 @@
 # Afterbell: business plan
 
-29 September 2026. Figures from this repo are reproducible from it; market figures name their source and date.
+30 September 2026. Figures from this repo are reproducible from it; market figures name their source and date.
 
 ## In one paragraph
 
@@ -14,7 +14,8 @@ Everything below runs on test money: TestUSD, which has no value, and Hyperliqui
 - **First settlements, 28 September.** Both Solana vaults settled their series for Monday's open on Pyth's opening print, $368.09, and paid out: two of the six positions paid, $4.46 in all, on $16.88 of premiums.
 - **The hedge traded through the night and closed at the bell.** A short in Hyperliquid's `xyz:TSLA`, sized to the open protection and adjusted every five minutes, bought back at 13:30:03 UTC: 16 trades, +$5.21 closed, $0.32 in fees.
 - **The book, after one opening:** underwriting +$12.42 (premiums less payouts), hedge +$4.90, together +$17.32. One opening proves the machinery, not the economics.
-- **The first Robinhood Chain purchase**, 28 September: 10 TSLA protected from $352.16 to $323.41 for $17.37, settling at Tuesday's open. The hedger picked it up and opened a 2.029 TSLA short two minutes later, so protection sold on one chain is hedged on another.
+- **The first Robinhood Chain purchase**, 28 September: 10 TSLA protected from $352.16 to $323.41 for $17.37. The hedger picked it up and opened a 2.029 TSLA short two minutes later, so protection sold on one chain is hedged on another. It settled on Chainlink's round in force at Tuesday's open, $359.345 (Pyth's opening print that day: $358.49), and paid nothing, since TSLA opened above its level. The Robinhood Chain keeper runs by hand for now, so it settled a day late.
+- **"Protect every night" on Robinhood Chain**, 30 September: the first renewal was skipped because Thursday's price, $22.85, was above the holder's $20.91 cap. That's the cap doing its job.
 - **No outside users yet.** Every purchase so far is the team's. The first night aimed at outside users is Friday 2 October (below).
 
 ## The customer and the problem
@@ -140,7 +141,7 @@ Anyone can write a put spread. What's hard to copy is everything around it:
 | When | What |
 |---|---|
 | 28 Sep (done) | Both Solana vaults' first series settled on Pyth's $368.09 opening print and paid out; the hedger's first session on Hyperliquid testnet, bought back at the bell; the app hosted; the Robinhood Chain vault deployed on mainnet |
-| 29 Sep | The first Robinhood Chain series settles, on Chainlink's price in force at the open |
+| 30 Sep (done) | The first Robinhood Chain series settled, on Chainlink's round in force at the 29 Sep open ($359.345), a day late because its keeper runs by hand |
 | 2 Oct | Tesla's third-quarter deliveries: the first night aimed at outside users |
 | 5 to 7 Oct | "Protect every night": a standing order a keeper renews each night, within the holder's price cap |
 | By 11 Oct | Every opening settled on schedule; the first Robinhood Chain purchase settled; first outside users |
