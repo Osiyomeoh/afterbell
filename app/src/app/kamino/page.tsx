@@ -17,6 +17,8 @@ export const metadata: Metadata = {
 };
 
 const millions = (v: number) => `$${(v / 1e6).toFixed(v >= 10e6 ? 1 : 2)}M`;
+/** Millions when it's that big, whole dollars otherwise. */
+const money = (v: number) => (v >= 1e6 ? millions(v) : usd(v, 0));
 /** Whole dollars, but not "$0" for a price that's only small. */
 const dollars = (v: number) => (v > 0 && v < 1 ? "under $1" : usd(v, 0));
 
@@ -88,6 +90,8 @@ export default async function KaminoPage({ searchParams }: { searchParams: Promi
 
       {loanCheck}
 
+      <LiquidationMap map={view.liquidationMap} />
+
       <h2 className="mt-10 font-medium">Every stock Kamino holds</h2>
       <div className="mt-4 overflow-hidden rounded-2xl border border-line bg-surface">
         <DataTable
@@ -149,5 +153,48 @@ export default async function KaminoPage({ searchParams }: { searchParams: Promi
         </p>
       </div>
     </>
+  );
+}
+
+/** How much of Kamino's lending against tokenized stocks each gap at the open would make liquidatable. */
+function LiquidationMap({ map }: { map: Awaited<ReturnType<typeof kaminoView>>["liquidationMap"] }) {
+  const already = map.curve[0]!;
+  const rows = map.curve.filter((r) => r.gap > 0).map((r) => ({ ...r, loans: r.loans - already.loans, debt: r.debt - already.debt, collateral: r.collateral - already.collateral }));
+  const w = map.worstOpenings;
+  return (
+    <section className="mt-10">
+      <h2 className="font-medium">If they all opened down together</h2>
+      <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted">
+        {map.loans.toLocaleString("en-US")} loans borrow {money(map.debt)} against tokenized stocks on Kamino.{" "}
+        {already.loans > 0 ? `${already.loans} of them, with ${money(already.debt)} of debt, can be liquidated already. ` : ""}
+        This is how many more would become liquidatable if every stock opened the same share below today&apos;s price at the next bell.
+      </p>
+      <div className="mt-4 overflow-hidden rounded-2xl border border-line bg-surface">
+        <DataTable
+          rows={rows}
+          rowKey={(r) => r.gap}
+          columns={[
+            { label: "Every stock opens", phone: "title", cell: (r) => `${pct(r.gap, 0)} down` },
+            { label: "Loans newly liquidatable", numeric: true, cell: (r) => `${r.loans.toLocaleString("en-US")} of ${map.loans.toLocaleString("en-US")}` },
+            { label: "Their debt", numeric: true, cell: (r) => money(r.debt) },
+            { label: "Their collateral", numeric: true, cell: (r) => money(r.collateral) },
+          ]}
+        />
+      </div>
+      <div className="mt-4 max-w-3xl space-y-2 text-sm leading-relaxed text-muted">
+        <p>
+          If each stock repeated its worst recorded opening, all at once:{" "}
+          <span className="text-text">
+            {w.loans - already.loans} more loan{w.loans - already.loans === 1 ? "" : "s"}, {money(Math.max(0, w.debt - already.debt))} of debt
+          </span>
+          .
+        </p>
+        <p className="text-xs text-faint">
+          A snapshot of every loan in these markets that borrows against a tokenized stock, read at {new Date(map.readAt * 1000).toISOString().slice(0, 16).replace("T", " ")}{" "}
+          UTC: the chain lists the loans, Kamino&apos;s API values each one (research/kamino-loans.ts in the repo). Other collateral stays at today&apos;s
+          value. A loan counts once it can be liquidated, not by how much of it would be: Kamino liquidates part of a loan at a time.
+        </p>
+      </div>
+    </section>
   );
 }
