@@ -43,9 +43,14 @@ export default function PrivatePage() {
     {
       title: "After the open, the desk pays the holder what it paid",
       sig: e.txs.payout,
-      shows: `${e.txs.payout ? "" : "Once sent: "}${short(run.desk)} sent something to ${short(e.holderWallet)}`,
+      shows:
+        e.paid === 0
+          ? `Nothing: ${e.symbol} opened at ${usd(e.settledAt ?? 0)}, above ${usd(e.upper)}, so the protection paid nothing and there was nothing to send`
+          : `${e.txs.payout ? "" : "Once sent: "}${short(run.desk)} sent something to ${short(e.holderWallet)}`,
       hides:
-        e.paid !== undefined
+        e.paid === 0
+          ? "Nothing to hide this time. On a night it pays, the amount travels privately, from the desk's private float"
+          : e.paid !== undefined
           ? `The amount: ${usd(e.paid)}, paid from the desk's private float so no deposit matches it`
           : run.throwaway
             ? "The amount. This run's keys were thrown away after step 3, so it has no payout step; a run that keeps them sends one"

@@ -30,6 +30,8 @@ export type DeskEntry = {
   txs: { deposit: string; premium: string; buy: string; payout?: string };
   /** What the desk paid the holder after the open, in TestUSD; absent until then. */
   paid?: number;
+  /** The series' settlement price; null if it was voided. Absent until the desk pays out. */
+  settledAt?: number | null;
 };
 
 /** A run of desk.ts, as it records it in runs/. */

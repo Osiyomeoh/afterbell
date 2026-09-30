@@ -160,6 +160,7 @@ async function payoutRun(file: string): Promise<void> {
     console.log(`payout, private: ${explorer(payoutTx)}`);
   }
   e.paid = fromUnits(amount);
+  e.settledAt = series.state === "settled" ? series.price : null;
   if (payoutTx) e.txs.payout = payoutTx;
   writeFileSync(file, JSON.stringify(record, null, 2) + "\n");
 
