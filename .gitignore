@@ -6,3 +6,5 @@ keys/
 target/
 .DS_Store
 *.log
+test-results/
+playwright-report/

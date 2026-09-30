@@ -24,7 +24,7 @@ Everything below is live, on test money.
 4. **Where Kamino's loans break:** [/kamino](https://afterbell-nine.vercel.app/kamino) maps all 1,609 loans against tokenized stocks and checks any wallet's loan: the opening that liquidates it, the chance of that tonight, and cover down to that price.
 5. **Buy it privately:** [/private](https://afterbell-nine.vercel.app/private), through Helius's Solana Rings.
 6. **From an agent:** `claude mcp add --transport http afterbell https://afterbell-nine.vercel.app/mcp`.
-7. **Run the tests:** `npm ci && npm test`; `cd evm && forge test`; `cd solana && cargo test`.
+7. **Run the tests:** `npm ci && npm test`; `cd evm && forge test`; `cd solana && cargo test`; `npm run e2e` drives the hosted app in Chrome, desktop and phone (CI runs it after every open).
 
 ## Status
 

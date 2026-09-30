@@ -1,0 +1,26 @@
+name: e2e
+
+# The hosted app in a real browser, desktop and phone. It reads live chains, so it runs on a schedule
+# (after each open settles) and by hand, not on every change.
+on:
+  schedule:
+    - cron: "15 15 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "Where the app is served"
+        default: "https://afterbell-nine.vercel.app"
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright test
+        env:
+          E2E_BASE_URL: ${{ inputs.base_url || 'https://afterbell-nine.vercel.app' }}
