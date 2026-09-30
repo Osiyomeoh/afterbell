@@ -19,6 +19,8 @@
       "deposit": "5S2qzAYHspWgpoUMfNG4cqFahpP1enNZWpTxQBwJ2smpU1oUGNnmQTEhYQNwnGuTnSLZjgu9sF7WugKfqEaxPkhi",
       "premium": "Kku9m8HqTTi222PeVnK1GNK8tBZBYJhbrkdZVibZeSJ4t6T6vnxepcHGTi9UmUrczPDewo5UyFu7WwByaTkqNe5",
       "buy": "5jdqb4qdjuCxGp8GkSLVYwiyrdYsBxxJdPZbENbsHJAK1kBRaWDW3qrT21vBXK3nvApzXWuu9aM8GX3GS9DyXeCh"
-    }
+    },
+    "paid": 0,
+    "settledAt": 352.21
   }
 }
