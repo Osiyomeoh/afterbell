@@ -18,6 +18,12 @@ jobs:
       - run: npx tsc --noEmit
       - run: npx tsc --noEmit -p app
       - run: npm test
+      # Private protection has its own pnpm install (the Helius SDK builds from Git) and imports the SDK above.
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: privacy/package.json
+      - run: pnpm --dir privacy install --frozen-lockfile
+      - run: pnpm --dir privacy check
 
   evm:
     runs-on: ubuntu-latest

@@ -20,8 +20,10 @@ export type StatusReport = { now: number; checks: Check[] };
 
 /** How long after an open a series may wait for the keeper before it's flagged. */
 const SOLANA_GRACE_SECS = 20 * 60;
-// Robinhood Chain settles on the first Chainlink round after the open, which can take a while to come.
+// Robinhood Chain's keeper runs by hand for now, some time after the open.
 const EVM_GRACE_SECS = 3 * 3600;
+/** When anyone may void an unsettled series: both vaults' settle window, a day after the open. */
+const VOIDABLE_AFTER_SECS = 24 * 3600;
 /** The faucet's gift per new wallet, and what a transaction costs it. */
 const SOL_PER_WALLET = 0.02;
 const FAUCET_RESERVE = 0.005;
@@ -33,11 +35,11 @@ const FAUCET_RESERVE = 0.005;
  */
 export async function statusReport(now = Math.floor(Date.now() / 1000)): Promise<StatusReport> {
   const checks = await Promise.all([
-    run("Solana keeper", () => solanaLedger().then((rows) => keeper(rows, now, SOLANA_GRACE_SECS))),
+    run("Solana keeper", () => solanaLedger().then((rows) => keeper(rows, now, SOLANA_GRACE_SECS, VOIDABLE_AFTER_SECS))),
     run("Robinhood Chain keeper", async () => {
       const s = evmVaultState();
       if (!s) return { state: "warn", detail: "The Robinhood Chain vault isn't deployed here." };
-      return keeper((await s).ledger, now, EVM_GRACE_SECS);
+      return keeper((await s).ledger, now, EVM_GRACE_SECS, VOIDABLE_AFTER_SECS);
     }),
     run("Hedge on Hyperliquid", () => hedge(now)),
     run("Quotes on Solana", async () => solanaQuotes()),
