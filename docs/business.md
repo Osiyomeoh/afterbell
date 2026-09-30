@@ -15,7 +15,7 @@ Everything below runs on test money: TestUSD, which has no value, and Hyperliqui
 - **The hedge traded through the night and closed at the bell.** A short in Hyperliquid's `xyz:TSLA`, sized to the open protection and adjusted every five minutes, bought back at 13:30:03 UTC: 16 trades, +$5.21 closed, $0.32 in fees.
 - **The book, after one opening:** underwriting +$12.42 (premiums less payouts), hedge +$4.90, together +$17.32. One opening proves the machinery, not the economics.
 - **The first Robinhood Chain purchase**, 28 September: 10 TSLA protected from $352.16 to $323.41 for $17.37. The hedger picked it up and opened a 2.029 TSLA short two minutes later, so protection sold on one chain is hedged on another. It settled on Chainlink's round in force at Tuesday's open, $359.345 (Pyth's opening print that day: $358.49), and paid nothing, since TSLA opened above its level. The Robinhood Chain keeper runs by hand for now, so it settled a day late.
-- **"Protect every night" on Robinhood Chain**, 30 September: the first renewal was skipped because Thursday's price, $22.85, was above the holder's $20.91 cap. That's the cap doing its job.
+- **"Protect every night" on Robinhood Chain**, 30 September: the first renewal was skipped because Thursday's price, $22.85, was above the holder's $20.91 cap. That's the cap doing its job. That evening the price fell to $11.52 and the keeper, now running on its own key, renewed: position #2, Thursday's TSLA protection, bought for the holder without them signing anything. The renewal cost 0.000011 ETH of gas.
 - **No outside users yet.** Every purchase so far is the team's. The first night aimed at outside users is Friday 2 October (below).
 
 ## The customer and the problem
