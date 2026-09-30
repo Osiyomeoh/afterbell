@@ -1,0 +1,26 @@
+[
+ {
+  "id": "372f41b7e78f5d6bd502eac4e5333dae10c963c96b7ebe686c9bd744233394bc",
+  "check": "arbitrary-send-erc20",
+  "description": "AfterbellRenewer.renew(address,AfterbellVault.Quote,bytes) (src/AfterbellRenewer.sol#136-152) uses arbitrary from in transferFrom: collateral.safeTransferFrom(holder,address(this),q.premium) (src/AfterbellRenewer.sol#147)\n",
+  "reason": "By design: renew charges only a holder who set an order and approved the renewer, at most the order's premium cap, once per opening, for a quote the quoter signed for this contract with strikes near the order's levels; the NFT goes to the holder. Checked by test/RenewerInvariant.t.sol."
+ },
+ {
+  "id": "6a87c826208489eef7e1dfef71edb688b5ea9c798739b4c5725a4446b04c341a",
+  "check": "unused-return",
+  "description": "AfterbellRenewer._checkStrikes(AfterbellVault.Quote,AfterbellRenewer.Order) (src/AfterbellRenewer.sol#155-163) ignores return value by (None,answer,None,updatedAt,None) = AggregatorV3Interface(q.feed).latestRoundData() (src/AfterbellRenewer.sol#156)\n",
+  "reason": "Only the answer and its time are used: the answer must be positive and at most MAX_PRICE_AGE old. The round ids don't matter for checking where the strikes sit."
+ },
+ {
+  "id": "ca5757193b2c4cd9b11ab348eb26deeda28de8adfe940bfff7f2b92842f6ed18",
+  "check": "reentrancy-benign",
+  "description": "Reentrancy in AfterbellRenewer.setOrderWithPermit(address,uint64,uint16,uint16,uint128,uint64,uint256,uint256,uint8,bytes32,bytes32) (src/AfterbellRenewer.sol#104-120):\n\tExternal calls:\n\t- IERC20Permit(address(collateral)).permit(msg.sender,address(this),allowance,deadline,v,r,s) (src/AfterbellRenewer.sol#118)\n\tState variables written after the call(s):\n\t- setOrder(feed,maxShares,startBps,depthBps,maxPremium,until) (src/AfterbellRenewer.sol#119)\n\t\t- _keys.push(OrderKey(msg.sender,feed)) (src/AfterbellRenewer.sol#98)\n\t- setOrder(feed,maxShares,startBps,depthBps,maxPremium,until) (src/AfterbellRenewer.sol#119)\n\t\t- _listed[msg.sender][feed] = true (src/AfterbellRenewer.sol#97)\n\t- setOrder(feed,maxShares,startBps,depthBps,maxPremium,until) (src/AfterbellRenewer.sol#119)\n\t\t- (o.maxShares,o.startBps,o.depthBps,o.maxPremium,o.until) = (maxShares,startBps,depthBps,maxPremium,until) (src/AfterbellRenewer.sol#95)\n",
+  "reason": "The only external call is permit on the vault's own collateral, fixed at construction; no caller-supplied contract runs before the order is written."
+ },
+ {
+  "id": "cc7c4ffbfe13f6d5ca9fabdca9a03cfec9931592727c9ec13922f30f3c6c32f0",
+  "check": "reentrancy-events",
+  "description": "Reentrancy in AfterbellRenewer.setOrderWithPermit(address,uint64,uint16,uint16,uint128,uint64,uint256,uint256,uint8,bytes32,bytes32) (src/AfterbellRenewer.sol#104-120):\n\tExternal calls:\n\t- IERC20Permit(address(collateral)).permit(msg.sender,address(this),allowance,deadline,v,r,s) (src/AfterbellRenewer.sol#118)\n\tEvent emitted after the call(s):\n\t- OrderSet(msg.sender,feed,o) (src/AfterbellRenewer.sol#100)\n\t\t- setOrder(feed,maxShares,startBps,depthBps,maxPremium,until) (src/AfterbellRenewer.sol#119)\n",
+  "reason": "As reentrancy-benign: the call before the event is permit on the vault's own collateral."
+ }
+]

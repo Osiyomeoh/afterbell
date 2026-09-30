@@ -37,13 +37,13 @@ Anyone can call `renew`, because the order's checks, not the caller, protect the
 - **Quotes:** the quote API already signs for any EVM address.
 
 **Tests:**
-- Forge unit tests.
-- An invariant suite:
-  - a holder never pays more than `maxPremium` a night;
-  - nothing renews twice for one opening;
-  - every NFT ends with the holder.
-- Slither in CI, as for the vault.
-- Deploying it costs a little mainnet ETH, which the user runs.
+- Forge unit and fuzz tests (`test/Renewer.t.sol`).
+- An invariant suite (`test/RenewerInvariant.t.sol`), random sequences of orders set, replaced and cancelled, renewals within the order and outside it from any caller, and nights settled and rolled:
+  - a holder never pays more than `maxPremium` a night, nor for more than `maxShares`, and is charged exactly the premium;
+  - nothing renews twice for one opening, even across a cancel and a new order, nor after the order ends;
+  - every NFT ends with the holder, and the renewer keeps neither NFTs nor money.
+  Removing the premium cap or the once-per-opening check makes the matching invariant fail.
+- Slither in CI, as for the vault. Its four findings on the renewer are reviewed and explained in `evm/slither.db.json`, so CI fails on anything new; the deployed contract's source stays as deployed.
 
 ## Solana: new instructions in vault v2
 
