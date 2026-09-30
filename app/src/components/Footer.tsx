@@ -35,6 +35,9 @@ export function Footer() {
           <Link className="whitespace-nowrap hover:text-text" href="/kamino">
             Kamino report
           </Link>
+          <Link className="whitespace-nowrap hover:text-text" href="/verify">
+            Verify
+          </Link>
           <Link className="whitespace-nowrap hover:text-text" href="/private">
             Private protection
           </Link>

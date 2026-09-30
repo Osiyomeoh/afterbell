@@ -2,11 +2,13 @@
   "chainId": 4663,
   "rpc": "https://rpc.mainnet.chain.robinhood.com",
   "vault": "0xbd619a58F5D3f4573774aD67105E299a5b9d9Ab5",
+  "vaultBlock": 74808410,
   "positions": "0xfc55158B73744A0c62cAE720336d2122b7BD733d",
   "testUsd": "0x8309bAB3843a244b6B52EcAEE38c1A050c0aEd3e",
   "owner": "0x63e37160334FBEa25F1C5DF6f3A69aF1906eFcd1",
   "quoter": "0x21D8b0C83d1FEF8F329B643B6aaaA3Ca4bB6f6e0",
   "renewer": "0x710Df188d43F6778E84C83025ee589c292544627",
+  "renewerBlock": 75013699,
   "feeds": {
     "AAPL": "0x6B22A786bAa607d76728168703a39Ea9C99f2cD0",
     "AMD": "0x943A29E7ae51A4798823ca9eEd2ed533B2A22C72",

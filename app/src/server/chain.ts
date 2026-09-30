@@ -7,6 +7,8 @@ import { assetsFor, bpsOf, maxPayoutUnits, roomLeft, saleRefusal, stakeOf, total
 import { feedConfigAddress, getProgram, rateAddress, requestAddress, seriesAddress, token2022Account } from "@root/solana/client/vault";
 import { claimUnits, type SeriesState } from "@root/solana/keeper/plan";
 
+import type { Sale } from "@/lib/team";
+
 import { SOLANA_DEPLOYMENT, type SolanaV2Deployment } from "./deployment";
 import type { LedgerRow } from "./ledger";
 
@@ -98,7 +100,9 @@ export type VaultState = {
   positions: PositionRow[];
 };
 
-type SolanaVaultState = VaultState & { ledger: LedgerRow[]; pool: PoolState };
+/** Every sale, paid or not, with the wallet that bought it: for counting buyers. */
+type WithSales = { sales: Sale[] };
+type SolanaVaultState = VaultState & WithSales & { ledger: LedgerRow[]; pool: PoolState };
 
 type Num = { toString(): string };
 const big = (x: Num) => BigInt(x.toString());
@@ -264,6 +268,7 @@ async function load(d: SolanaV2Deployment): Promise<SolanaVaultState> {
     locked: money(b.locked),
     series: seriesRows,
     positions: rows.filter((r) => !r.closed).map((r) => r.row),
+    sales: rows.map((r) => ({ chain: "solana" as const, buyer: r.row.buyer, openTs: r.row.openTs })),
   };
 }
 

@@ -41,6 +41,8 @@ export type EvmDeployment = {
   chainId: number;
   rpc: string;
   vault: Address;
+  /** The block the vault was deployed in, where reading its events starts. */
+  vaultBlock?: number;
   /** The positions' NFT contract, which the vault deploys. */
   positions: Address;
   testUsd: Address;
@@ -48,6 +50,8 @@ export type EvmDeployment = {
   quoter: Address;
   /** The renewer ("protect every night") beside the vault, once it's deployed. */
   renewer?: Address;
+  /** The block the renewer was deployed in, where reading its events starts. */
+  renewerBlock?: number;
   /** Chainlink feed per stock symbol; Robinhood Chain sells only the stocks listed. */
   feeds: { TSLA: Address } & Partial<Record<string, Address>>;
 };
