@@ -11,7 +11,7 @@ import { dirname, join } from "node:path";
 import { createAssociatedTokenAccountIdempotentInstruction, getAssociatedTokenAddressSync } from "@solana/spl-token";
 import { Connection, Keypair, LAMPORTS_PER_SOL, PublicKey, sendAndConfirmTransaction, Transaction } from "@solana/web3.js";
 
-import { solanaPurchase, type AfterbellClient } from "../sdk";
+import { solanaPurchase, type AfterbellClient } from "../sdk/index";
 import { getProgram, processInstruction } from "../solana/client/vault";
 import { describe, protectionFor, SOLANA_RPC, type AgentWalletTools } from "./tools";
 

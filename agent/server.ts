@@ -14,7 +14,7 @@
  */
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 
-import { AfterbellClient } from "../sdk";
+import { AfterbellClient } from "../sdk/index";
 import { createServer } from "./tools";
 import { localWallet } from "./wallet";
 

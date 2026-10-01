@@ -10,5 +10,6 @@
     "resolveJsonModule": true,
     "types": ["node"]
   },
-  "include": ["research/**/*.ts", "pricing/**/*.ts", "solana/client/**/*.ts", "solana/scripts/**/*.ts", "solana/keeper/**/*.ts", "quoter/**/*.ts", "evm/client/**/*.ts", "evm/scripts/**/*.ts", "evm/keeper/**/*.ts", "agent/**/*.ts", "hedger/**/*.ts", "sdk/**/*.ts"]
+  "include": ["research/**/*.ts", "pricing/**/*.ts", "solana/client/**/*.ts", "solana/scripts/**/*.ts", "solana/keeper/**/*.ts", "quoter/**/*.ts", "evm/client/**/*.ts", "evm/scripts/**/*.ts", "evm/keeper/**/*.ts", "agent/**/*.ts", "hedger/**/*.ts", "sdk/**/*.ts"],
+  "exclude": ["sdk/tsup.config.ts"]
 }
