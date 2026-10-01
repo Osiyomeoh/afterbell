@@ -9,7 +9,7 @@ import { backtest, type BacktestNight, type BacktestResult } from "@root/pricing
 import { priceQuote } from "@root/quoter/quoter";
 
 import { fetchHoldings, fetchMarket, requestEvmQuote, requestQuote, toMarket, type Chain, type MarketResponse, type PriceSource } from "@/lib/api";
-import { buyProtection, NotEnoughTestUsd } from "@/lib/buy";
+import { buyProtection, NotEnoughTestUsd, protectEveryNightOnSolana } from "@/lib/buy";
 import { buyOnRobinhood, evmTxUrl, NeedsGas, protectEveryNight, useEvmWallet } from "@/lib/evm";
 import { nextEvent } from "@/lib/events";
 import { countdown, dayLabel, explorer, MAX_MULTIPLE, nyTime, pct, usd } from "@/lib/format";
@@ -202,7 +202,17 @@ export function Protect() {
       setStatus({ kind: "busy", step: "Confirm in your wallet" });
       const { signature, position, number } = await buyProtection(connection, wallet, sendTransaction, q.solana);
       const nft = { number: number.toString(), art: `/api/position-art/solana/${position}/image`, share: sharePath("solana", position.toString()) };
-      setStatus({ kind: "done", premium: q.priced.premium, openTs: q.priced.openTs, url: explorer("tx", signature), nft });
+      const done = { kind: "done", premium: q.priced.premium, openTs: q.priced.openTs, url: explorer("tx", signature), nft } as const;
+      if (everyNight === null) return setStatus(done);
+      // Tonight is bought; a standing order that fails to set leaves it bought, and says why.
+      try {
+        setStatus({ kind: "busy", step: "Confirm the standing order in your wallet" });
+        const { order, allowance } = standingOrder({ shares: protection.shares, start, depth, premium: q.priced.premium, openTs: q.priced.openTs, nights: everyNight });
+        await protectEveryNightOnSolana(connection, wallet, sendTransaction, q.solana, { ...order, allowance });
+        setStatus({ ...done, renews: { until: Number(order.until), cap: Number(order.maxPremium) / 1e6 } });
+      } catch (e) {
+        setStatus({ ...done, renews: { error: (e as Error).message } });
+      }
     } catch (e) {
       setStatus({ kind: "error", message: (e as Error).message, needsFunds: e instanceof NotEnoughTestUsd });
     }
@@ -317,7 +327,7 @@ export function Protect() {
         <Row label="Priced from" value={priced ? usd(priced.reference.price) : "—"} />
       </dl>
       {priced && <p className="mt-1 text-right text-xs text-faint">{BASIS[priced.reference.basis]}</p>}
-      {chain === "robinhood" && market.robinhood?.renewer && priced && (
+      {(chain === "solana" || market.robinhood?.renewer) && priced && (
         <EveryNight nights={everyNight} onChange={setEveryNight} cap={priced.premium * CAP_OVER_TONIGHT} />
       )}
       <button

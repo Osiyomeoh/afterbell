@@ -88,6 +88,9 @@ export const positionAddress = (vault: PublicKey, nonce: Uint8Array) => pda([see
 /** A position's NFT: a Token-2022 mint with a supply of one. */
 export const positionMintAddress = (vault: PublicKey, nonce: Uint8Array) => pda([seed("position_mint"), vault.toBytes(), nonce]);
 export const requestAddress = (vault: PublicKey, owner: PublicKey) => pda([seed("request"), vault.toBytes(), owner.toBytes()]);
+/** A holder's standing order for one stock: the SPL delegate for its premium allowance. */
+export const orderAddress = (vault: PublicKey, holder: PublicKey, feedId: Uint8Array) =>
+  pda([seed("order"), vault.toBytes(), holder.toBytes(), feedId]);
 /** The pool's value at the roll that ended `round`: what that round's requests fill at. */
 export const rateAddress = (vault: PublicKey, round: bigint) => pda([seed("rate"), vault.toBytes(), le64(round, false)]);
 
@@ -151,6 +154,113 @@ export async function buyInstructions(
     })
     .instruction();
   return [verify, buy];
+}
+
+/** A standing order's limits; `allowance` is what the order may spend in premiums in all. */
+export type OrderTerms = {
+  maxShares: bigint;
+  /** Strikes the order accepts, in bps below the price: where cover starts and how deep it goes. */
+  startBps: number;
+  depthBps: number;
+  maxPremium: bigint;
+  /** No renewals for openings at or after this unix time. */
+  until: bigint;
+  allowance: bigint;
+};
+
+/** `set_order`: creates or changes the holder's order and approves it to spend `allowance`. */
+export function setOrderInstruction(
+  program: Program<AfterbellVault>,
+  args: { holder: PublicKey; vault: PublicKey; feedId: Uint8Array; collateralMint: PublicKey; holderToken: PublicKey; terms: OrderTerms },
+): Promise<TransactionInstruction> {
+  const t = args.terms;
+  return program.methods
+    .setOrder(Array.from(args.feedId), {
+      maxShares: bn(t.maxShares),
+      startBps: t.startBps,
+      depthBps: t.depthBps,
+      maxPremium: bn(t.maxPremium),
+      until: bn(t.until),
+      allowance: bn(t.allowance),
+    })
+    .accountsPartial({
+      holder: args.holder,
+      vault: args.vault,
+      feedConfig: feedConfigAddress(args.vault, args.feedId),
+      order: orderAddress(args.vault, args.holder, args.feedId),
+      collateralMint: args.collateralMint,
+      holderToken: args.holderToken,
+      tokenProgram: TOKEN_PROGRAM_ID,
+      systemProgram: SystemProgram.programId,
+    })
+    .instruction();
+}
+
+/** `cancel_order`: stops renewals and revokes the allowance. */
+export function cancelOrderInstruction(
+  program: Program<AfterbellVault>,
+  args: { holder: PublicKey; order: PublicKey; holderToken: PublicKey },
+): Promise<TransactionInstruction> {
+  return program.methods
+    .cancelOrder()
+    .accountsPartial({ holder: args.holder, order: args.order, holderToken: args.holderToken, tokenProgram: TOKEN_PROGRAM_ID })
+    .instruction();
+}
+
+/**
+ * The two instructions a keeper sends to renew an order: the quoter's signature
+ * (over a quote whose buyer is the order), then `renew`. The holder's allowance
+ * pays the premium and the NFT goes to the holder; the keeper pays the rent.
+ */
+export async function renewInstructions(
+  program: Program<AfterbellVault>,
+  args: {
+    keeper: PublicKey;
+    holder: PublicKey;
+    vault: PublicKey;
+    collateralMint: PublicKey;
+    holderToken: PublicKey;
+    priceUpdate: PublicKey;
+    quote: SolanaQuote;
+    ed25519Data: Uint8Array;
+  },
+): Promise<TransactionInstruction[]> {
+  const q = args.quote;
+  const verify = new TransactionInstruction({ programId: Ed25519Program.programId, keys: [], data: Buffer.from(args.ed25519Data) });
+  const positionMint = positionMintAddress(args.vault, q.nonce);
+  const renew = await program.methods
+    .renew({
+      feedId: Array.from(q.feedId),
+      openTs: bn(q.openTs),
+      shares: bn(q.shares),
+      upper: bn(q.upper),
+      lower: bn(q.lower),
+      premium: bn(q.premium),
+      expiry: bn(q.expiry),
+      nonce: Array.from(q.nonce),
+    })
+    .accountsPartial({
+      keeper: args.keeper,
+      holder: args.holder,
+      order: orderAddress(args.vault, args.holder, q.feedId),
+      vault: args.vault,
+      feedConfig: feedConfigAddress(args.vault, q.feedId),
+      series: seriesAddress(args.vault, q.feedId, q.openTs),
+      position: positionAddress(args.vault, q.nonce),
+      positionMint,
+      holderNft: token2022Account(args.holder, positionMint),
+      collateralMint: args.collateralMint,
+      holderToken: args.holderToken,
+      vaultToken: vaultTokenAddress(args.vault),
+      priceUpdate: args.priceUpdate,
+      instructions: SYSVAR_INSTRUCTIONS_PUBKEY,
+      tokenProgram: TOKEN_PROGRAM_ID,
+      nftTokenProgram: TOKEN_2022_PROGRAM_ID,
+      associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+      systemProgram: SystemProgram.programId,
+    })
+    .instruction();
+  return [verify, renew];
 }
 
 /** `settle`: anyone may call it with the Pyth update that is the first print at or after the open. */

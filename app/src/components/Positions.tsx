@@ -10,6 +10,7 @@ import type { HolderOrder } from "@root/evm/client/renewer";
 import { svg } from "@root/solana/client/art";
 
 import { fetchMarket, fetchPositions, type MarketResponse, type PositionRow } from "@/lib/api";
+import { solanaStandingOrders, stopEveryNightOnSolana, type SolanaStandingOrder } from "@/lib/buy";
 import { claimPosition } from "@/lib/claim";
 import { claimOnRobinhood, evmTxUrl, standingOrders, stopEveryNight, useEvmWallet } from "@/lib/evm";
 import { explorer, nyTime, usd } from "@/lib/format";
@@ -102,7 +103,62 @@ function SolanaPositions({ vault, nextOpen }: { vault: { vault: string; collater
       setClaiming(null);
     }
   }
-  return <PositionsTable chain="solana" rows={rows} error={error} claiming={claiming} claimed={claimed} onClaim={claim} />;
+  return (
+    <>
+      <PositionsTable chain="solana" rows={rows} error={error} claiming={claiming} claimed={claimed} onClaim={claim} />
+      <SolanaStandingOrders vault={vault} />
+    </>
+  );
+}
+
+/** The wallet's Solana standing orders, each with a way to stop it. */
+function SolanaStandingOrders({ vault }: { vault: { vault: string; collateralMint: string } }) {
+  const wallet = useAnchorWallet();
+  const sendTransaction = useSendTransaction();
+  const { connection } = useConnection();
+  const [orders, setOrders] = useState<SolanaStandingOrder[] | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const load = useCallback(() => {
+    if (!wallet) return;
+    // A vault deployed before standing orders has none to list.
+    solanaStandingOrders(connection, wallet, vault.vault).then(setOrders, () => setOrders([]));
+  }, [connection, wallet, vault.vault]);
+  useEffect(load, [load]);
+
+  async function stop(o: SolanaStandingOrder) {
+    if (!wallet) return;
+    try {
+      setBusy(o.symbol);
+      await stopEveryNightOnSolana(connection, wallet, sendTransaction, vault, o.feedId);
+      load();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  if (!orders || (orders.length === 0 && !error)) return null;
+  return (
+    <div className="mt-4 rounded-2xl border border-line bg-surface p-5 text-sm">
+      <h3 className="font-medium">Protected every night</h3>
+      <ul className="mt-3 divide-y divide-line">
+        {orders.map((o) => (
+          <li key={o.symbol} className="flex flex-wrap items-center justify-between gap-3 py-2.5">
+            <span>
+              {o.maxShares} {o.symbol}, {o.startBps / 100}% to {o.depthBps / 100}% below the price, at most <span className="num">{usd(o.maxPremium)}</span> a
+              night, until {nyTime(o.until)}
+            </span>
+            <button onClick={() => stop(o)} disabled={busy === o.symbol} className="rounded-lg border border-line px-2.5 py-1 text-xs hover:border-loss disabled:opacity-40">
+              {busy === o.symbol ? "Stopping…" : "Stop"}
+            </button>
+          </li>
+        ))}
+      </ul>
+      {error && <p className="mt-2 text-loss">{error}</p>}
+    </div>
+  );
 }
 
 function RobinhoodPositions({ d }: { d: NonNullable<MarketResponse["robinhood"]> }) {

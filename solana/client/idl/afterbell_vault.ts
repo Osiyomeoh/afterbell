@@ -341,6 +341,44 @@ export type AfterbellVault = {
       ]
     },
     {
+      "name": "cancelOrder",
+      "discriminator": [
+        95,
+        129,
+        237,
+        240,
+        8,
+        49,
+        223,
+        132
+      ],
+      "accounts": [
+        {
+          "name": "holder",
+          "signer": true,
+          "relations": [
+            "order"
+          ]
+        },
+        {
+          "name": "order",
+          "writable": true
+        },
+        {
+          "name": "holderToken",
+          "docs": [
+            "The allowance is revoked only if it's still this order's."
+          ],
+          "writable": true
+        },
+        {
+          "name": "tokenProgram",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "claimDeposit",
       "discriminator": [
         201,
@@ -786,6 +824,298 @@ export type AfterbellVault = {
       "args": []
     },
     {
+      "name": "renew",
+      "discriminator": [
+        43,
+        239,
+        15,
+        46,
+        27,
+        7,
+        163,
+        73
+      ],
+      "accounts": [
+        {
+          "name": "keeper",
+          "docs": [
+            "Anyone: pays the new accounts' rent, as a buyer would."
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "holder"
+        },
+        {
+          "name": "order",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  114,
+                  100,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault"
+              },
+              {
+                "kind": "account",
+                "path": "order.holder",
+                "account": "order"
+              },
+              {
+                "kind": "arg",
+                "path": "q.feedId"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "relations": [
+            "order"
+          ]
+        },
+        {
+          "name": "feedConfig",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  102,
+                  101,
+                  101,
+                  100
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault"
+              },
+              {
+                "kind": "arg",
+                "path": "q.feedId"
+              }
+            ]
+          }
+        },
+        {
+          "name": "series",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  101,
+                  114,
+                  105,
+                  101,
+                  115
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault"
+              },
+              {
+                "kind": "arg",
+                "path": "q.feedId"
+              },
+              {
+                "kind": "arg",
+                "path": "q.openTs"
+              }
+            ]
+          }
+        },
+        {
+          "name": "position",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  105,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault"
+              },
+              {
+                "kind": "arg",
+                "path": "q.nonce"
+              }
+            ]
+          }
+        },
+        {
+          "name": "positionMint",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  105,
+                  116,
+                  105,
+                  111,
+                  110,
+                  95,
+                  109,
+                  105,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault"
+              },
+              {
+                "kind": "arg",
+                "path": "q.nonce"
+              }
+            ]
+          }
+        },
+        {
+          "name": "holderNft",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "holder"
+              },
+              {
+                "kind": "account",
+                "path": "nftTokenProgram"
+              },
+              {
+                "kind": "account",
+                "path": "positionMint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "collateralMint",
+          "relations": [
+            "vault"
+          ]
+        },
+        {
+          "name": "holderToken",
+          "writable": true
+        },
+        {
+          "name": "vaultToken",
+          "writable": true,
+          "relations": [
+            "vault"
+          ]
+        },
+        {
+          "name": "priceUpdate",
+          "docs": [
+            "The stock's latest price, which the strikes are checked against."
+          ]
+        },
+        {
+          "name": "instructions",
+          "address": "Sysvar1nstructions1111111111111111111111111"
+        },
+        {
+          "name": "tokenProgram",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "nftTokenProgram",
+          "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+        },
+        {
+          "name": "associatedTokenProgram",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "q",
+          "type": {
+            "defined": {
+              "name": "quoteArgs"
+            }
+          }
+        }
+      ]
+    },
+    {
       "name": "requestDeposit",
       "discriminator": [
         243,
@@ -1080,6 +1410,120 @@ export type AfterbellVault = {
       ]
     },
     {
+      "name": "setOrder",
+      "discriminator": [
+        90,
+        197,
+        72,
+        169,
+        67,
+        133,
+        252,
+        202
+      ],
+      "accounts": [
+        {
+          "name": "holder",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "vault"
+        },
+        {
+          "name": "feedConfig",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  102,
+                  101,
+                  101,
+                  100
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault"
+              },
+              {
+                "kind": "arg",
+                "path": "feedId"
+              }
+            ]
+          }
+        },
+        {
+          "name": "order",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  114,
+                  100,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vault"
+              },
+              {
+                "kind": "account",
+                "path": "holder"
+              },
+              {
+                "kind": "arg",
+                "path": "feedId"
+              }
+            ]
+          }
+        },
+        {
+          "name": "collateralMint",
+          "relations": [
+            "vault"
+          ]
+        },
+        {
+          "name": "holderToken",
+          "writable": true
+        },
+        {
+          "name": "tokenProgram",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "feedId",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "terms",
+          "type": {
+            "defined": {
+              "name": "orderTerms"
+            }
+          }
+        }
+      ]
+    },
+    {
       "name": "setParams",
       "discriminator": [
         27,
@@ -1222,6 +1666,19 @@ export type AfterbellVault = {
       ]
     },
     {
+      "name": "order",
+      "discriminator": [
+        134,
+        173,
+        223,
+        185,
+        77,
+        86,
+        28,
+        51
+      ]
+    },
+    {
       "name": "position",
       "discriminator": [
         170,
@@ -1325,6 +1782,32 @@ export type AfterbellVault = {
         230,
         158,
         241
+      ]
+    },
+    {
+      "name": "orderCancelled",
+      "discriminator": [
+        108,
+        56,
+        128,
+        68,
+        168,
+        113,
+        168,
+        239
+      ]
+    },
+    {
+      "name": "orderSet",
+      "discriminator": [
+        176,
+        13,
+        15,
+        108,
+        99,
+        155,
+        160,
+        234
       ]
     },
     {
@@ -1621,6 +2104,41 @@ export type AfterbellVault = {
     },
     {
       "code": 6032,
+      "name": "invalidOrder",
+      "msg": "Standing order: start below the price, depth below that, both under 100%; shares, premium cap and end date set"
+    },
+    {
+      "code": 6033,
+      "name": "orderNotActive",
+      "msg": "The standing order is cancelled"
+    },
+    {
+      "code": 6034,
+      "name": "orderEnded",
+      "msg": "The standing order has ended"
+    },
+    {
+      "code": 6035,
+      "name": "alreadyRenewed",
+      "msg": "The standing order already renewed for this opening"
+    },
+    {
+      "code": 6036,
+      "name": "overOrderLimit",
+      "msg": "The quote is beyond the standing order's shares or premium cap"
+    },
+    {
+      "code": 6037,
+      "name": "stalePrice",
+      "msg": "The price is too old to renew against"
+    },
+    {
+      "code": 6038,
+      "name": "strikesOffOrder",
+      "msg": "The quote's strikes aren't where the standing order puts them"
+    },
+    {
+      "code": 6039,
       "name": "mathOverflow",
       "msg": "Math overflow"
     }
@@ -1728,6 +2246,182 @@ export type AfterbellVault = {
             "name": "amount",
             "docs": [
               "What it would have paid."
+            ],
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "order",
+      "docs": [
+        "A holder's standing order: protection on one stock renewed each night by any",
+        "keeper, within the holder's limits, paid from an allowance the holder gave",
+        "this account over their collateral. It is the quote's buyer; the NFT goes to",
+        "the holder."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "vault",
+            "type": "pubkey"
+          },
+          {
+            "name": "holder",
+            "type": "pubkey"
+          },
+          {
+            "name": "feedId",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "maxShares",
+            "type": "u64"
+          },
+          {
+            "name": "startBps",
+            "docs": [
+              "Where protection starts and stops, in bps below the price."
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "depthBps",
+            "type": "u16"
+          },
+          {
+            "name": "maxPremium",
+            "type": "u64"
+          },
+          {
+            "name": "until",
+            "docs": [
+              "Renews for openings before this time."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "lastOpenTs",
+            "docs": [
+              "The last opening renewed for, kept across a cancel so it can't renew twice."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "active",
+            "type": "bool"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "orderCancelled",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "vault",
+            "type": "pubkey"
+          },
+          {
+            "name": "order",
+            "type": "pubkey"
+          },
+          {
+            "name": "holder",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "orderSet",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "vault",
+            "type": "pubkey"
+          },
+          {
+            "name": "order",
+            "type": "pubkey"
+          },
+          {
+            "name": "holder",
+            "type": "pubkey"
+          },
+          {
+            "name": "feedId",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "maxShares",
+            "type": "u64"
+          },
+          {
+            "name": "startBps",
+            "type": "u16"
+          },
+          {
+            "name": "depthBps",
+            "type": "u16"
+          },
+          {
+            "name": "maxPremium",
+            "type": "u64"
+          },
+          {
+            "name": "until",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "orderTerms",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "maxShares",
+            "type": "u64"
+          },
+          {
+            "name": "startBps",
+            "type": "u16"
+          },
+          {
+            "name": "depthBps",
+            "type": "u16"
+          },
+          {
+            "name": "maxPremium",
+            "type": "u64"
+          },
+          {
+            "name": "until",
+            "type": "i64"
+          },
+          {
+            "name": "allowance",
+            "docs": [
+              "What renewals may spend in all: the order's allowance over the holder's collateral."
             ],
             "type": "u64"
           }
