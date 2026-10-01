@@ -122,7 +122,7 @@ export function Protect() {
 
   const { connection } = useConnection();
   const wallet = useAnchorWallet();
-  const { wallets } = useWallet();
+  const { wallets, select } = useWallet();
   const sendTransaction = useSendTransaction();
   // Wallets register themselves a moment after the page loads; until then, don't say there are none.
   const [walletsSettled, setWalletsSettled] = useState(false);
@@ -194,7 +194,8 @@ export function Protect() {
   async function buy() {
     if (!protection) return;
     if (chain === "robinhood") return buyOnEvm();
-    if (!wallet) return setVisible(true);
+    // With no wallet of their own, the one button starts the test wallet rather than a modal listing nothing.
+    if (!wallet) return noSolanaWallet ? select(TestWalletName) : setVisible(true);
     try {
       setStatus({ kind: "busy", step: "Getting a signed quote" });
       const q = await requestQuote({ symbol, buyer: wallet.publicKey.toBase58(), ...protection });
@@ -280,7 +281,9 @@ export function Protect() {
         ? "Not on sale yet"
         : !connected
         ? chain === "solana"
-          ? "Connect a wallet"
+          ? noSolanaWallet
+            ? "Try it with a test wallet"
+            : "Connect a wallet"
           : "Connect an EVM wallet"
         : priced
           ? `Protect for ${usd(priced.premium)}`
@@ -428,7 +431,7 @@ export function Protect() {
         <EventNote symbol={market.symbol} now={now} openTs={openTs} />
         {protection && <OvernightChart symbol={market.symbol} openTs={openTs} now={now} upper={protection.upper} lower={protection.lower} />}
 
-        <div className="mt-5 flex flex-wrap gap-2" role="group" aria-label="Protection presets">
+        <div className="mt-5 grid grid-cols-3 gap-2" role="group" aria-label="Protection presets">
           {PRESETS.map((p) => {
             const on = Math.abs(start - p.start) < 1e-9 && Math.abs(depth - p.depth) < 1e-9;
             return (
@@ -440,7 +443,7 @@ export function Protect() {
                   setStart(p.start);
                   setDepth(p.depth);
                 }}
-                className={`rounded-lg border px-3 py-1.5 text-left text-sm ${on ? "border-brass bg-raised text-text" : "border-line text-muted hover:text-text"}`}
+                className={`min-w-0 rounded-lg border px-2.5 py-1.5 text-left text-sm ${on ? "border-brass bg-raised text-text" : "border-line text-muted hover:text-text"}`}
               >
                 <span className="block">{p.label}</span>
                 <span className="num block text-xs text-faint">
@@ -673,18 +676,14 @@ function EveryNight({ nights, onChange, cap }: { nights: number | null; onChange
  * one) open the page inside a wallet's own browser.
  */
 function NoWallet() {
-  const { select } = useWallet();
   const here = typeof window === "undefined" ? "" : window.location.href;
   const origin = typeof window === "undefined" ? "" : window.location.origin;
   const inWallet = (base: string) => `${base}/${encodeURIComponent(here)}?ref=${encodeURIComponent(origin)}`;
   return (
     <div className="mt-3 rounded-lg border border-line p-3 text-sm text-muted">
-      <p>No Solana wallet in this browser? Try it with a test wallet kept here: it gets test money as it connects, and buys in one click.</p>
-      <button type="button" onClick={() => select(TestWalletName)} className="mt-2 w-full rounded-lg bg-brass px-3 py-2 font-medium text-ink hover:opacity-90">
-        Use a test wallet
-      </button>
+      <p>No Solana wallet in this browser, so the button above makes a test wallet kept here: it gets test money as it connects, and buys in one click.</p>
       <p className="mt-3">
-        Or install{" "}
+        For your own wallet, install{" "}
         <a className="text-text underline" href="https://phantom.com/download" target="_blank" rel="noreferrer">
           Phantom
         </a>{" "}

@@ -49,7 +49,7 @@ export function Activity() {
     );
   }
   return (
-    <div className="mt-6 grid grid-cols-3 gap-3 lg:mt-0 lg:grid-cols-1">
+    <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:mt-0 lg:grid-cols-1">
       {protectedNow}
       <Stat label="Paid out" value={usd(sum(rows, (r) => r.paid))} note={`on ${openings} settled opening${openings === 1 ? "" : "s"}`} />
       <Stat
@@ -57,12 +57,13 @@ export function Activity() {
         value={`${last.symbol} ${usd(last.price ?? 0)}`}
         note={`${nyTime(last.openTs)}: ${usd(sum(atLast, (r) => r.paid))} across ${positionsAtLast} position${positionsAtLast === 1 ? "" : "s"}`}
         href="/record"
+        wide
       />
     </div>
   );
 }
 
-function Stat({ label, value, note, href }: { label: string; value: string; note: string; href?: string }) {
+function Stat({ label, value, note, href, wide }: { label: string; value: string; note: string; href?: string; wide?: boolean }) {
   const body = (
     <>
       <div className="text-xs text-muted">{label}</div>
@@ -70,7 +71,7 @@ function Stat({ label, value, note, href }: { label: string; value: string; note
       <div className="mt-0.5 text-xs text-faint">{note}</div>
     </>
   );
-  const cls = "min-w-0 rounded-xl border border-line bg-surface px-3 py-2.5 sm:px-4 sm:py-3";
+  const cls = `${wide ? "col-span-2 sm:col-span-1 " : ""}min-w-0 rounded-xl border border-line bg-surface px-3 py-2.5 sm:px-4 sm:py-3`;
   return href ? (
     <Link href={href} className={`${cls} block hover:border-muted`}>
       {body}
