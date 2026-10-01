@@ -18,17 +18,14 @@
  * and position, noting that it couldn't fetch the print.
  */
 import { existsSync, readFileSync } from "node:fs";
-import { homedir } from "node:os";
-import { join } from "node:path";
 
-import { Connection, Keypair, LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
+import { Connection, LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
 
 import { AfterbellClient } from "../../sdk/client";
 import { planKeeper, runKeeper, type KeeperPlan } from "../keeper/keeper";
 import { hermesFromEnv } from "../keeper/pyth";
 import { renewOrders, type RenewalPlan } from "../keeper/renew";
-
-const iso = (secs: number) => new Date(secs * 1000).toISOString().replace(".000Z", "Z");
+import { iso, loadKeypair, walletPath as defaultWallet } from "./common";
 
 function printPlan(p: KeeperPlan) {
   const amount = (units: bigint) => (Number(units) / Number(p.collateralUnit)).toFixed(2);
@@ -61,14 +58,14 @@ function printRenewals(plans: RenewalPlan[]) {
 async function main() {
   const rpc = process.env.RPC_URL ?? "https://api.devnet.solana.com";
   const d = JSON.parse(readFileSync(process.env.DEPLOYMENTS ?? "solana/deployments/devnet.json", "utf8"));
-  const walletPath = process.env.ANCHOR_WALLET ?? join(homedir(), ".config/solana/id.json");
+  const walletPath = defaultWallet();
   const connection = new Connection(rpc, "confirmed");
   const vault = new PublicKey(d.vault);
   const api = new AfterbellClient(process.env.AFTERBELL_URL ?? "https://afterbell-nine.vercel.app");
 
   if (process.argv.includes("--plan")) {
     if (existsSync(walletPath)) {
-      const payer = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(readFileSync(walletPath, "utf8")))).publicKey;
+      const payer = loadKeypair(walletPath).publicKey;
       console.log(`payer         ${payer.toBase58()}, ${(await connection.getBalance(payer)) / LAMPORTS_PER_SOL} SOL`);
     }
     printPlan(await planKeeper({ connection, vault, hermes: hermesFromEnv }));
@@ -77,7 +74,7 @@ async function main() {
     return;
   }
 
-  const payer = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(readFileSync(walletPath, "utf8"))));
+  const payer = loadKeypair(walletPath);
   const report = await runKeeper({ connection, payer, vault, hermes: hermesFromEnv, log: (line) => console.log(line) });
   for (const w of report.waiting) console.log(`waiting ${w.series}: ${w.reason}`);
   if (report.tips > 0n) console.log(`tips earned ${report.tips} units`);

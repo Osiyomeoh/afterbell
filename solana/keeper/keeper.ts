@@ -15,6 +15,7 @@ import { createAssociatedTokenAccountIdempotentInstruction, getAssociatedTokenAd
 import { Connection, Keypair, PublicKey, sendAndConfirmTransaction, Transaction, type TransactionInstruction } from "@solana/web3.js";
 
 import {
+  feedIdHex,
   getProgram,
   holderOf,
   parseVaultEvents,
@@ -64,7 +65,6 @@ const ACCOUNTS_PER_TX = 4;
 
 const stateOf = (s: object) => Object.keys(s)[0] as SeriesState;
 const voidAfter = (s: SeriesView, v: { voidDelaySecs: number }) => `it can be voided after ${new Date((s.openTs + v.voidDelaySecs + 1) * 1000).toISOString()}`;
-const hex = (bytes: number[]) => "0x" + Buffer.from(bytes).toString("hex");
 const big = (x: { toString(): string }) => BigInt(x.toString());
 
 type VaultProgram = ReturnType<typeof getProgram>;
@@ -79,7 +79,7 @@ async function loadVault(program: VaultProgram, vault: PublicKey) {
     series: series.map(
       (s): SeriesView => ({
         address: s.publicKey.toBase58(),
-        feedId: hex(s.account.feedId),
+        feedId: feedIdHex(s.account.feedId),
         openTs: s.account.openTs.toNumber(),
         state: stateOf(s.account.state),
         lowestLower: big(s.account.lowestLower),

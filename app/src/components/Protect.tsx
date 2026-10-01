@@ -59,8 +59,13 @@ const SETTLED_BY: Record<Chain, (symbol: string) => string> = {
 
 const SOURCE: Record<PriceSource, string> = { pyth: "Pyth", chainlink: "Chainlink", hyperliquid: "Hyperliquid" };
 
-/** Why a chain can't sell this stock right now, or null if it can. */
 /** Why the ticket can't sell this stock on this chain, in plain words, or null when it can. */
+/** A wallet's error in words: viem's short message when it has one. */
+const errorMessage = (e: unknown) => {
+  const err = e as Error & { shortMessage?: string };
+  return err.shortMessage ?? err.message;
+};
+
 function unavailableOn(chain: Chain, m: MarketResponse): string | null {
   const listing = m.stocks.find((s) => s.symbol === m.symbol);
   const sym = m.symbol;
@@ -191,6 +196,24 @@ export function Protect() {
     return backtest(market.history, { deductible: start, depth: Math.max(depth, start + 0.01) }, { shares: 1, annualVol: market.annualVol, margin: market.config.margin });
   }, [market, start, depth]);
 
+  /**
+   * Tonight is bought; set the standing order that renews it. One that fails to set leaves tonight
+   * bought, and says why.
+   */
+  async function thenEveryNight(
+    done: Extract<Status, { kind: "done" }>,
+    set: (order: ReturnType<typeof standingOrder>["order"], allowance: ReturnType<typeof standingOrder>["allowance"]) => Promise<unknown>,
+  ) {
+    if (!protection || everyNight === null) return setStatus(done);
+    try {
+      const { order, allowance } = standingOrder({ shares: protection.shares, start, depth, premium: done.premium, openTs: done.openTs, nights: everyNight });
+      await set(order, allowance);
+      setStatus({ ...done, renews: { until: Number(order.until), cap: Number(order.maxPremium) / 1e6 } });
+    } catch (e) {
+      setStatus({ ...done, renews: { error: errorMessage(e) } });
+    }
+  }
+
   async function buy() {
     if (!protection) return;
     if (chain === "robinhood") return buyOnEvm();
@@ -203,18 +226,12 @@ export function Protect() {
       const { signature, position, number } = await buyProtection(connection, wallet, sendTransaction, q.solana);
       const nft = { number: number.toString(), art: `/api/position-art/solana/${position}/image`, share: sharePath("solana", position.toString()) };
       const done = { kind: "done", premium: q.priced.premium, openTs: q.priced.openTs, url: explorer("tx", signature), nft } as const;
-      if (everyNight === null) return setStatus(done);
-      // Tonight is bought; a standing order that fails to set leaves it bought, and says why.
-      try {
+      await thenEveryNight(done, async (order, allowance) => {
         setStatus({ kind: "busy", step: "Confirm the standing order in your wallet" });
-        const { order, allowance } = standingOrder({ shares: protection.shares, start, depth, premium: q.priced.premium, openTs: q.priced.openTs, nights: everyNight });
         await protectEveryNightOnSolana(connection, wallet, sendTransaction, q.solana, { ...order, allowance });
-        setStatus({ ...done, renews: { until: Number(order.until), cap: Number(order.maxPremium) / 1e6 } });
-      } catch (e) {
-        setStatus({ ...done, renews: { error: (e as Error).message } });
-      }
+      });
     } catch (e) {
-      setStatus({ kind: "error", message: (e as Error).message, needsFunds: e instanceof NotEnoughTestUsd });
+      setStatus({ kind: "error", message: errorMessage(e), needsFunds: e instanceof NotEnoughTestUsd });
     }
   }
 
@@ -229,18 +246,11 @@ export function Protect() {
       const done = { kind: "done", premium: q.priced.premium, openTs: q.priced.openTs, url: evmTxUrl(d, hash), nft: { number: id.toString(), art: `/api/position-art/${id}`, share: sharePath("robinhood", id.toString()) } } as const;
       const feed = d.feeds[symbol];
       if (everyNight === null || !d.renewer || !feed) return setStatus(done);
-      // Tonight is bought; a standing order that fails to set leaves it bought, and says why.
-      try {
-        const { order, allowance } = standingOrder({ shares: protection.shares, start, depth, premium: q.priced.premium, openTs: q.priced.openTs, nights: everyNight });
-        await protectEveryNight(buyer, { ...d, renewer: d.renewer }, feed, order, allowance, (step) => setStatus({ kind: "busy", step }));
-        setStatus({ ...done, renews: { until: Number(order.until), cap: Number(order.maxPremium) / 1e6 } });
-      } catch (e) {
-        const err = e as Error & { shortMessage?: string };
-        setStatus({ ...done, renews: { error: err.shortMessage ?? err.message } });
-      }
+      await thenEveryNight(done, (order, allowance) =>
+        protectEveryNight(buyer, { ...d, renewer: d.renewer! }, feed, order, allowance, (step) => setStatus({ kind: "busy", step })),
+      );
     } catch (e) {
-      const err = e as Error & { shortMessage?: string };
-      setStatus({ kind: "error", message: err.shortMessage ?? err.message, needsFunds: e instanceof NeedsGas });
+      setStatus({ kind: "error", message: errorMessage(e), needsFunds: e instanceof NeedsGas });
     }
   }
 
@@ -284,20 +294,15 @@ export function Protect() {
 
   // The price and the buy button: beside the ticket on wide screens, inside it (under the sliders) on phones,
   // where the aside only starts below the whole ticket.
-  const buttonLabel =
-    status.kind === "busy"
-      ? status.step
-      : unavailable
-        ? "Not on sale yet"
-        : !connected
-        ? chain === "solana"
-          ? noSolanaWallet
-            ? "Try it with a test wallet"
-            : "Connect a wallet"
-          : "Connect an EVM wallet"
-        : priced
-          ? `Protect for ${usd(priced.premium)}`
-          : "Protect";
+  const buttonLabel = (() => {
+    if (status.kind === "busy") return status.step;
+    if (unavailable) return "Not on sale yet";
+    if (!connected) {
+      if (chain === "robinhood") return "Connect an EVM wallet";
+      return noSolanaWallet ? "Try it with a test wallet" : "Connect a wallet";
+    }
+    return priced ? `Protect for ${usd(priced.premium)}` : "Protect";
+  })();
 
   const checkout = (
     <>

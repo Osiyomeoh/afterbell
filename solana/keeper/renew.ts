@@ -13,7 +13,7 @@ import { Connection, Keypair, PublicKey } from "@solana/web3.js";
 
 import { AfterbellClient } from "../../sdk/client";
 import { toSolanaQuote } from "../../sdk/solana";
-import { getProgram, renewInstructions } from "../client/vault";
+import { feedIdHex, getProgram, renewInstructions } from "../client/vault";
 import { hermesFromEnv } from "./pyth";
 
 const { PythSolanaReceiver, PRO_COMPATIBLE_PUSH_ORACLE_PROGRAM_ID, PRO_COMPATIBLE_RECEIVER_PROGRAM_ID, PRO_COMPATIBLE_WORMHOLE_PROGRAM_ID } =
@@ -50,7 +50,6 @@ export function renewalDecision(o: SolanaOrder, openTs: bigint, premium: bigint,
 
 export type RenewalPlan = { order: SolanaOrder; symbol: string; openTs?: number; premium?: number; decision: RenewalDecision; signatures?: string[] };
 
-const hex = (b: number[] | Uint8Array) => "0x" + Buffer.from(b).toString("hex");
 
 /**
  * For each standing order: tonight's quote for its protection, signed for the
@@ -74,7 +73,7 @@ export async function renewOrders(opts: {
     .map(({ publicKey, account: a }) => ({
       address: publicKey.toBase58(),
       holder: a.holder.toBase58(),
-      feedId: hex(a.feedId),
+      feedId: feedIdHex(a.feedId),
       maxShares: BigInt(a.maxShares.toString()),
       startBps: a.startBps,
       depthBps: a.depthBps,
@@ -91,7 +90,7 @@ export async function renewOrders(opts: {
   const series = new Map((await program.account.series.all([{ memcmp: { offset: 8, bytes: vault.toBase58() } }])).map((s) => [s.publicKey.toBase58(), s.account]));
   for (const { account: p } of await program.account.position.all([{ memcmp: { offset: 8, bytes: vault.toBase58() } }])) {
     const s = series.get(p.series.toBase58());
-    if (!p.closed && s) held.add(`${p.buyer.toBase58()}:${hex(s.feedId)}:${s.openTs.toString()}`);
+    if (!p.closed && s) held.add(`${p.buyer.toBase58()}:${feedIdHex(s.feedId)}:${s.openTs.toString()}`);
   }
 
   const receiver = payer

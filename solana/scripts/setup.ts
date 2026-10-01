@@ -23,7 +23,7 @@ import { dirname, join } from "node:path";
 
 import anchor from "@anchor-lang/core";
 import { createMint, getAccount, getMint, getOrCreateAssociatedTokenAccount, mintTo, TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID } from "@solana/spl-token";
-import { Connection, Keypair, PublicKey, sendAndConfirmTransaction, SystemProgram, Transaction, type TransactionInstruction } from "@solana/web3.js";
+import { Connection, PublicKey, sendAndConfirmTransaction, SystemProgram, Transaction, type TransactionInstruction } from "@solana/web3.js";
 
 import {
   claimDepositInstruction,
@@ -40,6 +40,7 @@ import {
   vaultTokenAddress,
   type VaultParams,
 } from "../client/vault";
+import { loadKeypair } from "./common";
 import { STOCKS } from "../../quoter/stocks";
 
 const DECIMALS = 6;
@@ -76,7 +77,7 @@ async function main() {
   const quoter = new PublicKey(required("QUOTER"));
 
   const connection = new Connection(rpc, "confirmed");
-  const payer = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(readFileSync(walletPath, "utf8"))));
+  const payer = loadKeypair(walletPath);
   const program = getProgram(connection, new anchor.Wallet(payer));
   const log = (s: string) => console.log(s);
   const send = (ixs: TransactionInstruction[]) => sendAndConfirmTransaction(connection, new Transaction().add(...ixs), [payer], { commitment: "confirmed" });

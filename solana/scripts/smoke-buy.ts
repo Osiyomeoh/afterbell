@@ -23,7 +23,7 @@ import { join } from "node:path";
 
 import anchor from "@anchor-lang/core";
 import { getAccount, getMint, getOrCreateAssociatedTokenAccount, mintTo, TOKEN_2022_PROGRAM_ID } from "@solana/spl-token";
-import { Connection, Keypair, PublicKey, sendAndConfirmTransaction, Transaction } from "@solana/web3.js";
+import { Connection, PublicKey, sendAndConfirmTransaction, Transaction } from "@solana/web3.js";
 
 import data from "../../research/data/pyth-tsla-gaps.json" with { type: "json" };
 import type { Opening } from "../../pricing/model";
@@ -31,8 +31,7 @@ import type { SolanaQuote } from "../../pricing/solanaQuote";
 import { priceQuote, signForSolana, type PricedProtection } from "../../quoter/quoter";
 import { buyInstructions, getProgram, positionAddress, PROGRAM_ID, token2022Account } from "../client/vault";
 
-const expand = (p: string) => p.replace(/^~(?=\/)/, homedir());
-const loadKeypair = (path: string) => Keypair.fromSecretKey(Uint8Array.from(JSON.parse(readFileSync(expand(path), "utf8"))));
+import { loadKeypair } from "./common";
 
 async function main() {
   const rpc = process.env.RPC_URL ?? "https://api.devnet.solana.com";

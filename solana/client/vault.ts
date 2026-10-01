@@ -58,6 +58,9 @@ export const DEFAULT_PARAMS: VaultParams = {
 
 const seed = (s: string) => new TextEncoder().encode(s);
 
+/** A feed id's bytes as Pyth writes it: 0x and 64 hex digits. */
+export const feedIdHex = (bytes: number[] | Uint8Array) => "0x" + Buffer.from(bytes).toString("hex");
+
 export function feedIdBytes(hex: string): Uint8Array {
   const h = hex.replace(/^0x/, "");
   if (!/^[0-9a-fA-F]{64}$/.test(h)) throw new Error(`not a 32-byte feed id: ${hex}`);
