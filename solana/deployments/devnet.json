@@ -1,15 +1,22 @@
 {
   "rpc": "https://api.devnet.solana.com",
-  "programId": "6J5BHSf1yWup7SXae5xS2nzNUbtz7Bq3VpfJTtxr7Dsc",
+  "programId": "J6n3JUafVkx4MpKTnAnZSwTcGFueRrjxgiXWMC4L7RGG",
   "authority": "GZP4hLs8gqxPNuRtsAkzbWiZQKYch8m6hyDDuSyJXZde",
   "quoter": "Ajy9Hwcc7FcTfoU9fJbHU4DRTzJDuubdQ3EDRAmMQ9hW",
   "collateralMint": "FDsn8wf4XTYf26vfLp1TNVnaJn2NGFV8tfzten1YajVi",
-  "vault": "89oR2SqBFhrZ3sAUN9j6YrS95FpJvxJVAER87DN4dbeW",
-  "vaultToken": "tiRQzhFJwBqtzLfVVRC34R7hZezXFAj3DELYRZ2jTPR",
+  "vault": "E5JGqm7LdPMTtA661B3XZiT7kbBcgm9E9BtJmasLGvoX",
+  "vaultToken": "7C3tXqyTssULKhhyxdgkb47HuxBfLfFqLaB2P4jn2qVc",
+  "shareMint": "3BXDveNKiJKnagz9geNL9Y9QBmuhyjd21QbeGbgig7Wd",
+  "shareEscrow": "5jbWE5dRS5Na9sDaWGQzqNwd6zmYFcg5zYmpwqf45AxB",
+  "artUri": "http://localhost:3100/api/position-art/solana/",
   "feeds": {
     "TSLA": {
       "feedId": "0x16dad506d7db8da01c87581c87ca897a012a153557d4d578c3b9c9e1bc0632f1",
-      "feedConfig": "7Sz4NinLNHNMVBcdyGWy7TEcTzwGam7fQsPHYEsX9e1L"
+      "feedConfig": "4rnZHUGLfxtcPf3fJ5Sp36HtCQxdrCkFUYKFzwSKXxBN"
+    },
+    "QQQ": {
+      "feedId": "0x9695e2b96ea7b3859da9ed25b7a46a920a776e2fdae19a7bcfdf2b219230452d",
+      "feedConfig": "FvHQnufT8Fuw7hcUawoEXDFJQkBEtQ5UQQdUSHn9MC1"
     }
   }
 }

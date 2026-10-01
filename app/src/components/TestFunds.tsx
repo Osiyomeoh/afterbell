@@ -3,14 +3,15 @@
 import { getAssociatedTokenAddressSync } from "@solana/spl-token";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { requestTestFunds } from "@/lib/api";
 import { explorer, usd } from "@/lib/format";
+import { TestWalletName } from "@/lib/testWallet";
 
 /** The connected wallet's TestUSD and SOL, with a button to top up from the devnet faucet. */
 export function TestFunds({ mint, refreshKey }: { mint: string; refreshKey?: unknown }) {
-  const { publicKey } = useWallet();
+  const { publicKey, wallet } = useWallet();
   const { connection } = useConnection();
   const [balances, setBalances] = useState<{ testUsd: number; sol: number } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -30,9 +31,7 @@ export function TestFunds({ mint, refreshKey }: { mint: string; refreshKey?: unk
     load();
   }, [load, refreshKey]);
 
-  if (!publicKey) return null;
-
-  async function topUp() {
+  const topUp = useCallback(async () => {
     if (!publicKey) return;
     setBusy(true);
     setMessage(null);
@@ -49,6 +48,28 @@ export function TestFunds({ mint, refreshKey }: { mint: string; refreshKey?: unk
     } finally {
       setBusy(false);
     }
+  }, [publicKey, load]);
+
+  // A test wallet is there to be tried at once: fund it as soon as it connects with nothing in it.
+  const isTestWallet = wallet?.adapter.name === TestWalletName;
+  const autoFunded = useRef(false);
+  useEffect(() => {
+    if (!isTestWallet || !balances || autoFunded.current || (balances.testUsd > 0 && balances.sol > 0)) return;
+    autoFunded.current = true;
+    topUp();
+  }, [isTestWallet, balances, topUp]);
+
+  // Before a wallet connects, say up front that this runs on test money and where it comes from.
+  if (!publicKey) {
+    return (
+      <div className="rounded-2xl border border-line bg-surface p-5 text-sm leading-relaxed">
+        <div className="text-muted">Test money</div>
+        <p className="mt-2 text-muted">
+          This runs on Solana devnet with TestUSD, a token with no value. Connect a wallet and get 1,000 TestUSD and a little devnet SOL for fees
+          here, free.
+        </p>
+      </div>
+    );
   }
 
   return (
@@ -72,7 +93,10 @@ export function TestFunds({ mint, refreshKey }: { mint: string; refreshKey?: unk
           )}
         </p>
       )}
-      <p className="mt-2 text-xs text-faint">Devnet only. TestUSD has no value.</p>
+      <p className="mt-2 text-xs text-faint">
+        Devnet only. TestUSD has no value.
+        {isTestWallet && " This test wallet is kept in this browser: fine for test money, never for real funds."}
+      </p>
     </div>
   );
 }

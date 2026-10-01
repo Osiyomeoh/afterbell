@@ -1,0 +1,24 @@
+{
+  "network": "devnet",
+  "ranAt": "2026-09-29T17:46:04.483Z",
+  "throwaway": true,
+  "desk": "Dmqcim6dHaPkxxzLVjXYrEwyhnzSzbBw4GvoLqtboCNV",
+  "mint": "FDsn8wf4XTYf26vfLp1TNVnaJn2NGFV8tfzten1YajVi",
+  "entry": {
+    "symbol": "TSLA",
+    "shares": 1,
+    "upper": 346,
+    "lower": 317.75,
+    "openTs": 1790775000,
+    "premium": 1.730192,
+    "holder": "01707808384a2774ae7480be2510d620f1bd57c4238f717dbe2f8a283ea0c2dfef0013488e7df7d871a36c1ac28b4b6395c24e9d7240b5eb81b1e70a989112d89abb03767c5da4ed4975e6cec11ed88bc962194110c8cac92f6c74017aef0b61085037",
+    "holderWallet": "8a2pWdwozLdR4JDKFdS9n3yhpcneCHAmr5mjTKKWG81C",
+    "position": "BgyMBph4bhfYzAaWPWWmi14wrjqzJdEXi8f7eJ6YwJ6y",
+    "series": "GgEwjiZKBYKrZbeoVo3qqNLj57CGiQEpn7UoJUQeHsRT",
+    "txs": {
+      "deposit": "5sM8aeGpMqTU1JR9dcic5418uienx1sNtR1KJJgXXocpL4hv8zLgJxVi4fJ5RnaLBK2LxkGhSw47LfXswM6YjpyR",
+      "premium": "5PANZq8Zi2pkbLXiNT8DrhrDb7aomooBq1CtFPqrvDd1qy5MDwLr1WxR5UT9cTfRVYbL3uUhF9pCkStFJfA2QfFu",
+      "buy": "55eLz3aJSpKRbDureMZJgP8HEKpg2WMRZcTdkx4ny6VLJt1qjECV4XMt7ojhfmGe9fA2927TvVqFQJjEZTZrbFEx"
+    }
+  }
+}

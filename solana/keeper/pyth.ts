@@ -47,6 +47,7 @@ export async function settlementUpdate(
   feedId: string,
   openTs: number,
   vault: { settleWindowSecs: number; maxConfBps: number },
+  strikes?: { lowestLower: bigint; highestUpper: bigint },
 ): Promise<SettlementUpdate> {
   const res = await hermes.getPriceUpdatesAtTimestamp(openTs, [feedId], { parsed: true, encoding: "base64" });
   const parsed = (res.parsed ?? [])[0] as ParsedUpdate | undefined;
@@ -56,7 +57,7 @@ export async function settlementUpdate(
   if (publishTime < openTs) throw new NotYetPublished(`the latest print (${publishTime}) is before the open (${openTs})`);
   if (prev === undefined) throw new Error("Hermes returned a print without its predecessor's time");
   const print: Print = { price: BigInt(parsed.price.price), conf: BigInt(parsed.price.conf), expo: parsed.price.expo, publishTime, prevPublishTime: prev };
-  const error = settlementError(print, openTs, vault);
+  const error = settlementError(print, openTs, vault, strikes);
   if (error) throw new CannotSettle(error);
   const price8 = toPrice8(print.price, print.expo);
   return { data: res.binary.data, price: Number(price8) / 1e8, price8, publishTime, prevPublishTime: prev };

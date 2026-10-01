@@ -1,8 +1,12 @@
 /**
- * A whole protection cycle on a local validator, checked at every step:
- * set up a vault, sell two positions against signed quotes, let the "open"
- * pass, run the keeper to settle and claim, and compare what each buyer
- * received with what the program's math says they're owed.
+ * A whole round of the Solana vault on a local validator, checked at every
+ * step: set up a vault and underwrite its pool, sell three positions as NFTs
+ * against signed quotes, move them about before the open (Alice sells hers to
+ * Carol, Erin burns hers, Bob closes his TestUSD account) while Dave asks to
+ * underwrite, then run the keeper: it must settle, pay each position to
+ * whoever holds its NFT what the program's math says, forfeit the burned one
+ * to the pool, collect its tips and roll the pool, filling Dave's deposit at
+ * the pool's value after the night.
  *
  * A local validator has no Pyth receiver, so the settlement price is a
  * PriceUpdateV2 account preloaded at genesis, owned by the receiver program,
@@ -18,16 +22,40 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import anchor from "@anchor-lang/core";
-import { closeAccount, getAccount, getOrCreateAssociatedTokenAccount, mintTo, transfer } from "@solana/spl-token";
+import {
+  burnChecked,
+  closeAccount,
+  createAssociatedTokenAccountIdempotent,
+  getAccount,
+  getOrCreateAssociatedTokenAccount,
+  mintTo,
+  TOKEN_2022_PROGRAM_ID,
+  transfer,
+  transferChecked,
+} from "@solana/spl-token";
 import { Connection, Keypair, LAMPORTS_PER_SOL, PublicKey, sendAndConfirmTransaction, Transaction } from "@solana/web3.js";
 
 import { signForSolana, type PricedProtection } from "../../quoter/quoter";
-import { buyInstructions, feedIdBytes, getProgram, PROGRAM_ID, seriesAddress, TSLA_FEED_ID } from "../client/vault";
+import {
+  buyInstructions,
+  claimDepositInstruction,
+  feedIdBytes,
+  getProgram,
+  positionAddress,
+  PROGRAM_ID,
+  requestDepositInstruction,
+  seriesAddress,
+  shareMintAddress,
+  token2022Account,
+  TSLA_FEED_ID,
+} from "../client/vault";
 import { planKeeper, runKeeper } from "../keeper/keeper";
 
 const RPC = "http://127.0.0.1:8899";
 const RECEIVER = new PublicKey("rec2HHDDnjLfj4kE7VyEtFA1HPGQLK33259532cRyHp");
 const SO = "solana/target/deploy/afterbell_vault.so";
+const USD = 1_000_000n;
+const SEED = 100_000n * USD;
 
 const unusedHermes = () => {
   throw new Error("the local cycle never calls Hermes");
@@ -40,13 +68,12 @@ function check(ok: boolean, what: string) {
 
 async function main() {
   const dir = mkdtempSync(join(tmpdir(), "afterbell-cycle-"));
-  const [payer, quoter, alice, bob] = [0, 1, 2, 3].map(() => Keypair.generate());
+  const [payer, quoter, alice, bob, carol, dave, erin, keeper] = Array.from({ length: 8 }, () => Keypair.generate());
   const payerFile = join(dir, "payer.json");
   writeFileSync(payerFile, JSON.stringify(Array.from(payer!.secretKey)));
 
-  // The "open" is 75 s away: time to set up and buy before it.
-  const openTs = Math.floor(Date.now() / 1000) + 75;
-  const settlementPrice = 360; // $360.00, published one second after the open
+  // The "open" is two minutes away: time to set up, underwrite and buy before it.
+  const openTs = Math.floor(Date.now() / 1000) + 120;
   const priceUpdate = Keypair.generate().publicKey;
   const coder = getProgram(new Connection(RPC), new anchor.Wallet(payer!)).coder;
   const body = coder.types.encode("priceUpdateV2", {
@@ -54,7 +81,7 @@ async function main() {
     verificationLevel: { full: {} },
     priceMessage: {
       feedId: Array.from(feedIdBytes(TSLA_FEED_ID)),
-      price: new anchor.BN(36_000_000),
+      price: new anchor.BN(36_000_000), // $360.00 at expo -5, one second after the open
       conf: new anchor.BN(1_000),
       exponent: -5,
       publishTime: new anchor.BN(openTs + 1),
@@ -91,9 +118,12 @@ async function main() {
         await new Promise((r) => setTimeout(r, 1000));
       }
     }
-    for (const k of [payer!, alice!, bob!]) await connection.confirmTransaction(await connection.requestAirdrop(k.publicKey, 10 * LAMPORTS_PER_SOL), "confirmed");
+    for (const k of [payer!, alice!, bob!, carol!, dave!, erin!, keeper!]) {
+      await connection.confirmTransaction(await connection.requestAirdrop(k.publicKey, 10 * LAMPORTS_PER_SOL), "confirmed");
+    }
+    const send = (ixs: Parameters<Transaction["add"]>, signer: Keypair) => sendAndConfirmTransaction(connection, new Transaction().add(...ixs), [signer]);
 
-    // Vault, TestUSD and the TSLA feed, as on devnet.
+    // Vault, TestUSD and the TSLA feed as on devnet, and 100,000 TestUSD underwritten.
     const deployments = join(dir, "localnet.json");
     execFileSync("npx", ["tsx", "solana/scripts/setup.ts"], {
       env: { ...process.env, RPC_URL: RPC, ANCHOR_WALLET: payerFile, OUT: deployments, QUOTER: quoter!.publicKey.toBase58() },
@@ -102,72 +132,107 @@ async function main() {
     const d = JSON.parse(readFileSync(deployments, "utf8"));
     const vault = new PublicKey(d.vault);
     const mint = new PublicKey(d.collateralMint);
+    const program = getProgram(connection, new anchor.Wallet(payer!));
+    const totalAssets = async () => {
+      const v = await program.account.vault.fetch(vault);
+      const held = (await getAccount(connection, new PublicKey(d.vaultToken))).amount;
+      const owed = [v.pendingDepositAssets, v.reservedAssets, v.tipsOwed, v.locked].reduce((a, x) => a + BigInt(x.toString()), 0n);
+      return held - owed;
+    };
+    check((await totalAssets()) === SEED, "the pool holds 100,000 TestUSD, underwritten by request, roll and claim");
 
-    // Two sales on the same open: Alice's pays below $370, Bob's only below $355.
+    const tokenOf = async (who: Keypair) => (await getOrCreateAssociatedTokenAccount(connection, payer!, mint, who.publicKey)).address;
+    const fund = async (who: Keypair, units: bigint) => mintTo(connection, payer!, mint, await tokenOf(who), payer!, units);
+
+    // Three sales on the same open, each an NFT in the buyer's wallet.
     const buy = async (buyer: Keypair, shares: number, upper: number, lower: number, premium: number) => {
-      const token = await getOrCreateAssociatedTokenAccount(connection, payer!, mint, buyer.publicKey);
-      await mintTo(connection, payer!, mint, token.address, payer!, 100_000_000n);
+      await fund(buyer, 100n * USD);
       const now = Math.floor(Date.now() / 1000);
       const priced = { protection: { shares, upper, lower }, openTs, expiry: now + 30, premium } as PricedProtection;
       const signed = signForSolana(priced, buyer.publicKey.toBase58(), { programId: PROGRAM_ID.toBase58(), vault: d.vault, feedId: TSLA_FEED_ID }, quoter!.secretKey.slice(0, 32));
-      const program = getProgram(connection, new anchor.Wallet(buyer));
-      const ixs = await buyInstructions(program, { buyer: buyer.publicKey, vault, collateralMint: mint, buyerToken: token.address, quote: signed.quote, ed25519Data: signed.ed25519Data });
-      await sendAndConfirmTransaction(connection, new Transaction().add(...ixs), [buyer]);
-      return token.address;
+      const buyerProgram = getProgram(connection, new anchor.Wallet(buyer));
+      const ixs = await buyInstructions(buyerProgram, { buyer: buyer.publicKey, vault, collateralMint: mint, buyerToken: await tokenOf(buyer), quote: signed.quote, ed25519Data: signed.ed25519Data });
+      await send(ixs, buyer);
+      const position = positionAddress(vault, signed.quote.nonce);
+      return { position, mint: (await program.account.position.fetch(position)).mint };
     };
-    const aliceToken = await buy(alice!, 2, 370, 340, 1.5);
-    const bobToken = await buy(bob!, 1, 355, 330, 0.5);
-    // Bob empties and closes his TestUSD account: the keeper must recreate it to pay him.
-    const payerToken = await getOrCreateAssociatedTokenAccount(connection, payer!, mint, payer!.publicKey);
-    await transfer(connection, bob!, bobToken, payerToken.address, bob!, (await getAccount(connection, bobToken)).amount);
+    const a = await buy(alice!, 2, 370, 340, 1.5);
+    const b = await buy(bob!, 1, 355, 330, 0.5);
+    const e = await buy(erin!, 1, 365, 345, 0.5);
+    const nftBalance = async (who: Keypair, m: PublicKey) => (await getAccount(connection, token2022Account(who.publicKey, m), "confirmed", TOKEN_2022_PROGRAM_ID)).amount;
+    check((await nftBalance(alice!, a.mint)) === 1n && (await nftBalance(bob!, b.mint)) === 1n, "sold three positions against signed quotes, each an NFT in its buyer's wallet");
+
+    // Before the open: Alice sells her NFT to Carol, Erin burns hers, Bob closes his TestUSD account.
+    const carolNft = await createAssociatedTokenAccountIdempotent(connection, alice!, a.mint, carol!.publicKey, {}, TOKEN_2022_PROGRAM_ID);
+    await transferChecked(connection, alice!, token2022Account(alice!.publicKey, a.mint), a.mint, carolNft, alice!, 1n, 0, [], {}, TOKEN_2022_PROGRAM_ID);
+    await burnChecked(connection, erin!, token2022Account(erin!.publicKey, e.mint), e.mint, erin!, 1n, 0, [], {}, TOKEN_2022_PROGRAM_ID);
+    const bobToken = await tokenOf(bob!);
+    await transfer(connection, bob!, bobToken, await tokenOf(payer!), bob!, (await getAccount(connection, bobToken)).amount);
     await closeAccount(connection, bob!, bobToken, bob!.publicKey, bob!);
-    check(true, "sold two positions against signed quotes; Bob closed his token account");
+    check((await nftBalance(carol!, a.mint)) === 1n, "Alice's NFT now belongs to Carol; Erin burned hers; Bob closed his TestUSD account");
+
+    // Dave asks to underwrite 1,000: it waits for the roll, out of the round's risk.
+    await fund(dave!, 1_000n * USD);
+    const daveProgram = getProgram(connection, new anchor.Wallet(dave!));
+    await send([await requestDepositInstruction(daveProgram, { owner: dave!.publicKey, vault, collateralMint: mint, ownerToken: await tokenOf(dave!), assets: 1_000n * USD })], dave!);
+    check((await program.account.vault.fetch(vault)).pendingDepositAssets.toString() === "1000000000", "Dave's 1,000 waits for the roll");
 
     // Before the open, the plan waits and knows only each position's cap.
     const seriesKey = seriesAddress(vault, feedIdBytes(TSLA_FEED_ID), BigInt(openTs)).toBase58();
-    const early = (await planKeeper({ connection, vault, hermes: unusedHermes, postedUpdate: () => priceUpdate })).series.find((s) => s.series === seriesKey);
-    check(early?.action === "wait" && early.positions.every((p) => p.units === undefined), "before the open, the plan waits");
-    check(early!.positions.reduce((a, p) => a + p.maxUnits, 0n) === 85_000_000n, "the plan caps the payouts at 85 TestUSD: 2 × $30 + 1 × $25");
+    const plan = () => planKeeper({ connection, vault, hermes: unusedHermes, postedUpdate: () => priceUpdate });
+    const early = await plan();
+    const earlySeries = early.series.find((s) => s.series === seriesKey);
+    check(earlySeries?.action === "wait" && earlySeries.positions.filter((p) => p.holder).every((p) => p.units === undefined), "before the open, the plan waits");
+    check(earlySeries!.positions.reduce((t, p) => t + p.maxUnits, 0n) === 105n * USD, "the plan caps the payouts at 105 TestUSD: 2 × $30 + $25 + $20");
+    check(early.rollBlocked?.includes("sells until its open") === true, "and the pool can't roll while the round is selling");
 
     // Wait for the cluster's clock to pass the open.
-    const aliceBefore = (await getAccount(connection, aliceToken)).amount;
     for (;;) {
       const t = await connection.getBlockTime(await connection.getSlot());
       if (t !== null && t >= openTs + 2) break;
       await new Promise((r) => setTimeout(r, 2000));
     }
 
-    // After it, the plan names the print and each payout, and sends nothing.
-    const planned = (await planKeeper({ connection, vault, hermes: unusedHermes, postedUpdate: () => priceUpdate })).series.find((s) => s.series === seriesKey);
+    // After it, the plan names the print, each payout and its holder, and sends nothing.
+    const after = await plan();
+    const planned = after.series.find((s) => s.series === seriesKey);
     check(planned?.action === "settle" && planned.print?.price === 360 && planned.print.publishTime === openTs + 1, "the plan would settle on the $360.00 print");
-    const plannedUnits = new Map(planned!.positions.map((p) => [p.buyer, p.units]));
-    const stillOpen = await getProgram(connection, new anchor.Wallet(payer!)).account.series.fetch(new PublicKey(seriesKey));
-    check("open" in stillOpen.state && (await getAccount(connection, aliceToken)).amount === aliceBefore, "planning sent nothing: the series is open, Alice unpaid");
+    const byPosition = new Map(planned!.positions.map((p) => [p.position, p]));
+    check(byPosition.get(a.position.toBase58())?.holder === carol!.publicKey.toBase58(), "the plan pays Alice's position to Carol, who holds it");
+    check(byPosition.get(e.position.toBase58())?.holder === null, "and forfeits Erin's, whose NFT is burned");
+    check(after.rollBlocked === null, "the plan would roll the pool after paying out");
+    const carolBefore = (await getAccount(connection, await tokenOf(carol!))).amount;
+    check((await program.account.series.fetch(new PublicKey(seriesKey))).state.open !== undefined, "planning sent nothing: the series is still open");
 
-    const report = await runKeeper({
-      connection,
-      payer: payer!,
-      vault,
-      hermes: unusedHermes,
-      postedUpdate: () => priceUpdate,
-      log: (line) => console.log(`    keeper: ${line}`),
-    });
+    const keeperToken = await tokenOf(keeper!);
+    const report = await runKeeper({ connection, payer: keeper!, vault, hermes: unusedHermes, postedUpdate: () => priceUpdate, log: (line) => console.log(`    keeper: ${line}`) });
 
-    const program = getProgram(connection, new anchor.Wallet(payer!));
-    const series = await program.account.series.fetch(seriesAddress(vault, feedIdBytes(TSLA_FEED_ID), BigInt(openTs)));
-    check("settled" in series.state && series.price.toString() === "36000000000", "the series settled at $360.00 (8 decimals)");
-    const paid = new Map(report.claimed.map((c) => [c.buyer, c.units]));
-    check(paid.get(alice!.publicKey.toBase58()) === 20_000_000n, "the keeper reports Alice is owed 20 TestUSD: 2 shares × ($370 − $360)");
-    check((await getAccount(connection, aliceToken)).amount - aliceBefore === 20_000_000n, "Alice's account received exactly 20 TestUSD");
-    check(paid.get(bob!.publicKey.toBase58()) === 0n, "Bob is owed nothing: $360 is above his $355 strike");
-    check(report.claimed.every((c) => plannedUnits.get(c.buyer) === c.units) && report.claimed.length === plannedUnits.size, "the keeper paid exactly what the plan said it would");
-    check((await getAccount(connection, bobToken)).amount === 0n, "the keeper recreated Bob's token account to claim for him");
-    check((await program.account.position.all([{ memcmp: { offset: 8, bytes: vault.toBase58() } }])).length === 0, "both positions are closed");
+    const series = await program.account.series.fetch(new PublicKey(seriesKey));
+    check(series.state.settled !== undefined && series.price.toString() === "36000000000", "the series settled at $360.00 (8 decimals)");
+    const paid = new Map(report.paid.map((p) => [p.position, p]));
+    check((await getAccount(connection, await tokenOf(carol!))).amount - carolBefore === 20n * USD, "Carol, holding Alice's NFT, received exactly 20 TestUSD: 2 shares × ($370 − $360)");
+    check(paid.get(b.position.toBase58())?.units === 0n && (await getAccount(connection, bobToken)).amount === 0n, "Bob is owed nothing ($360 is above his $355 strike); the keeper recreated his account to close his position");
+    check(paid.get(e.position.toBase58())?.holder === null, "Erin's position was forfeited: nobody holds it");
+    check(report.paid.every((p) => byPosition.get(p.position)?.units === p.units) && report.paid.length === byPosition.size, "the keeper paid exactly what the plan said it would");
+    check(report.tips === 50_000n && (await getAccount(connection, keeperToken)).amount === 50_000n, "the vault paid the keeper 0.05 TestUSD in tips: 2% of the 2.50 in premiums");
+
+    const positions = await program.account.position.all([{ memcmp: { offset: 8, bytes: vault.toBase58() } }]);
+    check(positions.length === 3 && positions.every((p) => p.account.closed), "all three positions are closed, and stay on-chain with their outcome");
     const v = await program.account.vault.fetch(vault);
-    check(v.locked.toString() === "0", "the vault has no collateral locked any more");
+    check(v.locked.isZero() && v.tipsOwed.isZero() && v.roundUnpaid === 0, "nothing is locked or owed any more");
 
-    const again = await runKeeper({ connection, payer: payer!, vault, hermes: unusedHermes, postedUpdate: () => priceUpdate });
-    check(again.settled.length + again.claimed.length + again.voided.length === 0, "a second keeper run finds nothing to do");
+    // The roll: the pool kept the premiums, less Carol's payout and the tips, plus what Erin forfeited.
+    check(report.rolled?.round === 2n && v.round.toString() === "3", "the keeper rolled the pool from round 2 into round 3");
+    const nav = SEED + 2_500_000n - 50_000n - 20n * USD;
+    check((await totalAssets()) === nav + 1_000n * USD, "the pool is worth 99,982.45 after the night, plus Dave's 1,000");
+    const supply = SEED; // the setup's 100,000 shares, one per unit
+    const daveShares = (1_000n * USD * (supply + 1n)) / (nav + 1n);
+    await send([await claimDepositInstruction(daveProgram, { owner: dave!.publicKey, vault })], dave!);
+    const held = (await getAccount(connection, token2022Account(dave!.publicKey, shareMintAddress(vault)), "confirmed", TOKEN_2022_PROGRAM_ID)).amount;
+    check(held === daveShares, `Dave claimed ${Number(daveShares) / 1e6} shares for his 1,000, at the pool's value after the night`);
+
+    const again = await runKeeper({ connection, payer: keeper!, vault, hermes: unusedHermes, postedUpdate: () => priceUpdate });
+    check(again.settled.length + again.paid.length + again.voided.length === 0 && again.rolled === null, "a second keeper run finds nothing to do");
     console.log("PASS");
   } finally {
     validator.kill();

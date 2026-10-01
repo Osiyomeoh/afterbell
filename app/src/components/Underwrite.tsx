@@ -1,18 +1,31 @@
 "use client";
 
+import { useAnchorWallet, useConnection } from "@solana/wallet-adapter-react";
+import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import { useCallback, useEffect, useState } from "react";
 
-import { fetchMarket, fetchUnderwriter, type MarketResponse, type PoolState, type UnderwriterStake } from "@/lib/api";
+import { fetchMarket, fetchUnderwriter, type Chain, type MarketResponse, type PoolState, type UnderwriterStake } from "@/lib/api";
 import { claimPoolOnRobinhood, evmTxUrl, underwriteOnRobinhood, useEvmWallet, withdrawOnRobinhood } from "@/lib/evm";
-import { nyTime, usd } from "@/lib/format";
+import { explorer, nyTime, usd } from "@/lib/format";
+import { claimPoolOnSolana, depositOnSolana, withdrawOnSolana } from "@/lib/pool";
+import { useSendTransaction } from "@/lib/send";
 
 type Status = { kind: "idle" } | { kind: "busy"; step: string } | { kind: "done"; text: string; url: string | null } | { kind: "error"; message: string };
+
+type OnStep = (step: string) => void;
+
+/** What a wallet does to its stake; each returns the transaction's explorer link. */
+type StakeActions = {
+  deposit: (assets: bigint, onStep: OnStep) => Promise<string | null>;
+  withdraw: (shares: bigint, onStep: OnStep) => Promise<string | null>;
+  claim: (stake: UnderwriterStake, onStep: OnStep) => Promise<string | null>;
+};
 
 const units = (v: number) => BigInt(Math.round(v * 1e6));
 const shareCount = (v: number) => v.toLocaleString("en-US", { maximumFractionDigits: 6 });
 
-/** The Robinhood Chain pool: its round and limits, and anyone's stake in it, with deposits, withdrawals and claims. */
-export function Pool({ pool }: { pool: PoolState }) {
+/** A vault's pool: its round and limits, and anyone's stake in it, with deposits, withdrawals and claims. */
+export function Pool({ pool, chain }: { pool: PoolState; chain: Chain }) {
   return (
     <section className="rounded-2xl border border-line bg-surface p-5 text-sm leading-relaxed">
       <h2 className="font-medium">Round {pool.round}</h2>
@@ -26,33 +39,66 @@ export function Pool({ pool }: { pool: PoolState }) {
           Waiting for the next roll: {usd(pool.pendingDeposits)} to deposit, {shareCount(pool.pendingRedeemShares)} shares to withdraw.
         </p>
       )}
-      <Stake />
+      {chain === "solana" ? <SolanaStake /> : <RobinhoodStake />}
     </section>
   );
 }
 
-function Stake() {
+function SolanaStake() {
+  const wallet = useAnchorWallet();
+  const sendTransaction = useSendTransaction();
+  const { connection } = useConnection();
+  const { setVisible } = useWalletModal();
+  const [d, setD] = useState<MarketResponse["solana"]>(null);
+  useEffect(() => {
+    fetchMarket().then((m) => setD(m.solana), () => {});
+  }, []);
+  const c = wallet && d ? { connection, wallet, sendTransaction, vault: d.vault, collateralMint: d.collateralMint } : null;
+  const actions: StakeActions | null = c && {
+    deposit: async (assets, onStep) => explorer("tx", await depositOnSolana(c, assets, onStep)),
+    withdraw: async (shares, onStep) => explorer("tx", await withdrawOnSolana(c, shares, onStep)),
+    claim: async (s, onStep) => explorer("tx", await claimPoolOnSolana(c, { shares: s.claimableShares > 0, assets: s.claimableAssets > 0 }, onStep)),
+  };
+  return <StakeForm owner={wallet?.publicKey.toBase58() ?? null} connect={async () => setVisible(true)} actions={actions} />;
+}
+
+function RobinhoodStake() {
   const evm = useEvmWallet();
   const [d, setD] = useState<MarketResponse["robinhood"]>(null);
+  useEffect(() => {
+    fetchMarket().then((m) => setD(m.robinhood), () => {});
+  }, []);
+  const me = evm.address;
+  const actions: StakeActions | null =
+    d && me
+      ? {
+          deposit: async (assets, onStep) => evmTxUrl(d, await underwriteOnRobinhood(me, d, assets, onStep)),
+          withdraw: async (shares, onStep) => evmTxUrl(d, await withdrawOnRobinhood(me, d, shares, onStep)),
+          claim: async (_s, onStep) => {
+            const hashes = await claimPoolOnRobinhood(me, d, onStep);
+            const last = hashes[hashes.length - 1];
+            return last ? evmTxUrl(d, last) : null;
+          },
+        }
+      : null;
+  return <StakeForm owner={me ?? null} connect={() => evm.connect()} actions={actions} />;
+}
+
+function StakeForm({ owner, connect, actions }: { owner: string | null; connect: () => Promise<unknown>; actions: StakeActions | null }) {
   const [stake, setStake] = useState<UnderwriterStake | null>(null);
   const [deposit, setDeposit] = useState(1000);
   const [withdraw, setWithdraw] = useState(0);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
 
-  useEffect(() => {
-    fetchMarket().then((m) => setD(m.robinhood), () => {});
-  }, []);
   const load = useCallback(() => {
-    if (evm.address) fetchUnderwriter(evm.address).then(setStake, (e: Error) => setStatus({ kind: "error", message: e.message }));
-  }, [evm.address]);
+    if (owner) fetchUnderwriter(owner).then(setStake, (e: Error) => setStatus({ kind: "error", message: e.message }));
+  }, [owner]);
   useEffect(load, [load]);
 
-  async function run(what: string, act: (onStep: (step: string) => void) => Promise<`0x${string}` | `0x${string}`[]>) {
-    if (!d || !evm.address) return;
+  async function run(what: string, act: (onStep: OnStep) => Promise<string | null>) {
     try {
-      const out = await act((step) => setStatus({ kind: "busy", step }));
-      const hash = Array.isArray(out) ? out[out.length - 1] : out;
-      setStatus({ kind: "done", text: what, url: hash ? evmTxUrl(d, hash) : null });
+      const url = await act((step) => setStatus({ kind: "busy", step }));
+      setStatus({ kind: "done", text: what, url });
       load();
     } catch (e) {
       const err = e as Error & { shortMessage?: string };
@@ -60,19 +106,18 @@ function Stake() {
     }
   }
 
-  if (!evm.address) {
+  if (!owner) {
     return (
       <div className="mt-4 border-t border-line pt-4">
         <p className="text-muted">Underwrite the pool: earn the premiums buyers pay, and pay what their protection pays.</p>
-        <button onClick={() => evm.connect().catch((e: Error) => setStatus({ kind: "error", message: e.message }))} className="mt-3 rounded-xl bg-brass px-4 py-2.5 font-medium text-ink">
+        <button onClick={() => connect().catch((e: Error) => setStatus({ kind: "error", message: e.message }))} className="mt-3 rounded-xl bg-brass px-4 py-2.5 font-medium text-ink">
           Connect a wallet
         </button>
         {status.kind === "error" && <p className="mt-3 text-loss">{status.message}</p>}
       </div>
     );
   }
-  const me = evm.address;
-  const busy = status.kind === "busy" || !d;
+  const busy = status.kind === "busy" || !actions;
   const claimable = stake && (stake.claimableShares > 0 || stake.claimableAssets > 0);
   return (
     <div className="mt-4 space-y-4 border-t border-line pt-4">
@@ -93,7 +138,7 @@ function Stake() {
             {stake.claimableShares > 0 && stake.claimableAssets > 0 ? " and " : ""}
             {stake.claimableAssets > 0 ? `${usd(stake.claimableAssets)} for your ${shareCount(stake.claimableRedeemShares)} shares` : ""}.
           </span>
-          <button disabled={busy} onClick={() => run("Claimed.", (s) => claimPoolOnRobinhood(me, d!, s))} className="rounded-lg border border-line px-3 py-1.5 hover:border-brass disabled:opacity-40">
+          <button disabled={busy} onClick={() => run("Claimed.", (s) => actions!.claim(stake, s))} className="rounded-lg border border-line px-3 py-1.5 hover:border-brass disabled:opacity-40">
             Claim
           </button>
         </div>
@@ -105,7 +150,7 @@ function Stake() {
             <input type="number" min={1} step={100} value={deposit} onChange={(e) => setDeposit(Math.max(0, Number(e.target.value) || 0))} className="num w-full rounded-lg border border-line bg-ink px-3 py-2" />
             <button
               disabled={busy || deposit <= 0}
-              onClick={() => run(`Asked to deposit ${usd(deposit)}. It joins the pool at the next roll.`, (s) => underwriteOnRobinhood(me, d!, units(deposit), s))}
+              onClick={() => run(`Asked to deposit ${usd(deposit)}. It joins the pool at the next roll.`, (s) => actions!.deposit(units(deposit), s))}
               className="shrink-0 rounded-lg bg-brass px-3 py-2 font-medium text-ink disabled:opacity-40"
             >
               Deposit
@@ -121,7 +166,7 @@ function Stake() {
             </button>
             <button
               disabled={busy || withdraw <= 0 || !stake || withdraw > stake.shares}
-              onClick={() => run(`Asked to withdraw ${shareCount(withdraw)} shares. They're paid out at the next roll.`, (s) => withdrawOnRobinhood(me, d!, units(withdraw), s))}
+              onClick={() => run(`Asked to withdraw ${shareCount(withdraw)} shares. They're paid out at the next roll.`, (s) => actions!.withdraw(units(withdraw), s))}
               className="shrink-0 rounded-lg border border-line px-3 py-2 hover:border-brass disabled:opacity-40"
             >
               Withdraw

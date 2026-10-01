@@ -1,5 +1,10 @@
 import type { EvmDeployment } from "@root/evm/client/vault";
+import type { HedgeActivity } from "@root/hedger/info";
+import type { OpenSeries } from "@root/hedger/solana";
+import type { BoardPrice } from "@root/quoter/board";
+import type { HedgeSummary } from "@root/hedger/state";
 import type { Opening } from "@root/pricing/model";
+import type { GapReport } from "@root/quoter/gapReport";
 import type { Market, PricedProtection, QuoterConfig } from "@root/quoter/quoter";
 
 export type PriceSource = "pyth" | "chainlink" | "hyperliquid";
@@ -27,8 +32,8 @@ export type MarketResponse = {
   annualVol: number;
   config: QuoterConfig;
   hyperliquid: { coin: string | null; tracks: "stock" | "index"; ratio: number | null };
-  /** `selling`: the Solana vault sells this stock. */
-  solana: { cluster: string; programId: string; vault: string; vaultToken: string; collateralMint: string; quoter: string; selling: boolean };
+  /** The Solana vault v2, once deployed; `selling`: it sells this stock. */
+  solana: { cluster: string; programId: string; vault: string; vaultToken: string; collateralMint: string; quoter: string; shareMint: string; selling: boolean } | null;
   /** The Robinhood Chain vault, once deployed; `selling` once the server can sign its quotes for this stock. */
   robinhood: (EvmDeployment & { selling: boolean }) | null;
 };
@@ -50,6 +55,17 @@ async function json<T>(res: Response): Promise<T> {
   if (!res.ok) throw new Error(body.error ?? `request failed (${res.status})`);
   return body;
 }
+
+/** A stock's price since the last close, from its Hyperliquid perp (no points for a stock without one). */
+export type OvernightResponse = { symbol: string; closeTs: number; close: number; coin: string | null; points: { t: number; price: number }[] };
+
+export const fetchOvernight = (symbol: string) =>
+  fetch(`/api/overnight?symbol=${encodeURIComponent(symbol)}`, { cache: "no-store" }).then((r) => json<OvernightResponse>(r));
+
+/** Standard cover on one share of every stock the app prices (GET /api/board). */
+export type BoardRow = { symbol: string; name: string; solana: boolean; robinhood: boolean; settles: Chain[] } & ({ price: BoardPrice } | { error: string });
+
+export const fetchBoard = () => fetch("/api/board", { cache: "no-store" }).then((r) => json<{ rows: BoardRow[] }>(r));
 
 export const fetchMarket = (symbol = "TSLA") => fetch(`/api/market?symbol=${encodeURIComponent(symbol)}`, { cache: "no-store" }).then((r) => json<MarketResponse>(r));
 
@@ -105,8 +121,11 @@ export type PositionRow = {
   maxPayout: number;
   claimable: number | null;
   settlementPrice: number | null;
-  /** Robinhood Chain positions: the NFT's image, drawn on-chain. */
+  /** The position's NFT image. */
   art?: string;
+  /** Solana: the NFT's mint, and the holder's account holding it. */
+  mint?: string;
+  nftAccount?: string;
 };
 
 export type PoolState = {
@@ -150,6 +169,8 @@ export type VaultResponse = {
   locked: number;
   openPositions: number;
   series: { address: string; symbol: string; openTs: number; state: SeriesState; price: number | null; publishTime: number | null; positions: number; premiums: number; maxPayouts: number }[];
+  /** Solana only, while the app keeps the first vault's record: each series it still has open, or why it couldn't be read. */
+  firstVault?: { vault: string; open: OpenSeries[] } | { vault: string; error: string };
 };
 
 export type Chain = "solana" | "robinhood";
@@ -184,3 +205,22 @@ export type LedgerRow = {
 };
 
 export const fetchRecord = () => fetch("/api/record", { cache: "no-store" }).then((r) => json<{ series: LedgerRow[] }>(r));
+
+/** The hedge on Hyperliquid: what the vaults' open protection calls for, and the hedge account's position (null until it exists). */
+export type HedgeResponse = HedgeSummary & { activity: HedgeActivity | null };
+
+export const fetchHedge = () => fetch("/api/hedge", { cache: "no-store" }).then((r) => json<HedgeResponse>(r));
+
+/** A gap report for a book (see /api/gap-report): each stock's openings, its worst night on this position, and protection tonight. */
+export type GapReportResponse = GapReport & {
+  names: Record<string, string>;
+  /** The Solana wallet whose TSLAx and TSLAon were added, when one was given. */
+  wallet: { owner: string; holdings: { symbol: string; shares: number }[] } | null;
+};
+
+export const fetchGapReport = (q: { book?: string; owner?: string; start: number; stop: number }) => {
+  const params = new URLSearchParams({ start: String(q.start), stop: String(q.stop) });
+  if (q.book) params.set("book", q.book);
+  if (q.owner) params.set("owner", q.owner);
+  return fetch(`/api/gap-report?${params}`, { cache: "no-store" }).then((r) => json<GapReportResponse>(r));
+};

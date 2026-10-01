@@ -1,9 +1,68 @@
-//! Pure settlement and payout math, free of account types so it is unit-tested directly.
+//! Pure settlement, payout and pool math, free of account types so it is unit-tested directly.
 
 use crate::{
-    constants::{BPS_DENOMINATOR, PRICE_DECIMALS, PRICE_SCALE, SHARE_SCALE},
+    constants::{BPS_DENOMINATOR, MAX_PRICE_RATIO, PRICE_DECIMALS, PRICE_SCALE, SHARE_SCALE},
     error::VaultError,
 };
+
+/// `a × b / c`, rounded down.
+pub fn mul_div(a: u64, b: u64, c: u64) -> Result<u64, VaultError> {
+    if c == 0 {
+        return Err(VaultError::MathOverflow);
+    }
+    u64::try_from((a as u128) * (b as u128) / (c as u128)).map_err(|_| VaultError::MathOverflow)
+}
+
+/// `amount × bps / 10_000`, rounded down.
+pub fn bps_of(amount: u64, bps: u16) -> u64 {
+    // At most `amount`, since bps is checked to be at most 10_000 where it's set.
+    ((amount as u128) * (bps as u128) / BPS_DENOMINATOR) as u64
+}
+
+/// The pool's assets: the vault's balance less what isn't the pool's (queued
+/// deposits, redemptions owed, keepers' tips) and the most its open positions
+/// could pay. Exact between a roll and the round's first sale, conservative
+/// during a round.
+pub fn total_assets(
+    balance: u64,
+    pending_deposits: u64,
+    reserved: u64,
+    tips_owed: u64,
+    locked: u64,
+) -> Result<u64, VaultError> {
+    balance
+        .checked_sub(pending_deposits)
+        .and_then(|x| x.checked_sub(reserved))
+        .and_then(|x| x.checked_sub(tips_owed))
+        .and_then(|x| x.checked_sub(locked))
+        .ok_or(VaultError::MathOverflow)
+}
+
+/// Shares for `assets` at a roll's rate, rounded down: each request's share
+/// rounds down, so together they never exceed what the roll minted.
+pub fn shares_for(assets: u64, pool_assets: u64, supply: u64) -> Result<u64, VaultError> {
+    mul_div(assets, supply.checked_add(1).ok_or(VaultError::MathOverflow)?, pool_assets.checked_add(1).ok_or(VaultError::MathOverflow)?)
+}
+
+/// Assets for `shares` at a roll's rate, rounded down.
+pub fn assets_for(shares: u64, pool_assets: u64, supply: u64) -> Result<u64, VaultError> {
+    mul_div(shares, pool_assets.checked_add(1).ok_or(VaultError::MathOverflow)?, supply.checked_add(1).ok_or(VaultError::MathOverflow)?)
+}
+
+/// Whether a series with these strikes may settle at `price`: within
+/// MAX_PRICE_RATIO of them.
+pub fn plausible_price(price: u64, lowest_lower: u64, highest_upper: u64) -> bool {
+    (price as u128) <= (highest_upper as u128) * MAX_PRICE_RATIO && (price as u128) * MAX_PRICE_RATIO >= lowest_lower as u128
+}
+
+/// Bytes a Token-2022 metadata entry takes: its type-length header, update
+/// authority, mint, name, symbol, uri and extra fields, each string prefixed
+/// by its length.
+pub fn metadata_len(name: &str, symbol: &str, uri: &str, fields: &[(&str, &str)]) -> usize {
+    4 + 32 + 32 + (4 + name.len()) + (4 + symbol.len()) + (4 + uri.len())
+        + 4
+        + fields.iter().map(|(k, v)| 8 + k.len() + v.len()).sum::<usize>()
+}
 
 /// A Pyth price (`price × 10^expo`) as an integer with 8 decimals. When the
 /// feed carries more than 8 decimals the result rounds up: a higher settlement
@@ -147,6 +206,63 @@ mod tests {
         assert!(!confidence_ok(10_000, 101, 100));
         assert!(!confidence_ok(0, 0, 100));
         assert!(!confidence_ok(-5, 0, 100));
+    }
+
+    #[test]
+    fn mul_div_rounds_down_and_refuses_zero_or_overflow() {
+        assert_eq!(mul_div(10, 3, 4).unwrap(), 7);
+        assert_eq!(mul_div(u64::MAX, u64::MAX, u64::MAX).unwrap(), u64::MAX);
+        assert_eq!(mul_div(1, 1, 0), Err(VaultError::MathOverflow));
+        assert_eq!(mul_div(u64::MAX, 2, 1), Err(VaultError::MathOverflow));
+    }
+
+    #[test]
+    fn tips_are_a_share_of_the_premium() {
+        assert_eq!(bps_of(4 * USD, 200), 80_000); // 2% of $4
+        assert_eq!(bps_of(49, 200), 0);
+        assert_eq!(bps_of(u64::MAX, 10_000), u64::MAX);
+    }
+
+    #[test]
+    fn total_assets_excludes_what_is_not_the_pools() {
+        assert_eq!(total_assets(1_000, 100, 200, 10, 300).unwrap(), 390);
+        assert_eq!(total_assets(1_000, 1_000, 0, 0, 0).unwrap(), 0);
+        assert_eq!(total_assets(1_000, 900, 0, 0, 101), Err(VaultError::MathOverflow));
+    }
+
+    #[test]
+    fn an_empty_pool_starts_at_one_share_per_unit() {
+        assert_eq!(shares_for(1_000 * USD, 0, 0).unwrap(), 1_000 * USD);
+        assert_eq!(assets_for(1_000 * USD, 0, 0).unwrap(), 1_000 * USD);
+    }
+
+    #[test]
+    fn shares_follow_the_pools_value() {
+        // A pool of 101 assets and 100 shares: a share is worth (101+1)/(100+1).
+        assert_eq!(shares_for(102, 101, 100).unwrap(), 101);
+        assert_eq!(assets_for(101, 101, 100).unwrap(), 102);
+        // Round trips never create value.
+        for (a, s) in [(99_991_576_800u64, 100_000_000_000u64), (7, 3), (1, 1_000_000)] {
+            for x in [1u64, 13, 999_999, 1_000_000_000] {
+                assert!(assets_for(shares_for(x, a, s).unwrap(), a, s).unwrap() <= x);
+            }
+        }
+    }
+
+    #[test]
+    fn plausible_prices_are_within_ten_times_the_strikes() {
+        let (lo, hi) = (34_000_000_000, 36_000_000_000);
+        assert!(plausible_price(35_500_000_000, lo, hi));
+        assert!(plausible_price(360_000_000_000, lo, hi));
+        assert!(!plausible_price(360_000_000_001, lo, hi));
+        assert!(plausible_price(3_400_000_000, lo, hi));
+        assert!(!plausible_price(3_399_999_999, lo, hi));
+    }
+
+    #[test]
+    fn metadata_length_counts_every_string() {
+        assert_eq!(metadata_len("", "", "", &[]), 84);
+        assert_eq!(metadata_len("Afterbell #1 TSLA", "BELL", "https://x/", &[("position", "abc")]), 84 + 17 + 4 + 10 + 8 + 8 + 3);
     }
 
     #[test]

@@ -19,6 +19,7 @@ export async function POST(req: Request) {
   } catch {
     return Response.json({ error: "owner must be a wallet address" }, { status: 400 });
   }
+  if (!SOLANA_DEPLOYMENT) return Response.json({ error: "the Solana vault v2 isn't deployed yet" }, { status: 404 });
   const faucet = keypairFromEnv("FAUCET_SOLANA_KEY");
   if (!faucet) return Response.json({ error: "the faucet isn't configured" }, { status: 503 });
   try {

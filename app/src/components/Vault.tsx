@@ -6,6 +6,8 @@ import { fetchVault, type Chain, type VaultResponse } from "@/lib/api";
 import { evmAddressUrl } from "@/lib/evm";
 import { explorer, nyTime, usd } from "@/lib/format";
 
+import { DataTable } from "./DataTable";
+import { Stat, Stats } from "./Stats";
 import { Pool } from "./Underwrite";
 
 const CHAINS: { id: Chain; label: string }[] = [
@@ -55,70 +57,59 @@ function ChainVault({ chain }: { chain: Chain }) {
   return (
     <div className="space-y-6">
       {v.pool ? (
-        <div className="grid gap-4 sm:grid-cols-3">
+        <Stats>
           {/* While protection is open, the contract values the pool as if every position pays its maximum. */}
           <Stat label={v.locked > 0 ? "Pool value if every position pays in full" : "Pool value (TestUSD)"} value={usd(v.pool.nav)} />
           <Stat label={v.locked > 0 ? "Share price, same worst case" : "Share price"} value={usd(v.pool.sharePrice, 6)} />
           <Stat label="Locked for open protection" value={usd(v.locked)} />
-        </div>
+        </Stats>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-3">
+        <Stats>
           <Stat label="Collateral (TestUSD)" value={usd(v.collateral)} />
           <Stat label="Locked for open protection" value={usd(v.locked)} />
           <Stat label="Free to sell against" value={usd(v.collateral - v.locked)} />
-        </div>
+        </Stats>
       )}
-      {v.pool && <Pool pool={v.pool} />}
+      {v.pool && <Pool pool={v.pool} chain={chain} />}
 
-      <section className="rounded-2xl border border-line bg-surface">
+      <section className="overflow-hidden rounded-2xl border border-line bg-surface">
         <h2 className="border-b border-line px-4 py-3 font-medium">Series</h2>
-        <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="text-left text-muted">
-            <tr className="border-b border-line">
-              <th className="px-4 py-3 font-normal">Open</th>
-              <th className="px-4 py-3 font-normal">Stock</th>
-              <th className="px-4 py-3 font-normal">State</th>
-              <th className="px-4 py-3 text-right font-normal">Positions</th>
-              <th className="px-4 py-3 text-right font-normal">Premiums</th>
-              <th className="px-4 py-3 text-right font-normal">Locked</th>
-            </tr>
-          </thead>
-          <tbody>
-            {v.series.map((s) => (
-              <tr key={s.address} className="border-b border-line last:border-0">
-                <td className="px-4 py-3">
-                  {solana ? (
-                    <a className="hover:underline" href={explorer("address", s.address)} target="_blank" rel="noreferrer">
-                      {nyTime(s.openTs)}
-                    </a>
-                  ) : (
-                    nyTime(s.openTs)
-                  )}
-                </td>
-                <td className="px-4 py-3">{s.symbol}</td>
-                <td className="px-4 py-3">{s.state === "settled" ? `Settled at ${usd(s.price ?? 0)}` : s.state === "voided" ? "Voided, refunded" : "Open"}</td>
-                <td className="num px-4 py-3 text-right">{s.positions}</td>
-                <td className="num px-4 py-3 text-right">{usd(s.premiums)}</td>
-                <td className="num px-4 py-3 text-right">{usd(s.maxPayouts)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        </div>
+        <DataTable
+          rows={v.series}
+          rowKey={(s) => s.address}
+          columns={[
+            {
+              label: "Open",
+              phone: "title",
+              cell: (s) =>
+                solana ? (
+                  <a className="hover:underline" href={explorer("address", s.address)} target="_blank" rel="noreferrer">
+                    {nyTime(s.openTs)}
+                  </a>
+                ) : (
+                  nyTime(s.openTs)
+                ),
+            },
+            { label: "Stock", phone: "corner", cell: (s) => s.symbol },
+            {
+              label: "State",
+              cell: (s) => (s.state === "settled" ? `Settled at ${usd(s.price ?? 0)}` : s.state === "voided" ? "Voided, refunded" : "Open"),
+            },
+            { label: "Positions", numeric: true, cell: (s) => s.positions },
+            { label: "Premiums", numeric: true, cell: (s) => usd(s.premiums) },
+            { label: "Locked", numeric: true, cell: (s) => usd(s.maxPayouts) },
+          ]}
+        />
         {v.series.length === 0 && <p className="px-4 py-3 text-sm text-muted">No protection sold here yet.</p>}
         {v.series.length > 0 && settled.length === 0 && (
           <p className="border-t border-line px-4 py-3 text-sm text-muted">No series has settled yet. Each settles at the open it protects until.</p>
         )}
       </section>
 
+      {v.firstVault && <FirstVault f={v.firstVault} />}
+
       <section className="rounded-2xl border border-line bg-surface p-5 text-sm leading-relaxed text-muted">
-        <h2 className="font-medium text-text">Hedge</h2>
-        <p className="mt-2">
-          Planned: the vault will short the matching Hyperliquid perp at the close and close it at the open, so its exposure follows the price its
-          protection settles on. Not live yet.
-        </p>
-        <p className="mt-3">
+        <p>
           Vault{" "}
           {vaultUrl ? (
             <a className="num text-text hover:underline" href={vaultUrl} target="_blank" rel="noreferrer">
@@ -136,11 +127,49 @@ function ChainVault({ chain }: { chain: Chain }) {
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+/**
+ * Solana's first vault sells nothing new, but what it sold stays open until it
+ * settles, and the hedge counts it: listed here so this page counts it too.
+ * Nothing shows once it has nothing open.
+ */
+function FirstVault({ f }: { f: NonNullable<VaultResponse["firstVault"]> }) {
+  if (!("error" in f) && f.open.length === 0) return null;
   return (
-    <div className="rounded-2xl border border-line bg-surface p-5">
-      <div className="text-sm text-muted">{label}</div>
-      <div className="num mt-1 text-2xl font-semibold">{value}</div>
-    </div>
+    <section className="overflow-hidden rounded-2xl border border-line bg-surface">
+      <h2 className="border-b border-line px-4 py-3 font-medium">Still open in the first vault</h2>
+      <p className="px-4 py-3 text-sm leading-relaxed text-muted">
+        Solana&apos;s first vault,{" "}
+        <a className="num text-text hover:underline" href={explorer("address", f.vault)} target="_blank" rel="noreferrer">
+          {f.vault.slice(0, 6)}…{f.vault.slice(-4)}
+        </a>
+        , no longer sells protection. What it sold before this vault opened stays open until its series settles at the open, and it pays from the
+        first vault&apos;s own collateral. The hedge below counts it.
+      </p>
+      {"error" in f ? (
+        <p className="border-t border-line px-4 py-3 text-sm">Couldn&apos;t read it: {f.error}</p>
+      ) : (
+        <div className="border-t border-line">
+          <DataTable
+            rows={f.open}
+            rowKey={(s) => s.address}
+            columns={[
+              {
+                label: "Open",
+                phone: "title",
+                cell: (s) => (
+                  <a className="hover:underline" href={explorer("address", s.address)} target="_blank" rel="noreferrer">
+                    {nyTime(s.openTs)}
+                  </a>
+                ),
+              },
+              { label: "Stock", phone: "corner", cell: (s) => s.symbol },
+              { label: "Positions", numeric: true, cell: (s) => s.positions },
+              { label: "Shares", numeric: true, cell: (s) => Number(s.shares.toFixed(6)) },
+              { label: "Locked", numeric: true, cell: (s) => usd(s.maxPayout) },
+            ]}
+          />
+        </div>
+      )}
+    </section>
   );
 }

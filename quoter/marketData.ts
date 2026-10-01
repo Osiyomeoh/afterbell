@@ -27,13 +27,30 @@ export type Print = { price: number; publishTime: number };
 type ParsedPrice = { price: { price: string; expo: number; publish_time: number } };
 const toPrint = (p: ParsedPrice): Print => ({ price: Number(p.price.price) * 10 ** p.price.expo, publishTime: p.price.publish_time });
 
+const SCHEDULES_TTL_MS = 6 * 60 * 60 * 1000;
+let schedules: { at: number; byFeed: Promise<Map<string, string>> } | null = null;
+
+/**
+ * Every equity feed's market-hours schedule, by feed id (lower case, no 0x):
+ * one request for all of them, kept six hours. Pyth's public endpoint allows
+ * only a few requests a second, so a page pricing every stock can't ask once each.
+ */
+function equitySchedules(): Promise<Map<string, string>> {
+  if (!schedules || Date.now() - schedules.at > SCHEDULES_TTL_MS) {
+    const byFeed = fetch(`${BENCHMARKS}?asset_type=equity`, { signal: AbortSignal.timeout(20_000) }).then(async (res) => {
+      if (!res.ok) throw new Error(`Pyth market hours returned ${res.status}`);
+      const feeds = (await res.json()) as { id: string; attributes?: { schedule?: string } }[];
+      return new Map(feeds.flatMap((f) => (f.attributes?.schedule ? [[f.id.replace(/^0x/, "").toLowerCase(), f.attributes.schedule] as const] : [])));
+    });
+    schedules = { at: Date.now(), byFeed };
+    byFeed.catch(() => (schedules = null));
+  }
+  return schedules.byFeed;
+}
+
 /** Holidays and early closes from Pyth's own schedule for the feed. */
 export async function pythCalendar(symbol: string, feedId: string, now: number): Promise<{ holidays: Set<string>; earlyCloses: Map<string, { hour: number; minute: number }> }> {
-  const res = await fetch(`${BENCHMARKS}?query=${encodeURIComponent(symbol)}&asset_type=equity`, { signal: AbortSignal.timeout(10_000) });
-  if (!res.ok) throw new Error(`Pyth market hours returned ${res.status}`);
-  const want = feedId.replace(/^0x/, "").toLowerCase();
-  const feed = ((await res.json()) as { id: string; attributes?: { schedule?: string } }[]).find((f) => f.id.replace(/^0x/, "").toLowerCase() === want);
-  const schedule = feed?.attributes?.schedule;
+  const schedule = (await equitySchedules()).get(feedId.replace(/^0x/, "").toLowerCase());
   if (!schedule) throw new Error(`Pyth has no market-hours schedule for ${symbol}`);
   return { holidays: scheduleHolidays(schedule, now), earlyCloses: scheduleEarlyCloses(schedule, now) };
 }
@@ -82,6 +99,35 @@ export async function hyperliquidMid(coin: string): Promise<number> {
   const mid = Number(((await res.json()) as Record<string, string>)[coin]);
   if (!(mid > 0)) throw new Error(`Hyperliquid has no mid for ${coin}`);
   return mid;
+}
+
+export type PricePoint = { t: number; price: number };
+
+/** Hyperliquid candles as candleSnapshot returns them: open time and close, in ms and a decimal string. */
+export type Candle = { t: number; c: string };
+
+/**
+ * The stock's price through a stretch of time from candles: each candle's
+ * close at its open time (unix seconds), from `from` on, oldest first. An
+ * index perp trades at the index's level, so `ratio` turns it into the stock's.
+ */
+export function candlePoints(candles: readonly Candle[], from: number, ratio = 1): PricePoint[] {
+  return candles
+    .map((k) => ({ t: Math.floor(k.t / 1000), price: Number(k.c) * ratio }))
+    .filter((p) => p.t >= from && p.price > 0)
+    .sort((a, b) => a.t - b.t);
+}
+
+/** Hyperliquid's `interval` candles for `coin` between two times (unix seconds). */
+export async function hyperliquidCandles(coin: string, from: number, to: number, interval: "5m" | "15m"): Promise<Candle[]> {
+  const res = await fetch(HYPERLIQUID_INFO, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ type: "candleSnapshot", req: { coin, interval, startTime: from * 1000, endTime: to * 1000 } }),
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (!res.ok) throw new Error(`Hyperliquid candleSnapshot returned ${res.status}`);
+  return (await res.json()) as Candle[];
 }
 
 /**

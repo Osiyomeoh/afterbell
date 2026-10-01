@@ -10,8 +10,14 @@ const nextConfig: NextConfig = {
   outputFileTracingRoot: root,
   // The Pyth receiver (used by the keeper) only loads through its CommonJS build.
   serverExternalPackages: ["@pythnetwork/pyth-solana-receiver"],
-  // The Robinhood Chain deployment is read from disk at request time (it may not exist yet).
-  outputFileTracingIncludes: Object.fromEntries(["/api/quote", "/api/market", "/api/positions", "/api/vault", "/api/record"].map((r) => [r, ["../evm/deployments/*.json"]])),
+  // The Robinhood Chain deployment is read from disk at request time (it may not exist yet), and so is Solana vault v1's
+  // record once v2 replaces it (solana/deployments/devnet-v1.json), which the record, hedge, vault and status routes read.
+  outputFileTracingIncludes: {
+    ...Object.fromEntries(
+      ["/api/quote", "/api/market", "/api/positions", "/api/board", "/api/gap-report", "/api/kamino", "/kamino", "/p/[chain]/[id]", "/p/[chain]/[id]/opengraph-image"].map((r) => [r, ["../evm/deployments/*.json"]]),
+    ),
+    ...Object.fromEntries(["/api/record", "/api/hedge", "/api/vault", "/api/status", "/status", "/verify", "/event"].map((r) => [r, ["../evm/deployments/*.json", "../solana/deployments/*.json"]])),
+  },
 };
 
 export default nextConfig;

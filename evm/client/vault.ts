@@ -41,11 +41,17 @@ export type EvmDeployment = {
   chainId: number;
   rpc: string;
   vault: Address;
+  /** The block the vault was deployed in, where reading its events starts. */
+  vaultBlock?: number;
   /** The positions' NFT contract, which the vault deploys. */
   positions: Address;
   testUsd: Address;
   owner: Address;
   quoter: Address;
+  /** The renewer ("protect every night") beside the vault, once it's deployed. */
+  renewer?: Address;
+  /** The block the renewer was deployed in, where reading its events starts. */
+  renewerBlock?: number;
   /** Chainlink feed per stock symbol; Robinhood Chain sells only the stocks listed. */
   feeds: { TSLA: Address } & Partial<Record<string, Address>>;
 };
@@ -85,7 +91,10 @@ const mined = async (client: PublicClient, hash: Hex, what: string) => {
 };
 
 /** An EIP-2612 permit from the wallet for the vault to take `value` TestUSD, valid for ten minutes. */
-export async function signPermit(wallet: Wallet, client: PublicClient, d: EvmDeployment, value: bigint) {
+/** The two addresses a purchase or deposit needs: a quote response carries them too. */
+export type VaultAddresses = Pick<EvmDeployment, "vault" | "testUsd">;
+
+export async function signPermit(wallet: Wallet, client: PublicClient, d: VaultAddresses, value: bigint) {
   const owner = wallet.account.address;
   const [[, name, version, chainId, verifyingContract], nonce] = await Promise.all([
     client.readContract({ address: d.testUsd, abi: testUsdAbi, functionName: "eip712Domain" }),
@@ -119,7 +128,7 @@ export async function signPermit(wallet: Wallet, client: PublicClient, d: EvmDep
 export async function buyProtection(
   wallet: Wallet,
   client: PublicClient,
-  d: EvmDeployment,
+  d: VaultAddresses,
   quote: EvmQuote,
   signature: Hex,
 ): Promise<{ id: bigint; hash: Hex }> {
@@ -140,7 +149,7 @@ export async function buyProtection(
 }
 
 /** TestUSD has no value and anyone may mint it, up to 10,000 per call. */
-export async function mintTestUsd(wallet: Wallet, client: PublicClient, d: EvmDeployment, amount: bigint): Promise<Hex> {
+export async function mintTestUsd(wallet: Wallet, client: PublicClient, d: VaultAddresses, amount: bigint): Promise<Hex> {
   const hash = await wallet.writeContract({ address: d.testUsd, abi: testUsdAbi, functionName: "mint", args: [wallet.account.address, amount] });
   await mined(client, hash, "the mint");
   return hash;

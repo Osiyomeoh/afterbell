@@ -6,7 +6,7 @@
 import bs58 from "bs58";
 import type { Address, Hex } from "viem";
 
-import { openingModel, type Opening } from "../pricing/model";
+import { openingModel, type Opening, type OpeningModel } from "../pricing/model";
 import { priceProtection, type Protection } from "../pricing/putSpread";
 import { hashEvmQuote, maxPayoutUnits, signEvmQuote, toEvmQuote, toUnits, type EvmQuote } from "../pricing/quote";
 import {
@@ -110,15 +110,20 @@ export function referencePrice(now: number, market: Market, cfg: QuoterConfig = 
   return live < market.close ? { price: live, basis: "live, below the close" } : { price: market.close, basis: "close" };
 }
 
-export function priceQuote(now: number, market: Market, protection: Protection, cfg: QuoterConfig = DEFAULT_QUOTER_CONFIG): PricedProtection {
-  if (protection.shares > cfg.maxShares) throw new Error(`at most ${cfg.maxShares} shares per quote`);
-  const reference = referencePrice(now, market, cfg);
-  const openTs = nextOpen(now, cfg.stopBeforeOpenSecs + cfg.ttlSecs, market.holidays);
-  const model = openingModel(market.history, {
+/** The distribution of the print at `openTs`, as protection for it is priced at `now`. The hedger sizes its short from the same one. */
+export function modelFor(now: number, openTs: number, market: Pick<Market, "history" | "annualVol" | "holidays" | "earlyCloses">): OpeningModel {
+  return openingModel(market.history, {
     annualVol: market.annualVol,
     years: (openTs - now) / YEAR_SECS,
     sessionYears: sessionSecsLeft(now, market.holidays, market.earlyCloses) / SESSION_SECS_PER_YEAR,
   });
+}
+
+export function priceQuote(now: number, market: Market, protection: Protection, cfg: QuoterConfig = DEFAULT_QUOTER_CONFIG): PricedProtection {
+  if (protection.shares > cfg.maxShares) throw new Error(`at most ${cfg.maxShares} shares per quote`);
+  const reference = referencePrice(now, market, cfg);
+  const openTs = nextOpen(now, cfg.stopBeforeOpenSecs + cfg.ttlSecs, market.holidays);
+  const model = modelFor(now, openTs, market);
   const price = priceProtection(model, reference.price, protection, cfg.margin);
   // The vault takes premium <= max payout, but protection that dear is no use to anyone.
   if (price.premium >= price.maxPayout) throw new Error("protection this deep costs as much as it can pay");

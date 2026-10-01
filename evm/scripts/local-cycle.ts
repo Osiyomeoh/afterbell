@@ -20,8 +20,10 @@ import { createTestClient, createWalletClient, http, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
 import { signForEvm, type PricedProtection } from "../../quoter/quoter";
-import { afterbellPositionsAbi, afterbellVaultAbi, testUsdAbi } from "../client/abi";
+import { afterbellPositionsAbi, afterbellRenewerAbi, afterbellVaultAbi, testUsdAbi } from "../client/abi";
+import { activeOrders, renewOrder, setOrder } from "../client/renewer";
 import { buyProtection, claimFilled, requestDeposit, type EvmSeries } from "../client/vault";
+import { evmVault } from "../../hedger/evm";
 import { planEvmKeeper, runEvmKeeper } from "../keeper/keeper";
 import { ANVIL_KEYS as KEYS, deployLocalVault, mockFeedAbi, startAnvil } from "./local-chain";
 
@@ -71,6 +73,12 @@ async function main() {
     const bobId = await sell(bob, 1, 380, 360, 1);
     const holder = (id: bigint) => client.readContract({ address: d.positions, abi: afterbellPositionsAbi, functionName: "ownerOf", args: [id] });
     check((await holder(aliceId)) === alice!.account.address && (await holder(bobId)) === bob!.account.address, `sold positions ${aliceId} and ${bobId}, each an NFT held by its buyer`);
+    const hedged = evmVault("Robinhood Chain", client, d);
+    const exposed = await hedged.read();
+    check(
+      JSON.stringify(exposed) === JSON.stringify([2, 1].map((shares, i) => ({ symbol: "TSLA", openTs: Number(open), shares, upper: [390, 380][i], lower: [370, 360][i] }))),
+      "the hedger reads both as open TSLA protection: 2 shares from $390 to $370, 1 from $380 to $360",
+    );
 
     // Before the bell, Alice sells her position to Carol, and Dave asks to underwrite 1,000.
     await mined(await alice!.writeContract({ address: d.positions, abi: afterbellPositionsAbi, functionName: "transferFrom", args: [alice!.account.address, carol!.account.address, aliceId] }));
@@ -112,6 +120,7 @@ async function main() {
     check(report.paid.length === plannedUnits.size && report.paid.every((c) => plannedUnits.get(c.id) === c.units), "the keeper paid exactly what the plan said it would");
     check(report.tips === 80_000n && (await balance(keeper)) - keeperBefore === 80_000n, "the vault paid the keeper 0.08 TestUSD in tips: 2% of the 4 in premiums");
     check((await read<bigint>("locked")) === 0n && (await read<bigint>("tipsOwed")) === 0n, "nothing is locked or owed any more");
+    check((await hedged.read()).length === 0, "and the hedger reads nothing open");
 
     // The roll: the pool kept the premiums less the payout and the tips, and Dave's deposit buys shares at that value.
     check(report.rolled?.round === 2n && (await read<bigint>("round")) === 3n, "the keeper rolled the pool from round 2 into round 3");
@@ -130,6 +139,32 @@ async function main() {
 
     const again = await runEvmKeeper({ client, wallet: keeper!, deployment: d });
     check(again.settled.length + again.paid.length + again.voided.length === 0 && again.rolled === null, "a second keeper run finds nothing to do");
+
+    // Protect every night: Bob sets a standing order once, with a permit, and a keeper renews it for the next open.
+    const renewer = d.renewer!;
+    const next = (await client.getBlock()).timestamp + 300n;
+    await mint(bob, 1_000_000_000n);
+    const order = { maxShares: 2_000_000n, startBps: 200, depthBps: 1_000, maxPremium: 5_000_000n, until: next + 10n * 86_400n };
+    await setOrder(bob!, client, { testUsd: usd, renewer }, feed, order, order.maxPremium * 10n);
+    const standing = await activeOrders(client, renewer, (await client.getBlock()).timestamp);
+    check(standing.length === 1 && standing[0]!.holder === bob!.account.address && standing[0]!.maxPremium === 5_000_000n, "Bob's standing order is listed: 2 TSLA, 2% to 10% below, at most 5 TestUSD a night");
+    // Tonight's protection at the order's levels below the feed's $383.8284, priced and signed for the renewer.
+    const now = Number((await client.getBlock()).timestamp);
+    const renewal = { protection: { shares: 2, upper: 376.15, lower: 345.45 }, openTs: Number(next), expiry: now + 60, premium: 3 } as PricedProtection;
+    const signed = await signForEvm(renewal, renewer, { chainId: 31337, vault, feed }, KEYS[1]);
+    const bobBefore2 = await balance(bob);
+    await renewOrder(keeper!, client, renewer, bob!.account.address, signed.quote, signed.signature);
+    const renewedId = (await read<bigint>("nextPositionId")) - 1n;
+    check((await holder(renewedId)) === bob!.account.address, `the keeper renewed it: position ${renewedId}'s NFT went straight to Bob`);
+    check(bobBefore2 - (await balance(bob)) === 3_000_000n, "Bob paid tonight's 3 TestUSD, under his 5 cap");
+    const stored = await client.readContract({ address: renewer, abi: afterbellRenewerAbi, functionName: "order", args: [bob!.account.address, feed] });
+    check(stored.lastOpenTs === next, "the order records the open it bought for");
+    const twice = await signForEvm({ ...renewal, expiry: now + 90 }, renewer, { chainId: 31337, vault, feed }, KEYS[1]);
+    const refused = await renewOrder(keeper!, client, renewer, bob!.account.address, twice.quote, twice.signature).then(
+      () => false,
+      () => true,
+    );
+    check(refused, "a second renewal for the same open is refused");
     console.log("PASS");
   } finally {
     anvil.kill();

@@ -4,6 +4,8 @@
   "type": "module",
   "scripts": {
     "test": "vitest run",
+    "coverage": "vitest run --coverage",
+    "e2e": "playwright test",
     "proof": "tsx research/proof.ts",
     "typecheck": "tsc --noEmit",
     "solana:idl": "cp solana/target/idl/afterbell_vault.json solana/target/types/afterbell_vault.ts solana/client/idl/",
@@ -11,15 +13,22 @@
     "solana:smoke": "tsx solana/scripts/smoke-buy.ts",
     "solana:keeper": "tsx solana/scripts/keeper.ts",
     "solana:cycle": "tsx solana/scripts/localnet-cycle.ts",
+    "solana:local": "tsx solana/scripts/localnet-app.ts",
     "evm:abi": "tsx evm/scripts/abi.ts",
     "evm:keeper": "tsx evm/scripts/keeper.ts",
     "evm:cycle": "tsx evm/scripts/local-cycle.ts",
     "evm:local": "tsx evm/scripts/local-app.ts",
+    "hedger": "tsx hedger/scripts/hedger.ts",
+    "hedger:quoter": "tsx hedger/scripts/quoter.ts",
+    "hedger:backtest": "tsx hedger/scripts/backtest.ts",
     "agent": "tsx agent/server.ts",
     "agent:smoke": "tsx agent/smoke.ts"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@types/node": "^26.6.3",
+    "@vitest/coverage-v8": "^5.0.3",
+    "tsup": "^8.5.1",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
     "vitest": "^5.0.2"

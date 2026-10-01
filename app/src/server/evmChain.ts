@@ -5,11 +5,14 @@ import { evmChain, type EvmDeployment, type EvmPosition, type EvmSeries } from "
 import { chainlinkReader } from "@root/evm/keeper/keeper";
 import { claimUnits } from "@root/solana/keeper/plan";
 
+import type { Sale } from "@/lib/team";
+
 import type { PoolState, PositionRow, SeriesRow, VaultState } from "./chain";
 import { evmDeployment } from "./evmDeployment";
 import type { LedgerRow } from "./ledger";
 
-type EvmVaultState = VaultState & { ledger: LedgerRow[]; pool: PoolState };
+/** `sales`: every sale with the wallet that bought it (the renewer, for a renewal). */
+type EvmVaultState = VaultState & { ledger: LedgerRow[]; pool: PoolState; sales: Sale[] };
 
 // The contract's SeriesState enum, in order.
 const STATES = ["open", "settled", "voided"] as const;
@@ -148,6 +151,7 @@ async function load(d: EvmDeployment): Promise<EvmVaultState> {
     locked: money(locked),
     series,
     positions: rows.filter((r) => !r.p.closed).map((r) => r.row),
+    sales: rows.map((r) => ({ chain: "robinhood" as const, buyer: r.p.buyer, openTs: r.row.openTs })),
   };
 }
 

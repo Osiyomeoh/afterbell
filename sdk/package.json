@@ -1,0 +1,49 @@
+{
+  "name": "afterbell-sdk",
+  "version": "0.1.0",
+  "description": "Typed client for Afterbell: protection for tokenized stocks until the next open. Prices, signed quotes, positions, gap reports, Kamino loan checks, and the purchase a wallet signs on Solana or Robinhood Chain.",
+  "license": "MIT",
+  "author": "Samuel Aleonomoh",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Osiyomeoh/afterbell",
+    "directory": "sdk"
+  },
+  "homepage": "https://afterbell-nine.vercel.app",
+  "keywords": [
+    "tokenized stocks",
+    "xstocks",
+    "solana",
+    "robinhood chain",
+    "options",
+    "protection",
+    "kamino"
+  ],
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/types/sdk/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/types/sdk/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsup && tsc -p tsconfig.build.json && node fix-types.mjs",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "@anchor-lang/core": "^1.2.0",
+    "@noble/curves": "^1.9.7",
+    "@solana/spl-token": "^0.4.15",
+    "@solana/web3.js": "^1.99.0",
+    "bs58": "^6.0.0",
+    "viem": "^2.56.9"
+  }
+}

@@ -34,10 +34,11 @@ export async function priceOffer(stock: Stock, protection: Protection, cfg: Quot
 
 /** Prices protection with the server's market data and signs it for `buyer` with the Solana vault's quoter key. */
 export async function signedOffer(stock: Stock, buyer: PublicKey, protection: Protection, cfg: QuoterConfig = DEFAULT_QUOTER_CONFIG): Promise<SignedOffer> {
+  const d = SOLANA_DEPLOYMENT;
+  if (!d) throw new OfferError("the Solana vault v2 isn't deployed yet");
   if (!onSolanaVault(stock)) throw new OfferError(`the Solana vault doesn't sell ${stock.symbol} yet`);
   const quoter = keypairFromEnv("QUOTER_SOLANA_KEY");
   if (!quoter) throw new Error("the quote service has no quoter key configured");
-  const d = SOLANA_DEPLOYMENT;
   if (quoter.publicKey.toBase58() !== d.quoter) throw new Error("the configured quoter key isn't this vault's quoter");
   const priced = await priceOffer(stock, protection, cfg);
   const signed = signForSolana(priced, buyer.toBase58(), { programId: d.programId, vault: d.vault, feedId: stock.feedId }, quoter.secretKey.slice(0, 32));
@@ -64,9 +65,10 @@ const readOnly = (publicKey: PublicKey) => ({
   signAllTransactions: () => Promise.reject(new Error("unsigned")),
 });
 
-/** The unsigned purchase for the buyer's wallet to sign: the Ed25519 check, then `buy`. */
+/** The unsigned purchase for the buyer's wallet to sign: the Ed25519 check, then `buy`, which mints the position's NFT to the buyer. */
 export async function purchaseTransaction(connection: Connection, buyer: PublicKey, offer: SignedOffer): Promise<Transaction> {
   const d = SOLANA_DEPLOYMENT;
+  if (!d) throw new OfferError("the Solana vault v2 isn't deployed yet");
   const mint = new PublicKey(d.collateralMint);
   const ixs = await buyInstructions(getProgram(connection, readOnly(buyer)), {
     buyer,

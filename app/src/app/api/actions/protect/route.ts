@@ -4,7 +4,9 @@ import { getAssociatedTokenAddressSync } from "@solana/spl-token";
 import { DEFAULT_QUOTER_CONFIG } from "@root/quoter/quoter";
 import type { Stock } from "@root/quoter/stocks";
 
+import { eventAt } from "@/lib/events";
 import { nyTime, usd } from "@/lib/format";
+import { solanaSaleError } from "@/server/chain";
 import { SOLANA_DEPLOYMENT } from "@/server/deployment";
 import { keypairFromEnv } from "@/server/env";
 import { drip } from "@/server/faucet";
@@ -86,10 +88,11 @@ export async function GET(request: Request) {
   try {
     const example = await signedOffer(stock, PublicKey.default, await protectionBelow(stock, EXAMPLE_SHARES, START, DEPTH), ACTION_CONFIG);
     const held = stock.symbol === "TSLA" ? `"Protect what I hold" reads your TSLAx and TSLAon on mainnet. ` : "";
+    const event = eventAt(stock.symbol, example.priced.openTs);
     return json({
       ...common,
       description:
-        `${summary(stock, example)} Covers the fall from 2% to 10% below today's price, settled on-chain by the first Pyth price after 09:30 ET. ` +
+        `${event ? `Covers ${event.title}, expected before this open. ` : ""}${summary(stock, example)} Covers the fall from 2% to 10% below today's price, settled on-chain by the first Pyth price after 09:30 ET. ` +
         `${held}Solana devnet with TestUSD: a new wallet gets test money first.`,
       links: { actions },
     });
@@ -110,6 +113,8 @@ export async function POST(request: Request) {
 
   const connection = new Connection(RPC, "confirmed");
   try {
+    const d = SOLANA_DEPLOYMENT;
+    if (!d) throw new OfferError("The Solana vault v2 isn't deployed yet.");
     const stock = stockOf(request);
     const param = new URL(request.url).searchParams.get("shares") ?? "";
     let shares: number;
@@ -124,9 +129,11 @@ export async function POST(request: Request) {
     shares = Math.min(Math.round(shares * 10_000) / 10_000, MAX_SHARES);
 
     const offer = await signedOffer(stock, owner, await protectionBelow(stock, shares, START, DEPTH), ACTION_CONFIG);
+    const refused = await solanaSaleError(offer.signed.quote);
+    if (refused) throw new OfferError(`${refused[0]!.toUpperCase()}${refused.slice(1)}.`);
 
     // One click from nothing: fund a fresh devnet wallet before handing it the transaction.
-    const mint = new PublicKey(SOLANA_DEPLOYMENT.collateralMint);
+    const mint = new PublicKey(d.collateralMint);
     const [balance, lamports] = await Promise.all([
       connection.getTokenAccountBalance(getAssociatedTokenAddressSync(mint, owner)).then((b) => BigInt(b.value.amount), () => 0n),
       connection.getBalance(owner),

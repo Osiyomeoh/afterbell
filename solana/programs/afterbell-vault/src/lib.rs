@@ -1,8 +1,14 @@
 //! Afterbell vault: protection on a tokenized stock's next opening print, a put
-//! spread paying `shares × clamp(upper − open, 0, upper − lower)`. Sold against
-//! quotes the vault's quoter signs (ed25519), backed by collateral locked at
-//! the maximum payout, and settled permissionlessly by the first Pyth print at
-//! or after the open.
+//! spread paying `shares × clamp(upper − open, 0, upper − lower)`, underwritten
+//! by a pool anyone can join. Sold against quotes the vault's quoter signs
+//! (ed25519), each position an NFT paid to whoever holds it, settled
+//! permissionlessly by the first Pyth print at or after the open.
+//!
+//! Rounds: one opening per round. Deposits and redemptions queue and fill at
+//! `roll`, once everything the round sold is paid, at the pool's exact value.
+//! Risk limits cap what a round, and one stock in it, may lock as shares of the
+//! pool at its roll. Whoever pays positions out earns a tip from their premiums.
+//! Standing orders renew a holder's protection each night through any keeper.
 
 pub mod constants;
 pub mod error;
@@ -19,34 +25,46 @@ pub use instructions::*;
 pub use quote::QuoteArgs;
 pub use state::*;
 
-declare_id!("6J5BHSf1yWup7SXae5xS2nzNUbtz7Bq3VpfJTtxr7Dsc");
+declare_id!("J6n3JUafVkx4MpKTnAnZSwTcGFueRrjxgiXWMC4L7RGG");
 
 #[program]
 pub mod afterbell_vault {
     use super::*;
 
-    pub fn initialize_vault(ctx: Context<InitializeVault>, config: VaultConfig) -> Result<()> {
-        instructions::admin::handle_initialize_vault(ctx, config)
+    pub fn initialize_vault(ctx: Context<InitializeVault>, quoter: Pubkey, params: Params, art_uri: String) -> Result<()> {
+        instructions::admin::handle_initialize_vault(ctx, quoter, params, art_uri)
     }
 
-    pub fn set_config(ctx: Context<SetConfig>, config: VaultConfig) -> Result<()> {
-        instructions::admin::handle_set_config(ctx, config)
+    pub fn set_quoter(ctx: Context<Configure>, quoter: Pubkey) -> Result<()> {
+        instructions::admin::handle_set_quoter(ctx, quoter)
     }
 
-    pub fn allow_feed(ctx: Context<AllowFeed>, feed_id: [u8; 32], allowed: bool) -> Result<()> {
-        instructions::admin::handle_allow_feed(ctx, feed_id, allowed)
+    pub fn set_params(ctx: Context<Configure>, params: Params) -> Result<()> {
+        instructions::admin::handle_set_params(ctx, params)
     }
 
-    pub fn deposit(ctx: Context<Deposit>, amount: u64) -> Result<()> {
-        instructions::admin::handle_deposit(ctx, amount)
+    pub fn set_art_uri(ctx: Context<Configure>, art_uri: String) -> Result<()> {
+        instructions::admin::handle_set_art_uri(ctx, art_uri)
     }
 
-    pub fn withdraw(ctx: Context<Withdraw>, amount: u64) -> Result<()> {
-        instructions::admin::handle_withdraw(ctx, amount)
+    pub fn allow_feed(ctx: Context<AllowFeed>, feed_id: [u8; 32], symbol: String, allowed: bool) -> Result<()> {
+        instructions::admin::handle_allow_feed(ctx, feed_id, symbol, allowed)
     }
 
     pub fn buy(ctx: Context<Buy>, q: QuoteArgs) -> Result<()> {
         instructions::buy::handle_buy(ctx, q)
+    }
+
+    pub fn set_order(ctx: Context<SetOrder>, feed_id: [u8; 32], terms: OrderTerms) -> Result<()> {
+        instructions::orders::handle_set_order(ctx, feed_id, terms)
+    }
+
+    pub fn cancel_order(ctx: Context<CancelOrder>) -> Result<()> {
+        instructions::orders::handle_cancel_order(ctx)
+    }
+
+    pub fn renew(ctx: Context<Renew>, q: QuoteArgs) -> Result<()> {
+        instructions::orders::handle_renew(ctx, q)
     }
 
     pub fn settle(ctx: Context<Settle>) -> Result<()> {
@@ -57,7 +75,27 @@ pub mod afterbell_vault {
         instructions::settle::handle_void_series(ctx)
     }
 
-    pub fn claim(ctx: Context<Claim>) -> Result<()> {
-        instructions::claim::handle_claim(ctx)
+    pub fn process<'info>(ctx: Context<'info, Process<'info>>) -> Result<()> {
+        instructions::process::handle_process(ctx)
+    }
+
+    pub fn request_deposit(ctx: Context<RequestDeposit>, assets: u64) -> Result<()> {
+        instructions::pool::handle_request_deposit(ctx, assets)
+    }
+
+    pub fn request_redeem(ctx: Context<RequestRedeem>, shares: u64) -> Result<()> {
+        instructions::pool::handle_request_redeem(ctx, shares)
+    }
+
+    pub fn claim_deposit(ctx: Context<ClaimDeposit>) -> Result<()> {
+        instructions::pool::handle_claim_deposit(ctx)
+    }
+
+    pub fn claim_redemption(ctx: Context<ClaimRedemption>) -> Result<()> {
+        instructions::pool::handle_claim_redemption(ctx)
+    }
+
+    pub fn roll(ctx: Context<Roll>) -> Result<()> {
+        instructions::pool::handle_roll(ctx)
     }
 }

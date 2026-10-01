@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 
+import { Footer } from "@/components/Footer";
 import { Header } from "@/components/Header";
 
 import "./globals.css";
@@ -13,6 +14,8 @@ const description =
   "Protection for tokenized stocks until the next opening bell. Pay once; if the stock opens below your level, the vault pays the difference. Settled on-chain by the first oracle print after 09:30 ET.";
 
 export const metadata: Metadata = {
+  // The hosted address (SITE_URL, read at build time), so link previews point at the app's own image rather than localhost.
+  ...(process.env.SITE_URL && { metadataBase: new URL(process.env.SITE_URL) }),
   title: { default: "Afterbell · Protection until the opening bell", template: "%s · Afterbell" },
   description,
 };
@@ -25,7 +28,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-screen font-sans">
         <Providers>
           <Header />
-          <main className="mx-auto w-full max-w-5xl px-4 pb-24 sm:px-6">{children}</main>
+          <main className="mx-auto w-full max-w-7xl px-4 pb-24 sm:px-6 2xl:max-w-[88rem]">{children}</main>
+          <Footer />
         </Providers>
       </body>
     </html>

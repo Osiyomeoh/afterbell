@@ -1,13 +1,23 @@
 "use client";
 
-import { useAnchorWallet, useConnection, useWallet } from "@solana/wallet-adapter-react";
+import { useAnchorWallet, useConnection } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import type { Address } from "viem";
+
+import type { HolderOrder } from "@root/evm/client/renewer";
+import { svg } from "@root/solana/client/art";
 
 import { fetchMarket, fetchPositions, type MarketResponse, type PositionRow } from "@/lib/api";
+import { solanaStandingOrders, stopEveryNightOnSolana, type SolanaStandingOrder } from "@/lib/buy";
 import { claimPosition } from "@/lib/claim";
-import { claimOnRobinhood, evmTxUrl, useEvmWallet } from "@/lib/evm";
+import { claimOnRobinhood, evmTxUrl, standingOrders, stopEveryNight, useEvmWallet } from "@/lib/evm";
 import { explorer, nyTime, usd } from "@/lib/format";
+import { sharePath, type ShareView } from "@/lib/share";
+import { useSendTransaction } from "@/lib/send";
+
+import { DataTable } from "./DataTable";
 
 type Claimed = { key: string; url: string | null };
 
@@ -22,7 +32,11 @@ export function Positions() {
     <div className="space-y-10">
       <section>
         <h2 className="mb-3 text-sm font-medium text-muted">Solana devnet</h2>
-        <SolanaPositions vault={market && { vault: market.solana.vault, collateralMint: market.solana.collateralMint }} />
+        {market?.solana ? (
+          <SolanaPositions vault={{ vault: market.solana.vault, collateralMint: market.solana.collateralMint }} nextOpen={market.nextOpen} />
+        ) : (
+          <Panel>{market ? "The Solana vault v2 isn't deployed yet." : "Loading…"}</Panel>
+        )}
       </section>
       <section>
         <h2 className="mb-3 text-sm font-medium text-muted">Robinhood Chain</h2>
@@ -36,9 +50,9 @@ export function Positions() {
   );
 }
 
-function SolanaPositions({ vault }: { vault: { vault: string; collateralMint: string } | null }) {
+function SolanaPositions({ vault, nextOpen }: { vault: { vault: string; collateralMint: string }; nextOpen: number }) {
   const wallet = useAnchorWallet();
-  const { sendTransaction } = useWallet();
+  const sendTransaction = useSendTransaction();
   const { connection } = useConnection();
   const { setVisible } = useWalletModal();
   const [rows, setRows] = useState<PositionRow[] | null>(null);
@@ -52,13 +66,35 @@ function SolanaPositions({ vault }: { vault: { vault: string; collateralMint: st
   }, [wallet]);
   useEffect(load, [load]);
 
-  if (!wallet) return <Connect onClick={() => setVisible(true)}>Connect the Solana wallet you bought protection with.</Connect>;
+  if (!wallet) {
+    return (
+      <div className="grid items-center gap-6 rounded-2xl border border-line bg-surface p-6 sm:grid-cols-[1fr_16rem]">
+        <div>
+          <p className="text-lg font-medium">Your protection lives in your wallet, as an NFT.</p>
+          <ul className="mt-3 space-y-1.5 text-sm leading-relaxed text-muted">
+            <li>It shows the stock, the open it covers and where it pays.</li>
+            <li>After the bell, it pays whoever holds it: our keeper sends the payout, or you claim it here.</li>
+            <li>You can send it to another wallet, and the payout follows it.</li>
+          </ul>
+          <div className="mt-5 flex flex-wrap items-center gap-3">
+            <button onClick={() => setVisible(true)} className="rounded-xl bg-brass px-4 py-2.5 font-medium text-ink">
+              Connect a wallet
+            </button>
+            <Link href="/" className="text-sm text-muted hover:text-text">
+              Or protect a stock first
+            </Link>
+          </div>
+        </div>
+        <ExampleCard nextOpen={nextOpen} />
+      </div>
+    );
+  }
 
   async function claim(p: PositionRow) {
-    if (!wallet || !vault) return;
+    if (!wallet || !p.nftAccount) return;
     try {
       setClaiming(p.address);
-      const sig = await claimPosition(connection, wallet, sendTransaction, { ...vault, series: p.series, position: p.address });
+      const sig = await claimPosition(connection, wallet, sendTransaction, { ...vault, series: p.series, position: p.address, nftAccount: p.nftAccount });
       setClaimed((c) => [...c, { key: p.address, url: explorer("tx", sig) }]);
       load();
     } catch (e) {
@@ -67,7 +103,62 @@ function SolanaPositions({ vault }: { vault: { vault: string; collateralMint: st
       setClaiming(null);
     }
   }
-  return <PositionsTable rows={rows} error={error} claiming={claiming} claimed={claimed} onClaim={claim} />;
+  return (
+    <>
+      <PositionsTable chain="solana" rows={rows} error={error} claiming={claiming} claimed={claimed} onClaim={claim} />
+      <SolanaStandingOrders vault={vault} />
+    </>
+  );
+}
+
+/** The wallet's Solana standing orders, each with a way to stop it. */
+function SolanaStandingOrders({ vault }: { vault: { vault: string; collateralMint: string } }) {
+  const wallet = useAnchorWallet();
+  const sendTransaction = useSendTransaction();
+  const { connection } = useConnection();
+  const [orders, setOrders] = useState<SolanaStandingOrder[] | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const load = useCallback(() => {
+    if (!wallet) return;
+    // A vault deployed before standing orders has none to list.
+    solanaStandingOrders(connection, wallet, vault.vault).then(setOrders, () => setOrders([]));
+  }, [connection, wallet, vault.vault]);
+  useEffect(load, [load]);
+
+  async function stop(o: SolanaStandingOrder) {
+    if (!wallet) return;
+    try {
+      setBusy(o.symbol);
+      await stopEveryNightOnSolana(connection, wallet, sendTransaction, vault, o.feedId);
+      load();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  if (!orders || (orders.length === 0 && !error)) return null;
+  return (
+    <div className="mt-4 rounded-2xl border border-line bg-surface p-5 text-sm">
+      <h3 className="font-medium">Protected every night</h3>
+      <ul className="mt-3 divide-y divide-line">
+        {orders.map((o) => (
+          <li key={o.symbol} className="flex flex-wrap items-center justify-between gap-3 py-2.5">
+            <span>
+              {o.maxShares} {o.symbol}, {o.startBps / 100}% to {o.depthBps / 100}% below the price, at most <span className="num">{usd(o.maxPremium)}</span> a
+              night, until {nyTime(o.until)}
+            </span>
+            <button onClick={() => stop(o)} disabled={busy === o.symbol} className="rounded-lg border border-line px-2.5 py-1 text-xs hover:border-loss disabled:opacity-40">
+              {busy === o.symbol ? "Stopping…" : "Stop"}
+            </button>
+          </li>
+        ))}
+      </ul>
+      {error && <p className="mt-2 text-loss">{error}</p>}
+    </div>
+  );
 }
 
 function RobinhoodPositions({ d }: { d: NonNullable<MarketResponse["robinhood"]> }) {
@@ -105,59 +196,120 @@ function RobinhoodPositions({ d }: { d: NonNullable<MarketResponse["robinhood"]>
       setClaiming(null);
     }
   }
-  return <PositionsTable rows={rows} error={error} claiming={claiming} claimed={claimed} onClaim={claim} />;
+  return (
+    <>
+      <PositionsTable chain="robinhood" rows={rows} error={error} claiming={claiming} claimed={claimed} onClaim={claim} />
+      {d.renewer && <StandingOrders d={{ ...d, renewer: d.renewer }} holder={evm.address} />}
+    </>
+  );
 }
 
-function PositionsTable(props: { rows: PositionRow[] | null; error: string | null; claiming: string | null; claimed: Claimed[]; onClaim: (p: PositionRow) => void }) {
+/** The wallet's standing orders ("protect every night"), each with a way to stop it. */
+function StandingOrders({ d, holder }: { d: NonNullable<MarketResponse["robinhood"]> & { renewer: Address }; holder: Address }) {
+  const [orders, setOrders] = useState<HolderOrder[] | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const load = useCallback(() => {
+    standingOrders(d, holder).then(setOrders, (e: Error) => setError(e.message));
+  }, [d, holder]);
+  useEffect(load, [load]);
+
+  const symbolOf = (feed: Address) => Object.entries(d.feeds).find(([, a]) => a?.toLowerCase() === feed.toLowerCase())?.[0] ?? feed.slice(0, 10);
+  async function stop(feed: Address) {
+    try {
+      setBusy(feed);
+      await stopEveryNight(holder, d, feed);
+      load();
+    } catch (e) {
+      const err = e as Error & { shortMessage?: string };
+      setError(err.shortMessage ?? err.message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  if (!orders || (orders.length === 0 && !error)) return null;
+  return (
+    <div className="mt-4 rounded-2xl border border-line bg-surface p-5 text-sm">
+      <h3 className="font-medium">Protected every night</h3>
+      <ul className="mt-3 divide-y divide-line">
+        {orders.map((o) => (
+          <li key={o.feed} className="flex flex-wrap items-center justify-between gap-3 py-2.5">
+            <span>
+              {Number(o.maxShares) / 1e6} {symbolOf(o.feed)}, {o.startBps / 100}% to {o.depthBps / 100}% below the price, at most{" "}
+              <span className="num">{usd(Number(o.maxPremium) / 1e6)}</span> a night, until {nyTime(Number(o.until))}
+            </span>
+            <button onClick={() => stop(o.feed)} disabled={busy === o.feed} className="rounded-lg border border-line px-2.5 py-1 text-xs hover:border-loss disabled:opacity-40">
+              {busy === o.feed ? "Stopping…" : "Stop"}
+            </button>
+          </li>
+        ))}
+      </ul>
+      {error && <p className="mt-2 text-loss">{error}</p>}
+    </div>
+  );
+}
+
+function PositionsTable(props: {
+  chain: ShareView["chain"];
+  rows: PositionRow[] | null;
+  error: string | null;
+  claiming: string | null;
+  claimed: Claimed[];
+  onClaim: (p: PositionRow) => void;
+}) {
   const { error, claiming, claimed, onClaim } = props;
   // The server's read is cached for a few seconds, so drop what was just claimed here.
   const rows = props.rows?.filter((p) => !claimed.some((c) => c.key === p.address)) ?? null;
   if (error && !rows) return <Panel>Couldn&apos;t load your positions: {error}</Panel>;
   if (!rows) return <Panel>Loading…</Panel>;
   if (rows.length === 0 && claimed.length === 0) {
-    return <Panel>No open protection. Positions disappear here once they&apos;re claimed; the payout goes straight to your wallet.</Panel>;
+    return (
+      <Panel>
+        No open protection. Positions disappear here once they&apos;re paid out; the payout goes straight to the wallet holding the NFT.{" "}
+        <Link href="/" className="text-brass hover:underline">
+          Protect a stock
+        </Link>
+      </Panel>
+    );
   }
   return (
-    <div className="overflow-x-auto rounded-2xl border border-line bg-surface">
-      <table className="w-full text-sm">
-        <thead className="text-left text-muted">
-          <tr className="border-b border-line">
-            <th className="px-4 py-3 font-normal">Stock</th>
-            <th className="px-4 py-3 font-normal">Settles</th>
-            <th className="px-4 py-3 font-normal">Shares</th>
-            <th className="px-4 py-3 font-normal">Protected</th>
-            <th className="px-4 py-3 text-right font-normal">Cost</th>
-            <th className="px-4 py-3 text-right font-normal">Pays up to</th>
-            <th className="px-4 py-3 font-normal">Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((p) => (
-            <tr key={p.address} className="border-b border-line last:border-0">
-              <td className="px-4 py-3">
+    <div className="overflow-hidden rounded-2xl border border-line bg-surface">
+      <DataTable
+        rows={rows}
+        rowKey={(p) => p.address}
+        columns={[
+          {
+            label: "Stock",
+            phone: "title",
+            cell: (p) => (
+              <>
                 {p.art ? (
-                  <a className="flex items-center gap-3 hover:underline" href={p.art} target="_blank" rel="noreferrer" title={`NFT #${p.address}: whoever holds it is paid`}>
-                    <img src={p.art} alt={`NFT #${p.address}`} className="h-12 w-auto rounded border border-line" />
+                  <a className="flex items-center gap-3 hover:underline" href={p.art} target="_blank" rel="noreferrer" title="Its NFT: whoever holds it is paid">
+                    <img src={p.art} alt={`${p.symbol} protection NFT`} className="h-12 w-auto rounded border border-line" />
                     {p.symbol}
                   </a>
                 ) : (
                   p.symbol
                 )}
-              </td>
-              <td className="px-4 py-3">{nyTime(p.openTs)}</td>
-              <td className="num px-4 py-3">{p.shares}</td>
-              <td className="num px-4 py-3">
-                {usd(p.upper)} → {usd(p.lower)}
-              </td>
-              <td className="num px-4 py-3 text-right">{usd(p.premium)}</td>
-              <td className="num px-4 py-3 text-right">{usd(p.maxPayout)}</td>
-              <td className="px-4 py-3">
-                <Status p={p} busy={claiming === p.address} onClaim={() => onClaim(p)} />
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+                <Link href={sharePath(props.chain, p.address)} className="mt-1 block text-xs font-normal text-muted underline hover:text-text">
+                  Share
+                </Link>
+              </>
+            ),
+          },
+          { label: "Settles", cell: (p) => nyTime(p.openTs) },
+          { label: "Shares", numeric: true, cell: (p) => p.shares },
+          { label: "Protected", numeric: true, cell: (p) => `${usd(p.upper)} → ${usd(p.lower)}` },
+          { label: "Cost", numeric: true, cell: (p) => usd(p.premium) },
+          { label: "Pays up to", numeric: true, cell: (p) => usd(p.maxPayout) },
+          {
+            label: "Status",
+            phone: "corner",
+            cell: (p) => <Status p={p} busy={claiming === p.address} onClaim={() => onClaim(p)} />,
+          },
+        ]}
+      />
       {error && <p className="border-t border-line px-4 py-3 text-sm text-loss">{error}</p>}
       {claimed.map((c) => (
         <p key={c.key} className="border-t border-line px-4 py-3 text-sm text-gain">
@@ -188,6 +340,31 @@ function Status({ p, busy, onClaim }: { p: PositionRow; busy: boolean; onClaim: 
         {busy ? "Claiming…" : (p.claimable ?? 0) > 0 ? "Claim" : "Close"}
       </button>
     </span>
+  );
+}
+
+/** What a position's NFT looks like, drawn by the same code as the real ones, with example numbers and marked as an example. */
+function ExampleCard({ nextOpen }: { nextOpen: number }) {
+  const card = svg({
+    number: 1n,
+    symbol: "TSLA",
+    openTs: BigInt(nextOpen),
+    shares: 10_000_000n,
+    upper: 36_460_000_000n,
+    lower: 33_484_000_000n,
+    premium: 8_610_000n,
+    maxPayout: 297_600_000n,
+    state: "open",
+    price: 0n,
+    payout: 0n,
+    closed: false,
+    forfeited: false,
+  });
+  return (
+    <figure>
+      <img src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(card)}`} alt="An example position NFT: 10 TSLA protected from $364.60 down to $334.84" className="w-full rounded-xl border border-line" />
+      <figcaption className="mt-2 text-center text-xs text-faint">An example, with made-up numbers</figcaption>
+    </figure>
   );
 }
 

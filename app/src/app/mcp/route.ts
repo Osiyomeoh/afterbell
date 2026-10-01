@@ -1,6 +1,6 @@
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 
-import { AfterbellApi } from "@root/agent/api";
+import { AfterbellClient } from "@root/sdk";
 import { createServer } from "@root/agent/tools";
 
 export const dynamic = "force-dynamic";
@@ -12,7 +12,7 @@ export const maxDuration = 60;
  * own wallet. Its tools read this same app's public routes.
  */
 async function handle(request: Request): Promise<Response> {
-  const server = createServer("hosted", new AfterbellApi(new URL(request.url).origin));
+  const server = createServer("hosted", new AfterbellClient(new URL(request.url).origin));
   const transport = new WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
   await server.connect(transport);
   const response = await transport.handleRequest(request);
@@ -35,7 +35,7 @@ const HELP = (origin: string) => `Afterbell MCP server (Streamable HTTP, statele
 Add it to Claude Code:
   claude mcp add --transport http afterbell ${origin}/mcp
 or add this URL as a custom connector in any MCP client.
-Tools: market, quote_protection, protection_transaction, protect_portfolio, positions, vault.
+Tools: market, quote_protection, protection_transaction, protect_portfolio, gap_report, kamino_loan, positions, vault.
 `;
 
 /** MCP clients ask for JSON or an event stream; a person opening the URL in a browser gets directions instead. */

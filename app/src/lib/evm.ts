@@ -2,8 +2,9 @@ import { useCallback, useEffect, useState } from "react";
 import { createPublicClient, createWalletClient, custom, http, numberToHex, type Address, type EIP1193Provider, type Hex } from "viem";
 
 import { testUsdAbi } from "@root/evm/client/abi";
+import { activeOrders, cancelOrder, setOrder, type HolderOrder, type RenewerOrder } from "@root/evm/client/renewer";
 import { buyProtection, claimFilled, claimProtection, evmChain, mintTestUsd, requestDeposit, requestRedeem, robinhoodChain, type EvmDeployment } from "@root/evm/client/vault";
-import type { EvmQuote } from "@root/pricing/quote";
+import { toEvmQuote } from "@root/sdk/robinhood";
 
 import type { EvmQuoteResponse } from "./api";
 
@@ -75,20 +76,6 @@ function clients(account: Address, d: EvmDeployment) {
   };
 }
 
-export function toEvmQuote(q: EvmQuoteResponse["evm"]["quote"]): EvmQuote {
-  return {
-    buyer: q.buyer as Address,
-    feed: q.feed as Address,
-    openTs: BigInt(q.openTs),
-    shares: BigInt(q.shares),
-    upper: BigInt(q.upper),
-    lower: BigInt(q.lower),
-    premium: BigInt(q.premium),
-    expiry: BigInt(q.expiry),
-    nonce: BigInt(q.nonce),
-  };
-}
-
 /** TestUSD is minted in 1,000s when the buyer is short; anyone may mint it, since it has no value. */
 const MINT = 1_000_000_000n;
 
@@ -143,6 +130,37 @@ export async function claimPoolOnRobinhood(account: Address, d: EvmDeployment, o
   const { wallet, client } = await ready(account, d, 0n, onStep);
   onStep("Confirm in your wallet");
   return (await claimFilled(wallet, client, d)).hashes;
+}
+
+/**
+ * Protect every night: a standing order the renewer fills each night within
+ * `order`'s limits. The wallet holds TestUSD for every night at the cap (it
+ * mints what's short) and signs one permit covering them, then one transaction.
+ */
+export async function protectEveryNight(
+  account: Address,
+  d: EvmDeployment & { renewer: Address },
+  feed: Address,
+  order: Omit<RenewerOrder, "lastOpenTs">,
+  allowance: bigint,
+  onStep: (step: string) => void,
+): Promise<Hex> {
+  const { wallet, client } = await ready(account, d, allowance, onStep);
+  onStep("Sign the permit for the nights ahead, then confirm the standing order in your wallet");
+  return setOrder(wallet, client, { testUsd: d.testUsd, renewer: d.renewer }, feed, order, allowance);
+}
+
+export async function stopEveryNight(account: Address, d: EvmDeployment & { renewer: Address }, feed: Address): Promise<Hex> {
+  await switchChain(d);
+  const { wallet, client } = clients(account, d);
+  return cancelOrder(wallet, client, d.renewer, feed);
+}
+
+/** The standing orders a wallet has running. */
+export async function standingOrders(d: EvmDeployment & { renewer: Address }, holder: Address): Promise<HolderOrder[]> {
+  const client = createPublicClient({ chain: evmChain(d), transport: http(d.rpc) });
+  const orders = await activeOrders(client, d.renewer, BigInt(Math.floor(Date.now() / 1000)));
+  return orders.filter((o) => o.holder.toLowerCase() === holder.toLowerCase());
 }
 
 export async function claimOnRobinhood(account: Address, d: EvmDeployment, id: bigint): Promise<Hex> {

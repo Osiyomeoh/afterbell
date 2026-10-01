@@ -8,12 +8,12 @@
  *
  * Defaults to Friday 25 Sep 2026's open (1790343000).
  */
-import { DEFAULT_CONFIG, TSLA_FEED_ID } from "../client/vault";
+import { DEFAULT_PARAMS, TSLA_FEED_ID } from "../client/vault";
 import { hermesFromEnv, settlementUpdate } from "../keeper/pyth";
 
 async function main() {
   const openTs = Number(process.argv[2] ?? 1_790_343_000);
-  const u = await settlementUpdate(hermesFromEnv(), TSLA_FEED_ID, openTs, DEFAULT_CONFIG);
+  const u = await settlementUpdate(hermesFromEnv(), TSLA_FEED_ID, openTs, DEFAULT_PARAMS);
   console.log(`open             ${new Date(openTs * 1000).toISOString()}`);
   console.log(`first print      $${u.price} at ${new Date(u.publishTime * 1000).toISOString()} (${u.publishTime - openTs}s after the open)`);
   console.log(`previous print   ${new Date(u.prevPublishTime * 1000).toISOString()}`);

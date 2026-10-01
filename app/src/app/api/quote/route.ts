@@ -5,6 +5,7 @@ import { privateKeyToAccount } from "viem/accounts";
 
 import { signForEvm } from "@root/quoter/quoter";
 
+import { solanaSaleError } from "@/server/chain";
 import { SOLANA_DEPLOYMENT } from "@/server/deployment";
 import { evmSaleError } from "@/server/evmChain";
 import { evmDeployment } from "@/server/evmDeployment";
@@ -44,10 +45,13 @@ export async function POST(req: Request) {
     return bad("buyer must be a Solana address");
   }
 
+  const d = SOLANA_DEPLOYMENT;
+  if (!d) return bad("the Solana vault v2 isn't deployed yet", 503);
   try {
     const { priced, signed } = await signedOffer(stock, buyer, protection);
-    const d = SOLANA_DEPLOYMENT;
     const q = signed.quote;
+    const refused = await solanaSaleError(q);
+    if (refused) return bad(refused, 409);
     return Response.json({
       priced,
       solana: {

@@ -69,7 +69,7 @@ export function openingModel(history: readonly Opening[], inputs: ModelInputs): 
  * equals the price now. The vault hedges with a perpetual, whose payoff is
  * linear in price, so the price (not its log) must carry no drift.
  */
-function martingale(components: Component[]): Component[] {
+export function martingale(components: Component[]): Component[] {
   const growth = components.reduce((a, c) => a + Math.exp(c.mean + (c.sd * c.sd) / 2), 0) / components.length;
   const shift = Math.log(growth);
   return components.map((c) => ({ mean: c.mean - shift, sd: c.sd }));
