@@ -2,18 +2,16 @@
 
 import { useAnchorWallet, useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
-import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { backtest, type BacktestNight, type BacktestResult } from "@root/pricing/backtest";
+import { backtest } from "@root/pricing/backtest";
 import { priceQuote } from "@root/quoter/quoter";
 
 import { fetchHoldings, fetchMarket, requestEvmQuote, requestQuote, toMarket, type Chain, type MarketResponse, type PriceSource } from "@/lib/api";
 import { buyProtection, NotEnoughTestUsd, protectEveryNightOnSolana } from "@/lib/buy";
 import { buyOnRobinhood, evmTxUrl, NeedsGas, protectEveryNight, useEvmWallet } from "@/lib/evm";
-import { nextEvent } from "@/lib/events";
-import { countdown, dayLabel, explorer, MAX_MULTIPLE, nyTime, pct, usd } from "@/lib/format";
-import { CAP_OVER_TONIGHT, NIGHT_OPTIONS, standingOrder } from "@/lib/everyNight";
+import { countdown, explorer, nyTime, pct, usd } from "@/lib/format";
+import { standingOrder } from "@/lib/everyNight";
 import { sharePath } from "@/lib/share";
 import { TestWalletName } from "@/lib/testWallet";
 import { useSendTransaction } from "@/lib/send";
@@ -21,31 +19,15 @@ import { useSendTransaction } from "@/lib/send";
 import { Board } from "./Board";
 import { OvernightChart } from "./OvernightChart";
 import { PayoffChart } from "./PayoffChart";
+import { Checkout } from "./protect/Checkout";
+import { MobileBar } from "./protect/MobileBar";
+import { EventNote, Notice, PRESETS, Replay, Row, Slider } from "./protect/parts";
+import type { Status } from "./protect/status";
 import { TestFunds } from "./TestFunds";
 
 const round2 = (v: number) => Math.round(v * 100) / 100;
 /** The deepest a link may set protection to stop, as a fraction below the price: as deep as the gap report prices. */
 const MAX_STOP = 0.5;
-
-const BASIS: Record<string, string> = {
-  live: "the live price",
-  close: "the last close",
-  "live, below the close": "the live price, which is below the last close",
-};
-
-type Status =
-  | { kind: "idle" }
-  | { kind: "busy"; step: string }
-  | {
-      kind: "done";
-      premium: number;
-      openTs: number;
-      url: string | null;
-      nft?: { number: string; art: string; share: string };
-      /** Protect every night: until when and at most what, or why the standing order wasn't set. */
-      renews?: { until: number; cap: number } | { error: string };
-    }
-  | { kind: "error"; message: string; needsFunds?: boolean };
 
 const CHAINS: { id: Chain; label: string }[] = [
   { id: "solana", label: "Solana devnet" },
@@ -292,8 +274,6 @@ export function Protect() {
   const openTs = priced?.openTs ?? market.nextOpen;
   const connected = chain === "solana" ? !!wallet : !!evm.address;
 
-  // The price and the buy button: beside the ticket on wide screens, inside it (under the sliders) on phones,
-  // where the aside only starts below the whole ticket.
   const buttonLabel = (() => {
     if (status.kind === "busy") return status.step;
     if (unavailable) return "Not on sale yet";
@@ -304,102 +284,6 @@ export function Protect() {
     return priced ? `Protect for ${usd(priced.premium)}` : "Protect";
   })();
 
-  const checkout = (
-    <>
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <div className="text-sm text-muted">You pay</div>
-          <div className="num mt-1 text-3xl font-semibold">{priced ? usd(priced.premium) : "—"}</div>
-        </div>
-        <div className="text-right">
-          <div className="text-sm text-muted">Pays up to</div>
-          <div className="num mt-1 text-3xl font-semibold text-gain">{priced ? usd(priced.maxPayout, 0) : "—"}</div>
-        </div>
-      </div>
-      {priced && priced.premium > 0 && (
-        <p className="mt-2 text-sm text-muted">
-          {priced.maxPayout / priced.premium <= MAX_MULTIPLE ? (
-            <>
-              Up to <span className="num text-text">{multiple(priced.maxPayout / priced.premium)}</span> what you pay, with a{" "}
-            </>
-          ) : (
-            "A "
-          )}
-          <span className="num text-text">{pct(priced.probabilityOfPayout)}</span> chance it pays anything.
-        </p>
-      )}
-      <dl className="mt-4 space-y-2 text-sm">
-        <Row label="Priced from" value={priced ? usd(priced.reference.price) : "—"} />
-      </dl>
-      {priced && <p className="mt-1 text-right text-xs text-faint">{BASIS[priced.reference.basis]}</p>}
-      {(chain === "solana" || market.robinhood?.renewer) && priced && (
-        <EveryNight nights={everyNight} onChange={setEveryNight} cap={priced.premium * CAP_OVER_TONIGHT} />
-      )}
-      <button
-        onClick={buy}
-        disabled={!!blocked || status.kind === "busy"}
-        className="mt-5 w-full rounded-xl bg-brass px-4 py-3 font-medium text-ink transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
-      >
-        {buttonLabel}
-      </button>
-      {blocked && <p className="mt-3 text-sm text-loss">{blocked}</p>}
-      {unavailable && onSale.length > 0 && (
-        <div className="mt-3">
-          <p className="text-sm text-muted">On sale now:</p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {onSale.map((s) => {
-              const on: Chain = s.solana ? "solana" : "robinhood";
-              return (
-                <button
-                  key={s.symbol}
-                  type="button"
-                  onClick={() => switchTo(s.symbol, on)}
-                  className="rounded-lg border border-brass/60 px-3 py-1.5 text-sm text-brass hover:bg-raised"
-                >
-                  {s.symbol} on {on === "solana" ? "Solana" : "Robinhood Chain"}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-      {chain === "solana" && !unavailable && !connected && noSolanaWallet && <NoWallet />}
-      {status.kind === "error" && (
-        <p className="mt-3 text-sm text-loss">
-          {status.message}
-          {status.needsFunds && chain === "solana" && " Use “Get test money” below."}
-        </p>
-      )}
-      {status.kind === "done" && (
-        <p className="mt-3 text-sm text-gain">
-          Protected for {usd(status.premium)}. It settles {nyTime(status.openTs)}.{" "}
-          {status.url && (
-            <a className="underline" href={status.url} target="_blank" rel="noreferrer">
-              View transaction
-            </a>
-          )}
-        </p>
-      )}
-      {status.kind === "done" && status.nft && (
-        <a className="mt-3 block w-40" href={status.nft.art} target="_blank" rel="noreferrer">
-          <img src={status.nft.art} alt={`Your protection, NFT #${status.nft.number}`} className="rounded-lg border border-line" />
-          <span className="mt-1 block text-xs text-muted">NFT #{status.nft.number}: whoever holds it is paid</span>
-        </a>
-      )}
-      {status.kind === "done" && status.renews && (
-        <p className={`mt-2 text-sm ${"error" in status.renews ? "text-loss" : "text-gain"}`}>
-          {"error" in status.renews
-            ? `Tonight is bought, but the standing order wasn't set: ${status.renews.error}`
-            : `It renews every night until ${nyTime(status.renews.until)}, at most ${usd(status.renews.cap)} a night. Stop it any time from My protection.`}
-        </p>
-      )}
-      {status.kind === "done" && status.nft && (
-        <Link href={status.nft.share} className="mt-2 inline-block text-sm text-brass hover:underline">
-          Share your protection →
-        </Link>
-      )}
-    </>
-  );
 
   return (
     <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
@@ -491,7 +375,19 @@ export function Protect() {
         </div>
 
         <div ref={checkoutRef} className="mt-6 rounded-xl border border-line bg-ink p-4 lg:hidden">
-          {checkout}
+          <Checkout
+            priced={priced}
+            chain={chain}
+            status={status}
+            label={buttonLabel}
+            blocked={blocked}
+            unavailable={unavailable}
+            onSale={onSale}
+            onSwitch={switchTo}
+            everyNight={chain === "solana" || market.robinhood?.renewer ? { nights: everyNight, onChange: setEveryNight } : null}
+            showNoWallet={chain === "solana" && !unavailable && !connected && noSolanaWallet}
+            onBuy={buy}
+          />
         </div>
 
         {protection && priced && (
@@ -509,7 +405,21 @@ export function Protect() {
       </section>
 
       <aside className="flex flex-col gap-4">
-        <div className="hidden rounded-2xl border border-line bg-surface p-5 lg:block">{checkout}</div>
+        <div className="hidden rounded-2xl border border-line bg-surface p-5 lg:block">
+          <Checkout
+            priced={priced}
+            chain={chain}
+            status={status}
+            label={buttonLabel}
+            blocked={blocked}
+            unavailable={unavailable}
+            onSale={onSale}
+            onSwitch={switchTo}
+            everyNight={chain === "solana" || market.robinhood?.renewer ? { nights: everyNight, onChange: setEveryNight } : null}
+            showNoWallet={chain === "solana" && !unavailable && !connected && noSolanaWallet}
+            onBuy={buy}
+          />
+        </div>
 
         {chain === "solana" ? (
           market.solana && <TestFunds mint={market.solana.collateralMint} refreshKey={status.kind} />
@@ -540,23 +450,7 @@ export function Protect() {
         </div>
       </aside>
 
-      {inView.ticket && !inView.checkout && (
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/95 px-4 py-3 backdrop-blur lg:hidden">
-          <div className="mx-auto flex max-w-xl items-center justify-between gap-3">
-            <div className="min-w-0">
-              <div className="num text-lg font-semibold leading-tight">{priced ? usd(priced.premium) : "—"}</div>
-              <div className="num truncate text-xs text-muted">{priced ? `pays up to ${usd(priced.maxPayout, 0)}` : blocked ?? ""}</div>
-            </div>
-            <button
-              onClick={buy}
-              disabled={!!blocked || status.kind === "busy"}
-              className="shrink-0 rounded-xl bg-brass px-4 py-2.5 text-sm font-medium text-ink transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              {buttonLabel}
-            </button>
-          </div>
-        </div>
-      )}
+      {inView.ticket && !inView.checkout && <MobileBar priced={priced} blocked={blocked} busy={status.kind === "busy"} label={buttonLabel} onBuy={buy} />}
 
       <div className="lg:col-span-2">
         <Board
@@ -569,166 +463,4 @@ export function Protect() {
       </div>
     </div>
   );
-}
-
-/** A scheduled event on this stock: covered by this protection, or by protection on sale from the open before it. */
-function EventNote({ symbol, now, openTs }: { symbol: string; now: number; openTs: number }) {
-  const e = nextEvent(symbol, now);
-  if (!e) return null;
-  return (
-    <p className="mt-3 rounded-lg border border-brass/40 bg-brass-soft px-3 py-2 text-sm leading-relaxed">
-      {e.openTs === openTs ? (
-        <>
-          <span className="text-brass">This covers {e.title}.</span> <span className="text-muted">{e.detail}</span>
-        </>
-      ) : (
-        <>
-          <span className="text-brass">
-            {e.title.charAt(0).toUpperCase() + e.title.slice(1)}: expected before the {nyTime(e.openTs)} open.
-          </span>{" "}
-          <span className="text-muted">Protection until that open goes on sale at the open before it. {e.detail}</span>
-        </>
-      )}
-    </p>
-  );
-}
-
-/**
- * This protection replayed on the stock's past openings: the night it paid most, and that it
- * costs more than it pays back on average, like insurance, with the rest staying with the pool.
- */
-function Replay({ record, symbol, shares, oracle }: { record: BacktestResult; symbol: string; shares: number; oracle: string }) {
-  const best = record.nights.reduce<BacktestNight | null>((b, n) => (n.paid > (b?.paid ?? 0) ? n : b), null);
-  return (
-    <p className="mt-4 leading-relaxed text-muted">
-      Replayed on {record.nights.length} past {symbol} openings ({oracle}), each priced only from the ones before it, this protection{" "}
-      {best ? (
-        <>
-          paid out on {record.paidNights === 1 ? "one" : record.paidNights} of them
-          {record.paidNights > 1 ? ", most" : ""} on {dayLabel(best.to)}, when {symbol} opened {pct(1 - best.open / best.close, 1)} below the close:{" "}
-          <span className="num text-text">{usd(best.paid * shares)}</span> back for <span className="num text-text">{usd(best.premium * shares)}</span>.
-        </>
-      ) : (
-        <>never paid out.</>
-      )}{" "}
-      Across all of them it paid back <span className="num text-text">{Math.round(record.paidPerDollar * 100)}¢</span> per $1 of premium. Like
-      insurance, it costs more than it pays back on average; what it doesn&apos;t pay back stays in the pool, with the{" "}
-      <Link className="underline hover:text-text" href="/vault">
-        underwriters
-      </Link>{" "}
-      who carry the risk.
-    </p>
-  );
-}
-
-/** One tap for the usual choices; the sliders below still set any levels. */
-const PRESETS = [
-  { label: "Close cover", start: 0.01, depth: 0.05 },
-  { label: "Standard", start: 0.02, depth: 0.1 },
-  { label: "Crash cover", start: 0.05, depth: 0.2 },
-] as const;
-
-/** 34.5 → "35×", 4.26 → "4.3×". */
-const multiple = (x: number) => `${x >= 10 ? Math.round(x) : x.toFixed(1)}×`;
-
-function Slider(props: { label: string; value: number; min: number; max: number; step: number; onChange: (v: number) => void; price?: number }) {
-  return (
-    <label className="block">
-      <span className="text-sm text-muted">{props.label}</span>
-      <div className="mt-1.5 flex flex-wrap items-baseline justify-between gap-x-2">
-        <span className="num text-lg">{pct(props.value, 1)} below</span>
-        {props.price !== undefined && <span className="num text-sm text-muted">{usd(props.price)}</span>}
-      </div>
-      <input
-        type="range"
-        min={props.min}
-        max={props.max}
-        step={props.step}
-        value={props.value}
-        onChange={(e) => props.onChange(Number(e.target.value))}
-        className="mt-2 w-full"
-      />
-    </label>
-  );
-}
-
-/** Protect every night: renew tonight's protection each night, within a nightly cap, for the nights chosen. */
-function EveryNight({ nights, onChange, cap }: { nights: number | null; onChange: (n: number | null) => void; cap: number }) {
-  return (
-    <div className="mt-4 rounded-lg border border-line p-3 text-sm">
-      <label className="flex items-start gap-2">
-        <input type="checkbox" className="mt-1" checked={nights !== null} onChange={(e) => onChange(e.target.checked ? NIGHT_OPTIONS[1] : null)} />
-        <span>
-          Protect every night
-          {nights !== null && (
-            <>
-              {" "}
-              for{" "}
-              <select className="rounded border border-line bg-ink px-1" value={nights} onChange={(e) => onChange(Number(e.target.value))} aria-label="Nights">
-                {NIGHT_OPTIONS.map((n) => (
-                  <option key={n} value={n}>
-                    {n}
-                  </option>
-                ))}
-              </select>{" "}
-              nights
-            </>
-          )}
-          , at most <span className="num">{usd(cap)}</span> a night
-        </span>
-      </label>
-      <p className="mt-1 pl-6 text-xs leading-relaxed text-faint">
-        After each open a keeper buys the next night&apos;s protection at the quote service&apos;s price, never above the cap, and it arrives in your
-        wallet like tonight&apos;s. Stop it any time from My protection.
-      </p>
-    </div>
-  );
-}
-
-/**
- * No Solana wallet in this browser: offer the test wallet, which works at
- * once, then point to a real one, and on a phone (where browsers can't hold
- * one) open the page inside a wallet's own browser.
- */
-function NoWallet() {
-  const here = typeof window === "undefined" ? "" : window.location.href;
-  const origin = typeof window === "undefined" ? "" : window.location.origin;
-  const inWallet = (base: string) => `${base}/${encodeURIComponent(here)}?ref=${encodeURIComponent(origin)}`;
-  return (
-    <div className="mt-3 rounded-lg border border-line p-3 text-sm text-muted">
-      <p>No Solana wallet in this browser, so the button above makes a test wallet kept here: it gets test money as it connects, and buys in one click.</p>
-      <p className="mt-3">
-        For your own wallet, install{" "}
-        <a className="text-text underline" href="https://phantom.com/download" target="_blank" rel="noreferrer">
-          Phantom
-        </a>{" "}
-        or{" "}
-        <a className="text-text underline" href="https://solflare.com/download" target="_blank" rel="noreferrer">
-          Solflare
-        </a>{" "}
-        and switch it to devnet, or on a phone open this page in the wallet&apos;s own browser:
-      </p>
-      <div className="mt-2 flex flex-wrap gap-2">
-        <a className="rounded-lg border border-line px-3 py-1.5 text-text hover:bg-raised" href={inWallet("https://phantom.app/ul/browse")}>
-          Open in Phantom
-        </a>
-        <a className="rounded-lg border border-line px-3 py-1.5 text-text hover:bg-raised" href={inWallet("https://solflare.com/ul/v1/browse")}>
-          Open in Solflare
-        </a>
-      </div>
-    </div>
-  );
-}
-
-function Row({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-baseline justify-between gap-3">
-      <dt className="text-muted">{label}</dt>
-      <dd className="num text-right">{value}</dd>
-    </div>
-  );
-}
-
-function Notice({ children }: { children: React.ReactNode }) {
-  return <div className="rounded-2xl border border-line bg-surface p-6 text-muted">{children}</div>;
 }

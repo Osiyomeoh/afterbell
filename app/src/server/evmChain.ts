@@ -7,7 +7,7 @@ import { claimUnits } from "@root/solana/keeper/plan";
 
 import type { Sale } from "@/lib/team";
 
-import type { PoolState, PositionRow, SeriesRow, VaultState } from "./chain";
+import type { PoolState, PositionRow, SeriesRow, VaultState } from "./vaultTypes";
 import { evmDeployment } from "./evmDeployment";
 import type { LedgerRow } from "./ledger";
 
