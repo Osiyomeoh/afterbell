@@ -111,3 +111,23 @@ pub struct ParamsSet {
     pub vault: Pubkey,
     pub params: Params,
 }
+
+#[event]
+pub struct OrderSet {
+    pub vault: Pubkey,
+    pub order: Pubkey,
+    pub holder: Pubkey,
+    pub feed_id: [u8; 32],
+    pub max_shares: u64,
+    pub start_bps: u16,
+    pub depth_bps: u16,
+    pub max_premium: u64,
+    pub until: i64,
+}
+
+#[event]
+pub struct OrderCancelled {
+    pub vault: Pubkey,
+    pub order: Pubkey,
+    pub holder: Pubkey,
+}

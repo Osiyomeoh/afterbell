@@ -86,25 +86,82 @@ pub struct Buy<'info> {
 /// NFT in the buyer's wallet. The instruction right before this one must be the
 /// Ed25519 program verifying that signature over `quote_message(...)`.
 pub fn handle_buy(ctx: Context<Buy>, q: QuoteArgs) -> Result<()> {
+    let a = ctx.accounts;
+    check_quote(&a.instructions, ctx.program_id, &a.vault, &a.buyer.key(), &q)?;
+    if q.premium > 0 {
+        token::transfer_checked(
+            CpiContext::new(
+                a.token_program.key(),
+                TransferChecked {
+                    from: a.buyer_token.to_account_info(),
+                    mint: a.collateral_mint.to_account_info(),
+                    to: a.vault_token.to_account_info(),
+                    authority: a.buyer.to_account_info(),
+                },
+            ),
+            q.premium,
+            a.collateral_mint.decimals,
+        )?;
+    }
+    sell(
+        Sale {
+            vault: &mut a.vault,
+            feed_config: &a.feed_config,
+            series: &mut a.series,
+            position: &mut a.position,
+            position_mint: &a.position_mint,
+            owner_nft: &a.buyer_nft,
+            owner: a.buyer.key(),
+            payer: a.buyer.to_account_info(),
+            vault_token: &mut a.vault_token,
+            nft_token_program: &a.nft_token_program,
+            system_program: &a.system_program,
+        },
+        &q,
+        (ctx.bumps.series, ctx.bumps.position, ctx.bumps.position_mint),
+    )
+}
+
+/// Checks the quote's terms and that the instruction right before this one
+/// verified the quoter's signature over it for `buyer`.
+pub fn check_quote(instructions: &AccountInfo, program_id: &Pubkey, vault: &Account<Vault>, buyer: &Pubkey, q: &QuoteArgs) -> Result<()> {
     let now = Clock::get()?.unix_timestamp;
     require!(now <= q.expiry, VaultError::QuoteExpired);
     require!(now < q.open_ts, VaultError::AlreadyOpen);
     require!(q.shares > 0 && q.upper > q.lower, VaultError::InvalidProtection);
+    let current = load_current_index_checked(instructions)? as usize;
+    require!(current > 0, VaultError::MissingSignature);
+    let prev = load_instruction_at_checked(current - 1, instructions)?;
+    let message = quote_message(program_id, &vault.key(), buyer, q);
+    verify_ed25519_ix(&prev, &vault.quoter, &message)
+}
 
-    let vault_key = ctx.accounts.vault.key();
-    let vault = &mut ctx.accounts.vault;
+/// The accounts a sale writes, from `buy` or a standing order's `renew`.
+pub struct Sale<'a, 'info> {
+    pub vault: &'a mut Box<Account<'info, Vault>>,
+    pub feed_config: &'a Account<'info, FeedConfig>,
+    pub series: &'a mut Box<Account<'info, Series>>,
+    pub position: &'a mut Box<Account<'info, Position>>,
+    pub position_mint: &'a InterfaceAccount<'info, NftMint>,
+    pub owner_nft: &'a InterfaceAccount<'info, NftAccount>,
+    /// Who the position is recorded as bought by, and whose wallet gets its NFT.
+    pub owner: Pubkey,
+    /// Pays the rent the NFT's metadata adds.
+    pub payer: AccountInfo<'info>,
+    pub vault_token: &'a mut Box<Account<'info, TokenAccount>>,
+    pub nft_token_program: &'a Program<'info, Token2022>,
+    pub system_program: &'a Program<'info, System>,
+}
+
+/// Records a sale whose quote is checked and premium paid in: the series, the
+/// risk limits, the position and its NFT.
+pub fn sell(s: Sale, q: &QuoteArgs, (series_bump, position_bump, mint_bump): (u8, u8, u8)) -> Result<()> {
+    let vault_key = s.vault.key();
+    let vault = &mut **s.vault;
     let max_payout = math::payout_units(q.shares, q.upper - q.lower, vault.collateral_unit)?;
     // A premium above the most it can pay makes no sense, and would let a voided
     // series refund more than the position ever locked.
     require!(max_payout > 0 && q.premium <= max_payout, VaultError::InvalidProtection);
-
-    // The signature: the previous instruction verified this exact quote with the quoter's key.
-    let ixs = ctx.accounts.instructions.to_account_info();
-    let current = load_current_index_checked(&ixs)? as usize;
-    require!(current > 0, VaultError::MissingSignature);
-    let prev = load_instruction_at_checked(current - 1, &ixs)?;
-    let message = quote_message(ctx.program_id, &vault_key, &ctx.accounts.buyer.key(), &q);
-    verify_ed25519_ix(&prev, &vault.quoter, &message)?;
 
     // One opening per round. The first sale after a roll fixes it; the quoter's
     // signature vouches that it's a real opening, which the program can't know (holidays).
@@ -114,14 +171,14 @@ pub fn handle_buy(ctx: Context<Buy>, q: QuoteArgs) -> Result<()> {
         require!(q.open_ts == vault.round_open_ts, VaultError::WrongRound);
     }
 
-    let series = &mut ctx.accounts.series;
+    let series = &mut **s.series;
     if series.vault == Pubkey::default() {
         series.vault = vault_key;
         series.feed_id = q.feed_id;
         series.open_ts = q.open_ts;
         series.state = SeriesState::Open;
         series.lowest_lower = q.lower;
-        series.bump = ctx.bumps.series;
+        series.bump = series_bump;
     }
     require!(series.state == SeriesState::Open, VaultError::SeriesNotOpen);
     series.lowest_lower = series.lowest_lower.min(q.lower);
@@ -145,11 +202,13 @@ pub fn handle_buy(ctx: Context<Buy>, q: QuoteArgs) -> Result<()> {
     vault.round_unpaid += 1;
     vault.positions_sold += 1;
 
-    let position = &mut ctx.accounts.position;
+    let series_key = s.series.key();
+    let position_key = s.position.key();
+    let position = &mut **s.position;
     position.vault = vault_key;
-    position.series = series.key();
-    position.buyer = ctx.accounts.buyer.key();
-    position.mint = ctx.accounts.position_mint.key();
+    position.series = series_key;
+    position.buyer = s.owner;
+    position.mint = s.position_mint.key();
     position.nonce = q.nonce;
     position.number = vault.positions_sold;
     position.shares = q.shares;
@@ -158,54 +217,33 @@ pub fn handle_buy(ctx: Context<Buy>, q: QuoteArgs) -> Result<()> {
     position.premium = q.premium;
     position.max_payout = max_payout;
     position.tip = tip;
-    position.bump = ctx.bumps.position;
-    position.mint_bump = ctx.bumps.position_mint;
-
-    if q.premium > 0 {
-        token::transfer_checked(
-            CpiContext::new(
-                ctx.accounts.token_program.key(),
-                TransferChecked {
-                    from: ctx.accounts.buyer_token.to_account_info(),
-                    mint: ctx.accounts.collateral_mint.to_account_info(),
-                    to: ctx.accounts.vault_token.to_account_info(),
-                    authority: ctx.accounts.buyer.to_account_info(),
-                },
-            ),
-            q.premium,
-            ctx.accounts.collateral_mint.decimals,
-        )?;
-    }
+    position.bump = position_bump;
+    position.mint_bump = mint_bump;
 
     // The NFT: named for its number and stock, pointing at its image and its position.
     let (authority, collateral, bump) = (vault.authority, vault.collateral_mint, vault.bump);
     let seeds: &[&[u8]] = &[VAULT_SEED, authority.as_ref(), collateral.as_ref(), &[bump]];
-    let name = format!("Afterbell #{} {}", position.number, ctx.accounts.feed_config.symbol);
-    let uri = format!("{}{}", vault.art_uri, position.key());
-    let position_key = position.key().to_string();
-    let vault_info = ctx.accounts.vault.to_account_info();
-    let mint_info = ctx.accounts.position_mint.to_account_info();
-    let nft_program = ctx.accounts.nft_token_program.to_account_info();
+    let name = format!("Afterbell #{} {}", position.number, s.feed_config.symbol);
+    let uri = format!("{}{}", vault.art_uri, position_key);
+    let vault_info = s.vault.to_account_info();
+    let mint_info = s.position_mint.to_account_info();
+    let nft_program = s.nft_token_program.to_account_info();
     write_metadata(
-        &ctx.accounts.buyer.to_account_info(),
+        &s.payer,
         &mint_info,
         &vault_info,
         &nft_program,
-        &ctx.accounts.system_program.to_account_info(),
+        &s.system_program.to_account_info(),
         &[seeds],
         name,
         POSITION_SYMBOL.to_string(),
         uri,
-        &[(POSITION_FIELD, position_key)],
+        &[(POSITION_FIELD, position_key.to_string())],
     )?;
     token_2022::mint_to(
         CpiContext::new_with_signer(
             nft_program.key(),
-            MintTo {
-                mint: mint_info.clone(),
-                to: ctx.accounts.buyer_nft.to_account_info(),
-                authority: vault_info.clone(),
-            },
+            MintTo { mint: mint_info.clone(), to: s.owner_nft.to_account_info(), authority: vault_info.clone() },
             &[seeds],
         ),
         1,
@@ -222,14 +260,14 @@ pub fn handle_buy(ctx: Context<Buy>, q: QuoteArgs) -> Result<()> {
     )?;
 
     // Solvent by construction (the limits are shares of the pool), checked anyway.
-    ctx.accounts.vault_token.reload()?;
-    let v = &ctx.accounts.vault;
-    math::total_assets(ctx.accounts.vault_token.amount, v.pending_deposit_assets, v.reserved_assets, v.tips_owed, v.locked)?;
+    s.vault_token.reload()?;
+    let v = &s.vault;
+    math::total_assets(s.vault_token.amount, v.pending_deposit_assets, v.reserved_assets, v.tips_owed, v.locked)?;
 
-    let p = &ctx.accounts.position;
+    let p = &s.position;
     emit!(ProtectionBought {
         vault: vault_key,
-        position: p.key(),
+        position: position_key,
         mint: p.mint,
         number: p.number,
         buyer: p.buyer,

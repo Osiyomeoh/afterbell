@@ -8,6 +8,7 @@ pub const POSITION_SEED: &[u8] = b"position";
 pub const POSITION_MINT_SEED: &[u8] = b"position_mint";
 pub const REQUEST_SEED: &[u8] = b"request";
 pub const RATE_SEED: &[u8] = b"rate";
+pub const ORDER_SEED: &[u8] = b"order";
 
 /// Prices carry 8 decimals (as on the EVM vault); share amounts carry 6.
 pub const PRICE_DECIMALS: i32 = 8;
@@ -44,6 +45,12 @@ pub const POSITION_SYMBOL: &str = "BELL";
 pub const POSITION_FIELD: &str = "position";
 pub const MAX_ART_URI_LEN: usize = 128;
 pub const MAX_SYMBOL_LEN: usize = 12;
+
+/// A standing order renews against a price at most this old: the last close,
+/// across a long weekend.
+pub const MAX_ORDER_PRICE_AGE_SECS: i64 = 4 * 24 * 3_600;
+/// How far a renewal's strikes may sit from where the order puts them, in bps of the price.
+pub const STRIKE_TOLERANCE_BPS: u128 = 500;
 
 #[cfg(test)]
 mod tests {

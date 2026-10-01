@@ -67,6 +67,20 @@ pub enum VaultError {
     NothingToClaim,
     #[msg("Name or address too long")]
     TooLong,
+    #[msg("Standing order: start below the price, depth below that, both under 100%; shares, premium cap and end date set")]
+    InvalidOrder,
+    #[msg("The standing order is cancelled")]
+    OrderNotActive,
+    #[msg("The standing order has ended")]
+    OrderEnded,
+    #[msg("The standing order already renewed for this opening")]
+    AlreadyRenewed,
+    #[msg("The quote is beyond the standing order's shares or premium cap")]
+    OverOrderLimit,
+    #[msg("The price is too old to renew against")]
+    StalePrice,
+    #[msg("The quote's strikes aren't where the standing order puts them")]
+    StrikesOffOrder,
     #[msg("Math overflow")]
     MathOverflow,
 }

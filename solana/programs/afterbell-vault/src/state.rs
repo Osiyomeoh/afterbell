@@ -179,3 +179,26 @@ pub struct RoundRate {
     pub redeem_assets: u64,
     pub bump: u8,
 }
+
+/// A holder's standing order: protection on one stock renewed each night by any
+/// keeper, within the holder's limits, paid from an allowance the holder gave
+/// this account over their collateral. It is the quote's buyer; the NFT goes to
+/// the holder.
+#[account]
+#[derive(InitSpace)]
+pub struct Order {
+    pub vault: Pubkey,
+    pub holder: Pubkey,
+    pub feed_id: [u8; 32],
+    pub max_shares: u64,
+    /// Where protection starts and stops, in bps below the price.
+    pub start_bps: u16,
+    pub depth_bps: u16,
+    pub max_premium: u64,
+    /// Renews for openings before this time.
+    pub until: i64,
+    /// The last opening renewed for, kept across a cancel so it can't renew twice.
+    pub last_open_ts: i64,
+    pub active: bool,
+    pub bump: u8,
+}

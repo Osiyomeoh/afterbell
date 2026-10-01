@@ -8,6 +8,7 @@
 //! `roll`, once everything the round sold is paid, at the pool's exact value.
 //! Risk limits cap what a round, and one stock in it, may lock as shares of the
 //! pool at its roll. Whoever pays positions out earns a tip from their premiums.
+//! Standing orders renew a holder's protection each night through any keeper.
 
 pub mod constants;
 pub mod error;
@@ -52,6 +53,18 @@ pub mod afterbell_vault {
 
     pub fn buy(ctx: Context<Buy>, q: QuoteArgs) -> Result<()> {
         instructions::buy::handle_buy(ctx, q)
+    }
+
+    pub fn set_order(ctx: Context<SetOrder>, feed_id: [u8; 32], terms: OrderTerms) -> Result<()> {
+        instructions::orders::handle_set_order(ctx, feed_id, terms)
+    }
+
+    pub fn cancel_order(ctx: Context<CancelOrder>) -> Result<()> {
+        instructions::orders::handle_cancel_order(ctx)
+    }
+
+    pub fn renew(ctx: Context<Renew>, q: QuoteArgs) -> Result<()> {
+        instructions::orders::handle_renew(ctx, q)
     }
 
     pub fn settle(ctx: Context<Settle>) -> Result<()> {
