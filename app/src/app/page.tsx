@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { Activity } from "@/components/Activity";
 import { EventBanner } from "@/components/EventBanner";
 import { ForAgents } from "@/components/ForAgents";
@@ -26,6 +28,21 @@ export default function Home() {
       <div id="protect" className="scroll-mt-6">
         <Protect />
       </div>
+      {/* What no single-stock put vault does: the pool hedges, and borrowers are covered too. */}
+      <section className="mt-12 grid gap-4 sm:grid-cols-2">
+        <Link href="/vault" className="rounded-lg border border-line p-5 hover:border-brass">
+          <h2 className="font-medium">A hedged pool</h2>
+          <p className="mt-2 text-sm leading-relaxed text-muted">
+            Underwriters don&apos;t just hold the gap risk: the vault shorts the stock on Hyperliquid as it sells cover, and shows the hedge live.
+          </p>
+        </Link>
+        <Link href="/kamino" className="rounded-lg border border-line p-5 hover:border-brass">
+          <h2 className="font-medium">Cover for Kamino loans</h2>
+          <p className="mt-2 text-sm leading-relaxed text-muted">
+            Borrowing against xStocks? See how far an overnight gap would push your loan toward liquidation, and cover that gap.
+          </p>
+        </Link>
+      </section>
       <HowItWorks />
       <ForAgents />
     </>

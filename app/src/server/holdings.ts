@@ -4,11 +4,15 @@ import { Connection, type ParsedAccountData, PublicKey } from "@solana/web3.js";
 /** Tokenized stocks live on mainnet; the vault is on devnet. */
 const MAINNET_RPC = process.env.MAINNET_RPC_URL || "https://api.mainnet-beta.solana.com";
 
-/** TSLA's tokenized versions on Solana (Token-2022). */
-export const TSLA_TOKENS = [
-  { symbol: "TSLAx", issuer: "xStocks", mint: "XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB" },
-  { symbol: "TSLAon", issuer: "Ondo", mint: "KeGv7bsfR4MheC1CkmnAVceoApjrkvBhHYjWb67ondo" },
+/** Tokenized versions on Solana (Token-2022) of each stock the vault covers. */
+export const STOCK_TOKENS = [
+  { stock: "TSLA", symbol: "TSLAx", issuer: "xStocks", mint: "XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB" },
+  { stock: "TSLA", symbol: "TSLAon", issuer: "Ondo", mint: "KeGv7bsfR4MheC1CkmnAVceoApjrkvBhHYjWb67ondo" },
+  { stock: "QQQ", symbol: "QQQx", issuer: "xStocks", mint: "Xs8S1uUs1zvS2p7iwtsG3b6fkhpvmwz4GYU3gWAmWHZ" },
+  { stock: "QQQ", symbol: "QQQon", issuer: "Ondo", mint: "HrYNm6jTQ71LoFphjVKBTdAE4uja7WsmLG8VxB8ondo" },
 ];
+
+export type Holding = { stock: string; symbol: string; shares: number };
 
 type ScaledUiAmount = { multiplier: string; newMultiplier: string; newMultiplierEffectiveTimestamp: number };
 
@@ -25,10 +29,10 @@ function multiplierOf(mint: ParsedAccountData | undefined, now: number): number 
   return Number.isFinite(m) && m > 0 ? m : 1;
 }
 
-/** TSLA share-equivalents `owner` holds on mainnet, per token. Read-only. */
-export async function tslaHoldings(owner: PublicKey): Promise<{ symbol: string; shares: number }[]> {
+/** Share-equivalents `owner` holds on mainnet of every covered stock, per token. Read-only. */
+export async function holdings(owner: PublicKey): Promise<Holding[]> {
   const connection = new Connection(MAINNET_RPC, "confirmed");
-  const mints = new Map(TSLA_TOKENS.map((t) => [t.mint, t.symbol]));
+  const mints = new Map(STOCK_TOKENS.map((t) => [t.mint, t]));
   const { value } = await connection.getParsedTokenAccountsByOwner(owner, { programId: TOKEN_2022_PROGRAM_ID });
   const raw = new Map<string, { amount: bigint; decimals: number }>();
   for (const { account } of value) {
@@ -42,6 +46,12 @@ export async function tslaHoldings(owner: PublicKey): Promise<{ symbol: string; 
   const now = Math.floor(Date.now() / 1000);
   return held.map(([mint, b], i) => {
     const data = accounts.value[i]?.data;
-    return { symbol: mints.get(mint)!, shares: (Number(b.amount) / 10 ** b.decimals) * multiplierOf(data && "parsed" in data ? data : undefined, now) };
+    const { stock, symbol } = mints.get(mint)!;
+    return { stock, symbol, shares: (Number(b.amount) / 10 ** b.decimals) * multiplierOf(data && "parsed" in data ? data : undefined, now) };
   });
+}
+
+/** TSLA share-equivalents `owner` holds on mainnet (TSLAx, TSLAon). */
+export async function tslaHoldings(owner: PublicKey): Promise<Holding[]> {
+  return (await holdings(owner)).filter((h) => h.stock === "TSLA");
 }

@@ -25,38 +25,42 @@ const WalletButton = dynamic(
   { ssr: false },
 );
 
-const NAV: { href: string; label: string; wide?: boolean }[] = [
+// Every page is reachable from here; on a phone the row scrolls sideways.
+const NAV: { href: string; label: string }[] = [
   { href: "/", label: "Protect" },
   { href: "/positions", label: "My protection" },
   { href: "/vault", label: "Vault" },
+  { href: "/kamino", label: "Kamino loans" },
   { href: "/record", label: "Track record" },
-  // No room on a phone's row; the home page and the footer link it there.
-  { href: "/gap", label: "Gap report", wide: true },
+  { href: "/gap", label: "Gap report" },
+  { href: "/verify", label: "Verify" },
+  { href: "/private", label: "Private" },
+  { href: "/status", label: "Status" },
 ];
 
 export function Header() {
   const path = usePathname();
   return (
     <header className="border-b border-line">
-      <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-6 gap-y-3 px-4 py-4 sm:px-6 2xl:max-w-[88rem]">
+      <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-3 gap-y-3 xl:gap-x-6 px-4 py-4 sm:px-6 2xl:max-w-[88rem]">
         <Link href="/" className="flex items-center gap-2 text-lg font-semibold tracking-tight">
           <Bell />
           Afterbell
         </Link>
         {/* On phones the wallet button stays beside the name and the links take the row below. */}
-        <nav className="order-last -mx-2.5 flex w-[calc(100%+1.25rem)] gap-1 overflow-x-auto text-sm sm:order-none sm:mx-0 sm:w-auto">
+        <nav className="order-last -mx-2.5 flex w-[calc(100%+1.25rem)] gap-1 sm:gap-0 xl:gap-1 overflow-x-auto text-sm sm:order-none sm:mx-0 sm:w-auto">
           {NAV.map((n) => (
             <Link
               key={n.href}
               href={n.href}
-              className={`rounded-md px-2.5 py-1.5 whitespace-nowrap sm:px-3 ${n.wide ? "hidden md:inline-block" : ""} ${path === n.href ? "bg-raised text-text" : "text-muted hover:text-text"}`}
+              className={`rounded-md px-2.5 py-1.5 whitespace-nowrap sm:px-2 xl:px-3 ${path === n.href ? "bg-raised text-text" : "text-muted hover:text-text"}`}
             >
               {n.label}
             </Link>
           ))}
         </nav>
         <div className="ml-auto flex items-center gap-3">
-          <span className="hidden rounded-full border border-line px-2.5 py-1 text-xs text-muted sm:inline">Test money only</span>
+          <span className="hidden rounded-full border border-line px-2.5 py-1 text-xs text-muted xl:inline">Test money only</span>
           <WalletButton />
         </div>
       </div>

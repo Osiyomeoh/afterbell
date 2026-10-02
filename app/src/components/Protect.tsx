@@ -120,14 +120,15 @@ export function Protect() {
   // No wallet of the person's own: the test wallet is always there, so it doesn't count.
   const noSolanaWallet = walletsSettled && !wallets.some((w) => w.adapter.name !== TestWalletName && (w.readyState === "Installed" || w.readyState === "Loadable"));
   const { setVisible } = useWalletModal();
-  const [holdings, setHoldings] = useState<{ symbol: string; shares: number }[]>([]);
+  const [holdings, setHoldings] = useState<{ stock: string; symbol: string; shares: number }[]>([]);
 
-  // Tokenized TSLA the wallet holds on mainnet, so protection can match it exactly.
+  // Tokenized stock the wallet holds on mainnet, so protection can match it exactly.
   useEffect(() => {
     if (!wallet) return setHoldings([]);
     fetchHoldings(wallet.publicKey.toBase58()).then((r) => setHoldings(r.holdings), () => setHoldings([]));
   }, [wallet]);
-  const held = Math.round(holdings.reduce((a, h) => a + h.shares, 0) * 10_000) / 10_000;
+  const heldHere = holdings.filter((h) => h.stock === market?.symbol);
+  const held = Math.round(heldHere.reduce((a, h) => a + h.shares, 0) * 10_000) / 10_000;
 
   useEffect(() => {
     let current = true;
@@ -364,9 +365,9 @@ export function Protect() {
               onChange={(e) => setShares(Math.max(0.01, Number(e.target.value) || 0.01))}
               className="num mt-1.5 w-full rounded-lg border border-line bg-ink px-3 py-2 text-lg"
             />
-            {chain === "solana" && market.symbol === "TSLA" && held > 0 && (
+            {chain === "solana" && held > 0 && (
               <button type="button" onClick={() => setShares(held)} className="mt-1.5 text-xs text-brass hover:underline">
-                You hold {held} ({holdings.map((h) => h.symbol).join(" + ")}). Protect all
+                You hold {held} ({heldHere.map((h) => h.symbol).join(" + ")}). Protect all
               </button>
             )}
           </label>
