@@ -1,4 +1,4 @@
-import { createPublicClient, http, type Address, type Hex, type PublicClient } from "viem";
+import { createPublicClient, http, parseAbiItem, type Address, type Hex, type PublicClient } from "viem";
 
 import { afterbellPositionsAbi, afterbellVaultAbi, testUsdAbi } from "@root/evm/client/abi";
 import { evmChain, type EvmDeployment, type EvmPosition, type EvmSeries } from "@root/evm/client/vault";
@@ -7,12 +7,12 @@ import { claimUnits } from "@root/solana/keeper/plan";
 
 import type { Sale } from "@/lib/team";
 
-import type { PoolState, PositionRow, SeriesRow, VaultState } from "./vaultTypes";
+import type { HistoryRow, PoolState, PositionRow, SeriesRow, VaultState } from "./vaultTypes";
 import { evmDeployment } from "./evmDeployment";
 import type { LedgerRow } from "./ledger";
 
 /** `sales`: every sale with the wallet that bought it (the renewer, for a renewal). */
-type EvmVaultState = VaultState & { ledger: LedgerRow[]; pool: PoolState; sales: Sale[] };
+type EvmVaultState = VaultState & { history: HistoryRow[] } & { ledger: LedgerRow[]; pool: PoolState; sales: Sale[] };
 
 // The contract's SeriesState enum, in order.
 const STATES = ["open", "settled", "voided"] as const;
@@ -48,6 +48,37 @@ async function load(d: EvmDeployment): Promise<EvmVaultState> {
     client.readContract({ address: d.testUsd, abi: testUsdAbi, functionName: "decimals" }),
     readPool(client, d),
   ]);
+  // A renewal is bought by the renewer contract; its event names the holder it bought for.
+  // The vault's events give each position's buy and payout transactions.
+  const from = (block?: number) => BigInt(block ?? 0);
+  const [renewed, bought, claimed] = await Promise.all([
+    d.renewer && d.renewerBlock
+      ? client
+          .getLogs({
+            address: d.renewer,
+            event: parseAbiItem("event Renewed(address indexed holder, address indexed feed, uint64 indexed openTs, uint256 positionId, uint128 premium)"),
+            fromBlock: from(d.renewerBlock),
+          })
+          .catch(() => [])
+      : [],
+    client
+      .getLogs({
+        address: d.vault,
+        event: parseAbiItem(
+          "event ProtectionBought(uint256 indexed id, address indexed buyer, address indexed feed, uint64 openTs, uint64 shares, uint64 upper, uint64 lower, uint128 premium, uint128 maxPayout)",
+        ),
+        fromBlock: from(d.vaultBlock),
+      })
+      .catch(() => []),
+    client
+      .getLogs({ address: d.vault, event: parseAbiItem("event Claimed(uint256 indexed id, address indexed holder, uint256 amount, bool refund)"), fromBlock: from(d.vaultBlock) })
+      .catch(() => []),
+  ]);
+  const renewedFor = new Map(renewed.map((l) => [l.args.positionId!, l.args.holder!]));
+  const buyTx = new Map(bought.map((l) => [l.args.id!, l.transactionHash]));
+  const payTx = new Map(claimed.map((l) => [l.args.id!, l.transactionHash]));
+  const explorer = evmChain(d).blockExplorers?.default.url;
+  const txUrl = (hash?: Hex) => (explorer && hash ? `${explorer}/tx/${hash}` : null);
   const unit = 10n ** BigInt(decimals);
   // The deployment names each feed it allowed (a local one, mock feeds).
   const symbolOf = (feed: Address) => Object.entries(d.feeds).find(([, a]) => a?.toLowerCase() === feed.toLowerCase())?.[0] ?? feed.slice(0, 10);
@@ -100,7 +131,7 @@ async function load(d: EvmDeployment): Promise<EvmVaultState> {
       settlementPrice: s.state === "settled" ? dollars8(s.price) : null,
       art: `/api/position-art/${id}`,
     };
-    return { row, p };
+    return { id, row, p };
   });
 
   // Unlike Solana's, a paid position stays on-chain (marked closed), so series count every sale.
@@ -151,6 +182,20 @@ async function load(d: EvmDeployment): Promise<EvmVaultState> {
     locked: money(locked),
     series,
     positions: rows.filter((r) => !r.p.closed).map((r) => r.row),
+    history: rows.map((r) => ({
+      chain: "robinhood" as const,
+      address: r.row.address,
+      buyer: renewedFor.get(r.id) ?? r.p.buyer,
+      renewed: renewedFor.has(r.id),
+      buyTx: txUrl(buyTx.get(r.id)),
+      payTx: txUrl(payTx.get(r.id)),
+      symbol: r.row.symbol,
+      openTs: r.row.openTs,
+      state: r.row.state,
+      premium: r.row.premium,
+      paid: r.p.closed ? money(r.p.paid) : null,
+      forfeited: false,
+    })),
     sales: rows.map((r) => ({ chain: "robinhood" as const, buyer: r.p.buyer, openTs: r.row.openTs })),
   };
 }

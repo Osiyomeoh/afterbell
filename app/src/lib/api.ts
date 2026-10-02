@@ -180,6 +180,28 @@ export const fetchVault = (chain: Chain = "solana") =>
 export const fetchPositions = (owner: string) =>
   fetch(`/api/positions?owner=${owner}`, { cache: "no-store" }).then((r) => json<{ positions: PositionRow[] }>(r));
 
+/** One position a wallet bought, paid out or not: what it cost and, once closed, what it paid. */
+export type HistoryRow = {
+  chain: Chain;
+  address: string;
+  symbol: string;
+  openTs: number;
+  state: SeriesState;
+  premium: number;
+  /** Null while unpaid; 0 for a position closed with no payout. */
+  paid: number | null;
+  /** Its NFT was burned before it was paid, so it paid no one. */
+  forfeited: boolean;
+  /** Bought by a standing order rather than by hand. */
+  renewed: boolean;
+  /** Explorer links to the purchase and payout transactions, when known. */
+  buyTx: string | null;
+  payTx: string | null;
+};
+
+export const fetchHistory = (owner: string) =>
+  fetch(`/api/history?owner=${owner}`, { cache: "no-store" }).then((r) => json<{ history: HistoryRow[] }>(r));
+
 export type DripResponse = { signature: string | null; testUsd: number; sol: number; alreadyFunded: boolean };
 
 export const requestTestFunds = (owner: string) =>

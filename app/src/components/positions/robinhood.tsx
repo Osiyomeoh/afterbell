@@ -9,6 +9,7 @@ import { fetchPositions, type MarketResponse, type PositionRow } from "@/lib/api
 import { claimOnRobinhood, evmTxUrl, standingOrders, stopEveryNight, useEvmWallet } from "@/lib/evm";
 import { nyTime, usd } from "@/lib/format";
 
+import { History } from "./history";
 import { type Claimed, Connect, PositionsTable } from "./shared";
 
 export function RobinhoodPositions({ d }: { d: NonNullable<MarketResponse["robinhood"]> }) {
@@ -50,6 +51,7 @@ export function RobinhoodPositions({ d }: { d: NonNullable<MarketResponse["robin
     <>
       <PositionsTable chain="robinhood" rows={rows} error={error} claiming={claiming} claimed={claimed} onClaim={claim} />
       {d.renewer && <StandingOrders d={{ ...d, renewer: d.renewer }} holder={evm.address} />}
+      <History owner={evm.address} />
     </>
   );
 }

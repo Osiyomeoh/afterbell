@@ -73,3 +73,6 @@ export type VaultState = {
   series: SeriesRow[];
   positions: PositionRow[];
 };
+
+/** A position in a wallet's history, with the wallet that bought it. */
+export type HistoryRow = import("@/lib/api").HistoryRow & { buyer: string };

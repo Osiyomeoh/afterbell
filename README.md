@@ -268,6 +268,18 @@ npm run hedger:quoter -- --plan   # the testnet quotes it would rest, against th
 npm run hedger:backtest           # writes research/results/hedge-backtest.md
 ```
 
+## Security and threat model
+
+What a user trusts, and what stops each party from taking more than the rules allow:
+
+- **The quote signer.** The vaults sell only at a price the quote service signed (EIP-712 on Robinhood Chain, ed25519 on Solana), bound to the buyer, stock, strikes, open and an expiry. A leaked signer key could sell underpriced cover, but only within the round's risk limits: at most 50% of the pool locked per round, 20% per stock, fixed at the roll. The contract can't know exchange holidays, so the signature also vouches that the open is real.
+- **The oracle.** Settlement uses the first price at or after 09:30 ET: Pyth on Solana, the Chainlink round in force at the open on Robinhood Chain. A print too late after the open can't settle; the series is voided and every buyer's premium comes back.
+- **The keeper.** Anyone can run it, with any funded wallet; it can only settle on the oracle's print, pay a position to whoever holds its NFT, roll the pool and renew standing orders within each order's own caps (shares, strikes, premium, end date). It earns a fixed tip and never holds funds. The scheduled run uses a dedicated gas-only wallet, never the deployer.
+- **Standing orders.** An order spends only through the holder's token approval and its own limits, and the holder can cancel it at any time.
+- **Underwriters.** The worst night costs the pool at most half its value. Withdrawals wait for the round to settle, so nobody leaves ahead of a known loss.
+- **The hedge.** The Hyperliquid short is run by the operator off-chain; it lowers the pool's risk, but the vault's payouts never depend on it.
+- **Checks.** Foundry invariant and fork tests, Slither (0 open findings), randomized sequence tests on the Solana program, gitleaks on every push. Not audited: TestUSD on both chains has no value.
+
 ## How we got here
 
 Afterbell started on 24 September 2026 as [Weekend Markets](https://github.com/Osiyomeoh/weekend-markets), a TSLA-only gap-cover prototype on Solana devnet that we entered in the Solana Foundation's Stocklana hackathon. Its settlement rule and pricing model carry over; the vault, the EVM contracts, the Hyperliquid hedge and the multi-chain app are new work for the World's Fair. `research/data/pyth-tsla-gaps.json` is Weekend Markets' record of Pyth's TSLA closes and opens.

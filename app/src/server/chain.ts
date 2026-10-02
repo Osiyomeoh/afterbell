@@ -7,11 +7,12 @@ import { assetsFor, bpsOf, maxPayoutUnits, roomLeft, saleRefusal, stakeOf, total
 import { feedConfigAddress, getProgram, rateAddress, requestAddress, seriesAddress, token2022Account } from "@root/solana/client/vault";
 import { claimUnits, type SeriesState } from "@root/solana/keeper/plan";
 
+import { explorer } from "@/lib/format";
 import type { Sale } from "@/lib/team";
 
 import { SOLANA_DEPLOYMENT, type SolanaV2Deployment } from "./deployment";
 import type { LedgerRow } from "./ledger";
-import type { PoolState, PositionRow, SeriesRow, VaultState } from "./vaultTypes";
+import type { HistoryRow, PoolState, PositionRow, SeriesRow, VaultState } from "./vaultTypes";
 
 export const RPC = process.env.SOLANA_RPC || process.env.NEXT_PUBLIC_SOLANA_RPC || "https://api.devnet.solana.com";
 
@@ -30,7 +31,7 @@ export const readOnly = {
 
 /** Every sale, paid or not, with the wallet that bought it: for counting buyers. */
 type WithSales = { sales: Sale[] };
-type SolanaVaultState = VaultState & WithSales & { ledger: LedgerRow[]; pool: PoolState };
+type SolanaVaultState = VaultState & WithSales & { history: HistoryRow[] } & { ledger: LedgerRow[]; pool: PoolState };
 
 type Num = { toString(): string };
 const big = (x: Num) => BigInt(x.toString());
@@ -83,14 +84,17 @@ async function load(d: SolanaV2Deployment): Promise<SolanaVaultState> {
   const { connection, program } = reader();
   const vault = new PublicKey(d.vault);
   const byVault = [{ memcmp: { offset: 8, bytes: vault.toBase58() } }];
-  const [v, series, positions, feeds, held, shareMint] = await Promise.all([
+  const [v, series, positions, feeds, held, shareMint, orders] = await Promise.all([
     program.account.vault.fetch(vault),
     program.account.series.all(byVault),
     program.account.position.all(byVault),
     program.account.feedConfig.all(byVault),
     getAccount(connection, new PublicKey(d.vaultToken)),
     getMint(connection, new PublicKey(d.shareMint), "confirmed", TOKEN_2022_PROGRAM_ID),
+    program.account.order.all(byVault),
   ]);
+  // A renewal is bought by the standing order's address on its holder's behalf.
+  const orderHolder = new Map(orders.map((o) => [o.publicKey.toBase58(), o.account.holder.toBase58()]));
   const unit = big(v.collateralUnit);
   const money = (x: bigint) => Number(x) / Number(unit);
   const dollars8 = (x: bigint) => Number(x) / 1e8;
@@ -196,6 +200,21 @@ async function load(d: SolanaV2Deployment): Promise<SolanaVaultState> {
     locked: money(b.locked),
     series: seriesRows,
     positions: rows.filter((r) => !r.closed).map((r) => r.row),
+    history: rows.map((r) => ({
+      chain: "solana" as const,
+      address: r.row.address,
+      buyer: orderHolder.get(r.row.buyer) ?? r.row.buyer,
+      renewed: orderHolder.has(r.row.buyer),
+      // Solana's are looked up per wallet, by the history route.
+      buyTx: null,
+      payTx: null,
+      symbol: r.row.symbol,
+      openTs: r.row.openTs,
+      state: r.row.state,
+      premium: r.row.premium,
+      paid: r.closed ? money(r.paid) : null,
+      forfeited: r.forfeited,
+    })),
     sales: rows.map((r) => ({ chain: "solana" as const, buyer: r.row.buyer, openTs: r.row.openTs })),
   };
 }
@@ -205,6 +224,16 @@ async function load(d: SolanaV2Deployment): Promise<SolanaVaultState> {
  * holding it: whoever holds a position's NFT is the one paid. Null until v2
  * is deployed.
  */
+/**
+ * A position's purchase and payout transactions: the first that touched its
+ * account, and the last once it's closed (the keeper's payout).
+ */
+export async function solanaPositionTxs(address: string, closed: boolean): Promise<{ buyTx: string | null; payTx: string | null }> {
+  const sigs = (await reader().connection.getSignaturesForAddress(new PublicKey(address), { limit: 50 })).filter((s) => !s.err);
+  const url = (sig?: string) => (sig ? explorer("tx", sig) : null);
+  return { buyTx: url(sigs.at(-1)?.signature), payTx: closed && sigs.length > 1 ? url(sigs[0]?.signature) : null };
+}
+
 export async function positionsHeldBy(owner: PublicKey): Promise<PositionRow[] | null> {
   const state = solanaVaultState();
   if (!state) return null;

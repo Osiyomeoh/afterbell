@@ -1,0 +1,57 @@
+name: keeper
+
+# Settles each open, pays every position, rolls the pools and renews standing orders, on both chains.
+# A job runs only when its repo secrets are set; each key is a dedicated keeper wallet holding gas only.
+#   SOLANA_KEEPER_KEYPAIR  the keypair JSON (a byte array), funded with devnet SOL
+#   PYTH_API_KEY           for the opening print and renewals
+#   EVM_KEEPER_PRIVATE_KEY an account on Robinhood Chain mainnet: its gas is real ETH
+on:
+  schedule:
+    # Pyth's and Chainlink's first prints after 09:30 ET land within minutes; retry later in the session.
+    - cron: "45 13,14 * * 1-5"
+    - cron: "30 16 * * 1-5"
+  workflow_dispatch:
+
+concurrency: keeper
+
+jobs:
+  solana:
+    runs-on: ubuntu-latest
+    env:
+      KEYPAIR: ${{ secrets.SOLANA_KEEPER_KEYPAIR }}
+      PYTH_API_KEY: ${{ secrets.PYTH_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+        if: env.KEYPAIR != ''
+      - uses: actions/setup-node@v4
+        if: env.KEYPAIR != ''
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+        if: env.KEYPAIR != ''
+      - name: Run the keeper
+        if: env.KEYPAIR != ''
+        run: |
+          umask 077
+          printf '%s' "$KEYPAIR" > "$RUNNER_TEMP/keeper.json"
+          ANCHOR_WALLET="$RUNNER_TEMP/keeper.json" npm run solana:keeper
+          rm -f "$RUNNER_TEMP/keeper.json"
+
+  evm:
+    runs-on: ubuntu-latest
+    env:
+      KEEPER_PRIVATE_KEY: ${{ secrets.EVM_KEEPER_PRIVATE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+        if: env.KEEPER_PRIVATE_KEY != ''
+      - uses: actions/setup-node@v4
+        if: env.KEEPER_PRIVATE_KEY != ''
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+        if: env.KEEPER_PRIVATE_KEY != ''
+      - name: Run the keeper
+        if: env.KEEPER_PRIVATE_KEY != ''
+        run: npm run evm:keeper

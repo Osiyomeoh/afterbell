@@ -11,6 +11,7 @@ import { claimPosition } from "@/lib/claim";
 import { explorer, nyTime, usd } from "@/lib/format";
 import { useSendTransaction } from "@/lib/send";
 
+import { History } from "./history";
 import { type Claimed, ExampleCard, PositionsTable } from "./shared";
 
 export function SolanaPositions({ vault, nextOpen }: { vault: { vault: string; collateralMint: string }; nextOpen: number }) {
@@ -70,6 +71,7 @@ export function SolanaPositions({ vault, nextOpen }: { vault: { vault: string; c
     <>
       <PositionsTable chain="solana" rows={rows} error={error} claiming={claiming} claimed={claimed} onClaim={claim} />
       <SolanaStandingOrders vault={vault} />
+      <History owner={wallet.publicKey.toBase58()} />
     </>
   );
 }
