@@ -29,7 +29,7 @@ export default function Home() {
         <Protect />
       </div>
       {/* What no single-stock put vault does: the pool hedges, and borrowers are covered too. */}
-      <section className="mt-12 grid gap-4 sm:grid-cols-2">
+      <section className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Link href="/vault" className="rounded-lg border border-line p-5 hover:border-brass">
           <h2 className="font-medium">A hedged pool</h2>
           <p className="mt-2 text-sm leading-relaxed text-muted">
@@ -40,6 +40,12 @@ export default function Home() {
           <h2 className="font-medium">Cover for Kamino loans</h2>
           <p className="mt-2 text-sm leading-relaxed text-muted">
             Borrowing against xStocks? See how far an overnight gap would push your loan toward liquidation, and cover that gap.
+          </p>
+        </Link>
+        <Link href="/backtest" className="rounded-lg border border-line p-5 hover:border-brass">
+          <h2 className="font-medium">Tested on every past night</h2>
+          <p className="mt-2 text-sm leading-relaxed text-muted">
+            Today&apos;s pricing replayed on each recorded opening of 34 stocks, using only the nights before it: what it took in and what it paid.
           </p>
         </Link>
       </section>

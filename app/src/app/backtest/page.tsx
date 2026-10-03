@@ -46,7 +46,8 @@ export default function BacktestPage() {
         <p className="mt-3 max-w-3xl leading-relaxed text-muted">
           Protection on 1 share from 2% to 10% below each close, priced the way the quote service prices it today ({Math.round(DEFAULT_QUOTER_CONFIG.margin * 100)}%
           margin) from only the openings before it, and paid on the oracle&apos;s actual opening print. Each stock&apos;s first 10 openings only train the
-          model. Below $1 paid per $1 of premium, the vault kept money. It isn&apos;t a forecast. What actually settled is on the{" "}
+          model. Below $1 paid per $1 of premium, the vault kept money. It isn&apos;t a forecast. Some stocks, in red, paid back more than they took in; with under 60 nights each, one bad opening decides
+          that, which is why a vault pools many stocks and sells within per-stock limits. What actually settled is on the{" "}
           <Link href="/record" className="text-brass hover:underline">
             track record
           </Link>

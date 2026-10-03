@@ -24,7 +24,8 @@ Everything below is live, on test money.
 3. **Friday's open:** [/event](https://afterbell-nine.vercel.app/event) follows Tesla's Q3 deliveries and the jobs report, from sale to settlement.
 4. **Where Kamino's loans break:** [/kamino](https://afterbell-nine.vercel.app/kamino) maps all 1,609 loans against tokenized stocks and checks any wallet's loan: the opening that liquidates it, the chance of that tonight, and cover down to that price.
 5. **Buy it privately:** [/private](https://afterbell-nine.vercel.app/private), through Helius's Solana Rings.
-6. **From an agent:** `claude mcp add --transport http afterbell https://afterbell-nine.vercel.app/mcp`.
+6. **Is the pricing sound?** [/backtest](https://afterbell-nine.vercel.app/backtest) replays today's pricing, with no look-ahead, on every recorded opening of 34 stocks (1,984 nights): 46¢ paid back per $1 of premium, with each stock shown, losers included.
+7. **From an agent:** `claude mcp add --transport http afterbell https://afterbell-nine.vercel.app/mcp`.
 7. **Run the tests:** `npm ci && npm test`; `cd evm && forge test`; `cd solana && cargo test`; `npm run e2e` drives the hosted app in Chrome, desktop and phone (CI runs it after every open).
 
 ## Proof
