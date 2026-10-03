@@ -1,0 +1,8 @@
+solana/target
+evm/out
+evm/cache
+evm/lib
+evm/broadcast
+app/.next
+**/node_modules
+.claude
