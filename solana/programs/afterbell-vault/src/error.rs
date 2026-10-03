@@ -81,6 +81,12 @@ pub enum VaultError {
     StalePrice,
     #[msg("The quote's strikes aren't where the standing order puts them")]
     StrikesOffOrder,
+    #[msg("Sizer bounds: shares set, start below depth, both under 100%")]
+    InvalidSizer,
+    #[msg("Only the sizer the holder named may re-size this order")]
+    NotSizer,
+    #[msg("The new size is outside the bounds the holder gave the sizer")]
+    OutsideSizerBounds,
     #[msg("Math overflow")]
     MathOverflow,
 }

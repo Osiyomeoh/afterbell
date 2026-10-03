@@ -818,6 +818,55 @@
       "args": []
     },
     {
+      "name": "remove_sizer",
+      "discriminator": [
+        140,
+        186,
+        45,
+        232,
+        4,
+        248,
+        117,
+        21
+      ],
+      "accounts": [
+        {
+          "name": "holder",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "order"
+          ]
+        },
+        {
+          "name": "order"
+        },
+        {
+          "name": "sizer",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  105,
+                  122,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "order"
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "renew",
       "discriminator": [
         43,
@@ -1290,6 +1339,64 @@
       ]
     },
     {
+      "name": "resize_order",
+      "discriminator": [
+        103,
+        36,
+        20,
+        197,
+        193,
+        54,
+        21,
+        49
+      ],
+      "accounts": [
+        {
+          "name": "signer",
+          "signer": true
+        },
+        {
+          "name": "order",
+          "writable": true
+        },
+        {
+          "name": "sizer",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  105,
+                  122,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "order"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "max_shares",
+          "type": "u64"
+        },
+        {
+          "name": "start_bps",
+          "type": "u16"
+        },
+        {
+          "name": "depth_bps",
+          "type": "u16"
+        }
+      ]
+    },
+    {
       "name": "roll",
       "discriminator": [
         143,
@@ -1586,6 +1693,68 @@
       ]
     },
     {
+      "name": "set_sizer",
+      "discriminator": [
+        204,
+        69,
+        163,
+        62,
+        129,
+        33,
+        189,
+        192
+      ],
+      "accounts": [
+        {
+          "name": "holder",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "order"
+          ]
+        },
+        {
+          "name": "order"
+        },
+        {
+          "name": "sizer",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  105,
+                  122,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "order"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "bounds",
+          "type": {
+            "defined": {
+              "name": "SizerBounds"
+            }
+          }
+        }
+      ]
+    },
+    {
       "name": "settle",
       "discriminator": [
         175,
@@ -1725,6 +1894,19 @@
       ]
     },
     {
+      "name": "Sizer",
+      "discriminator": [
+        155,
+        122,
+        248,
+        38,
+        102,
+        234,
+        100,
+        181
+      ]
+    },
+    {
       "name": "Vault",
       "discriminator": [
         211,
@@ -1789,6 +1971,19 @@
         113,
         168,
         239
+      ]
+    },
+    {
+      "name": "OrderResized",
+      "discriminator": [
+        127,
+        198,
+        252,
+        10,
+        181,
+        26,
+        101,
+        123
       ]
     },
     {
@@ -1932,6 +2127,32 @@
         6,
         107,
         60
+      ]
+    },
+    {
+      "name": "SizerRemoved",
+      "discriminator": [
+        143,
+        175,
+        113,
+        93,
+        231,
+        170,
+        170,
+        88
+      ]
+    },
+    {
+      "name": "SizerSet",
+      "discriminator": [
+        217,
+        108,
+        102,
+        10,
+        115,
+        100,
+        49,
+        82
       ]
     }
   ],
@@ -2133,6 +2354,21 @@
     },
     {
       "code": 6039,
+      "name": "InvalidSizer",
+      "msg": "Sizer bounds: shares set, start below depth, both under 100%"
+    },
+    {
+      "code": 6040,
+      "name": "NotSizer",
+      "msg": "Only the sizer the holder named may re-size this order"
+    },
+    {
+      "code": 6041,
+      "name": "OutsideSizerBounds",
+      "msg": "The new size is outside the bounds the holder gave the sizer"
+    },
+    {
+      "code": 6042,
       "name": "MathOverflow",
       "msg": "Math overflow"
     }
@@ -2334,6 +2570,34 @@
           {
             "name": "holder",
             "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "OrderResized",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "order",
+            "type": "pubkey"
+          },
+          {
+            "name": "sizer",
+            "type": "pubkey"
+          },
+          {
+            "name": "max_shares",
+            "type": "u64"
+          },
+          {
+            "name": "start_bps",
+            "type": "u16"
+          },
+          {
+            "name": "depth_bps",
+            "type": "u16"
           }
         ]
       }
@@ -3213,6 +3477,113 @@
           {
             "name": "series",
             "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Sizer",
+      "docs": [
+        "Someone the holder lets re-size their standing order before each close, as",
+        "a lending position's risk changes, within bounds the holder set. The order's",
+        "premium cap and allowance still bound what any renewal spends."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "order",
+            "type": "pubkey"
+          },
+          {
+            "name": "sizer",
+            "type": "pubkey"
+          },
+          {
+            "name": "max_shares",
+            "docs": [
+              "The most shares the sizer may set."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "min_start_bps",
+            "docs": [
+              "The sizer's start and depth stay within these, in bps below the price."
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "max_depth_bps",
+            "type": "u16"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "SizerBounds",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "sizer",
+            "type": "pubkey"
+          },
+          {
+            "name": "max_shares",
+            "type": "u64"
+          },
+          {
+            "name": "min_start_bps",
+            "type": "u16"
+          },
+          {
+            "name": "max_depth_bps",
+            "type": "u16"
+          }
+        ]
+      }
+    },
+    {
+      "name": "SizerRemoved",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "order",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "SizerSet",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "order",
+            "type": "pubkey"
+          },
+          {
+            "name": "sizer",
+            "type": "pubkey"
+          },
+          {
+            "name": "max_shares",
+            "type": "u64"
+          },
+          {
+            "name": "min_start_bps",
+            "type": "u16"
+          },
+          {
+            "name": "max_depth_bps",
+            "type": "u16"
           }
         ]
       }

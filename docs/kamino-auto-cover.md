@@ -32,7 +32,7 @@ Loans are skipped, with a reason, when:
 | Sizing the cover to the shortfall | Built, tested |
 | Quote for the cover | Built (`/api/kamino/cover`) |
 | Standing orders a keeper renews within a price cap | Built (Solana `order`, `solana/keeper/renew.ts`) |
-| Re-sizing an order to the loan each night | **To build.** The order's start, depth and shares are fixed when it's set. Auto-cover needs the keeper to recompute them from the loan before each close: a program instruction that lets the holder, or a delegate the holder names, update them within the premium cap. |
+| Re-sizing an order to the loan each night | Built in the program (`set_sizer` / `remove_sizer` / `resize_order`, 6 tests in `tests/sizer.rs`); the keeper re-sizes before quoting through `renewOrders({ sizeFor })`. The holder names a sizer key and bounds (most shares, shallowest start, deepest depth); the premium cap and allowance stay the holder's. Not yet on devnet: needs a program upgrade. Left: a `sizeFor` that reads the opted-in obligation and turns `coverPlan`'s lines into shares (notional ÷ close). |
 | Paying toward the loan | **To build.** Today the payout goes to the holder's wallet. Next: an option to settle into a Kamino `repay` for the obligation, in the same transaction as the claim. |
 | Opt-in page | **To build.** On `/kamino`: connect a wallet, see its cover and price, set an order (cap, end date). Only the connected wallet's loans are shown. |
 | A pooled book | **To build.** Per-stock limits on what the vault sells, so one bad night doesn't drain it. The backtest pays 46¢ per $1 overall, but six stocks pay back more than $1. |
@@ -46,7 +46,7 @@ liquidation to wait for the settle, or a keeper that settles and repays in the o
 
 ## Order of work
 
-1. An order-update instruction, plus a keeper step that runs `coverPlan` per opted-in obligation before the close.
+1. ~~An order-update instruction, plus a keeper step~~ done; left is wiring `coverPlan` into `sizeFor` and the devnet upgrade.
 2. Opt-in UI on `/kamino`, using the connected wallet only.
 3. Claim-and-repay in one transaction.
 4. Per-stock exposure limits in the quoter.

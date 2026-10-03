@@ -824,6 +824,55 @@ export type AfterbellVault = {
       "args": []
     },
     {
+      "name": "removeSizer",
+      "discriminator": [
+        140,
+        186,
+        45,
+        232,
+        4,
+        248,
+        117,
+        21
+      ],
+      "accounts": [
+        {
+          "name": "holder",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "order"
+          ]
+        },
+        {
+          "name": "order"
+        },
+        {
+          "name": "sizer",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  105,
+                  122,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "order"
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "renew",
       "discriminator": [
         43,
@@ -1296,6 +1345,64 @@ export type AfterbellVault = {
       ]
     },
     {
+      "name": "resizeOrder",
+      "discriminator": [
+        103,
+        36,
+        20,
+        197,
+        193,
+        54,
+        21,
+        49
+      ],
+      "accounts": [
+        {
+          "name": "signer",
+          "signer": true
+        },
+        {
+          "name": "order",
+          "writable": true
+        },
+        {
+          "name": "sizer",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  105,
+                  122,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "order"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "maxShares",
+          "type": "u64"
+        },
+        {
+          "name": "startBps",
+          "type": "u16"
+        },
+        {
+          "name": "depthBps",
+          "type": "u16"
+        }
+      ]
+    },
+    {
       "name": "roll",
       "discriminator": [
         143,
@@ -1592,6 +1699,68 @@ export type AfterbellVault = {
       ]
     },
     {
+      "name": "setSizer",
+      "discriminator": [
+        204,
+        69,
+        163,
+        62,
+        129,
+        33,
+        189,
+        192
+      ],
+      "accounts": [
+        {
+          "name": "holder",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "order"
+          ]
+        },
+        {
+          "name": "order"
+        },
+        {
+          "name": "sizer",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  105,
+                  122,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "order"
+              }
+            ]
+          }
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "bounds",
+          "type": {
+            "defined": {
+              "name": "sizerBounds"
+            }
+          }
+        }
+      ]
+    },
+    {
       "name": "settle",
       "discriminator": [
         175,
@@ -1731,6 +1900,19 @@ export type AfterbellVault = {
       ]
     },
     {
+      "name": "sizer",
+      "discriminator": [
+        155,
+        122,
+        248,
+        38,
+        102,
+        234,
+        100,
+        181
+      ]
+    },
+    {
       "name": "vault",
       "discriminator": [
         211,
@@ -1795,6 +1977,19 @@ export type AfterbellVault = {
         113,
         168,
         239
+      ]
+    },
+    {
+      "name": "orderResized",
+      "discriminator": [
+        127,
+        198,
+        252,
+        10,
+        181,
+        26,
+        101,
+        123
       ]
     },
     {
@@ -1938,6 +2133,32 @@ export type AfterbellVault = {
         6,
         107,
         60
+      ]
+    },
+    {
+      "name": "sizerRemoved",
+      "discriminator": [
+        143,
+        175,
+        113,
+        93,
+        231,
+        170,
+        170,
+        88
+      ]
+    },
+    {
+      "name": "sizerSet",
+      "discriminator": [
+        217,
+        108,
+        102,
+        10,
+        115,
+        100,
+        49,
+        82
       ]
     }
   ],
@@ -2139,6 +2360,21 @@ export type AfterbellVault = {
     },
     {
       "code": 6039,
+      "name": "invalidSizer",
+      "msg": "Sizer bounds: shares set, start below depth, both under 100%"
+    },
+    {
+      "code": 6040,
+      "name": "notSizer",
+      "msg": "Only the sizer the holder named may re-size this order"
+    },
+    {
+      "code": 6041,
+      "name": "outsideSizerBounds",
+      "msg": "The new size is outside the bounds the holder gave the sizer"
+    },
+    {
+      "code": 6042,
       "name": "mathOverflow",
       "msg": "Math overflow"
     }
@@ -2340,6 +2576,34 @@ export type AfterbellVault = {
           {
             "name": "holder",
             "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "orderResized",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "order",
+            "type": "pubkey"
+          },
+          {
+            "name": "sizer",
+            "type": "pubkey"
+          },
+          {
+            "name": "maxShares",
+            "type": "u64"
+          },
+          {
+            "name": "startBps",
+            "type": "u16"
+          },
+          {
+            "name": "depthBps",
+            "type": "u16"
           }
         ]
       }
@@ -3219,6 +3483,113 @@ export type AfterbellVault = {
           {
             "name": "series",
             "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "sizer",
+      "docs": [
+        "Someone the holder lets re-size their standing order before each close, as",
+        "a lending position's risk changes, within bounds the holder set. The order's",
+        "premium cap and allowance still bound what any renewal spends."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "order",
+            "type": "pubkey"
+          },
+          {
+            "name": "sizer",
+            "type": "pubkey"
+          },
+          {
+            "name": "maxShares",
+            "docs": [
+              "The most shares the sizer may set."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "minStartBps",
+            "docs": [
+              "The sizer's start and depth stay within these, in bps below the price."
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "maxDepthBps",
+            "type": "u16"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "sizerBounds",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "sizer",
+            "type": "pubkey"
+          },
+          {
+            "name": "maxShares",
+            "type": "u64"
+          },
+          {
+            "name": "minStartBps",
+            "type": "u16"
+          },
+          {
+            "name": "maxDepthBps",
+            "type": "u16"
+          }
+        ]
+      }
+    },
+    {
+      "name": "sizerRemoved",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "order",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "sizerSet",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "order",
+            "type": "pubkey"
+          },
+          {
+            "name": "sizer",
+            "type": "pubkey"
+          },
+          {
+            "name": "maxShares",
+            "type": "u64"
+          },
+          {
+            "name": "minStartBps",
+            "type": "u16"
+          },
+          {
+            "name": "maxDepthBps",
+            "type": "u16"
           }
         ]
       }

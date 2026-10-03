@@ -9,6 +9,7 @@ pub const POSITION_MINT_SEED: &[u8] = b"position_mint";
 pub const REQUEST_SEED: &[u8] = b"request";
 pub const RATE_SEED: &[u8] = b"rate";
 pub const ORDER_SEED: &[u8] = b"order";
+pub const SIZER_SEED: &[u8] = b"sizer";
 
 /// Prices carry 8 decimals (as on the EVM vault); share amounts carry 6.
 pub const PRICE_DECIMALS: i32 = 8;

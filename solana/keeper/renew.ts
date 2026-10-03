@@ -9,11 +9,11 @@ import { createRequire } from "node:module";
 import anchor from "@anchor-lang/core";
 import type * as PythReceiver from "@pythnetwork/pyth-solana-receiver";
 import { getAssociatedTokenAddressSync } from "@solana/spl-token";
-import { Connection, Keypair, PublicKey } from "@solana/web3.js";
+import { Connection, Keypair, PublicKey, Transaction } from "@solana/web3.js";
 
 import { AfterbellClient } from "../../sdk/client";
 import { toSolanaQuote } from "../../sdk/solana";
-import { feedIdHex, getProgram, renewInstructions } from "../client/vault";
+import { feedIdHex, getProgram, renewInstructions, resizeOrderInstruction, sizerAddress } from "../client/vault";
 import { hermesFromEnv } from "./pyth";
 
 const { PythSolanaReceiver, PRO_COMPATIBLE_PUSH_ORACLE_PROGRAM_ID, PRO_COMPATIBLE_RECEIVER_PROGRAM_ID, PRO_COMPATIBLE_WORMHOLE_PROGRAM_ID } =
@@ -63,6 +63,11 @@ export async function renewOrders(opts: {
   api: AfterbellClient;
   payer?: Keypair;
   log?: (line: string) => void;
+  /**
+   * Tonight's size for an order whose holder named `payer` its sizer (Kamino auto-cover: the
+   * shares and band from coverPlan). Null leaves the order as it is. Clamped to the holder's bounds.
+   */
+  sizeFor?: (order: SolanaOrder, symbol: string) => Promise<{ maxShares: bigint; startBps: number; depthBps: number } | null>;
 }): Promise<RenewalPlan[]> {
   const { connection, vault, api, payer } = opts;
   const program = getProgram(connection, new anchor.Wallet(payer ?? Keypair.generate()));
@@ -112,6 +117,7 @@ export async function renewOrders(opts: {
       continue;
     }
     try {
+      if (payer && opts.sizeFor) await resize(program, payer, order, symbol, opts.sizeFor, opts.log);
       const protection = await api.protectionBelow(symbol, Number(order.maxShares) / 1e6, order.startBps / 10_000, order.depthBps / 10_000);
       const q = await api.quote({ chain: "solana", symbol, buyer: order.address, ...protection });
       const quote = toSolanaQuote(q.solana.quote);
@@ -150,4 +156,29 @@ export async function renewOrders(opts: {
     }
   }
   return plans;
+}
+
+/** Re-sizes `order` before it's quoted, when `payer` is its sizer and tonight's size differs. */
+async function resize(
+  program: ReturnType<typeof getProgram>,
+  payer: Keypair,
+  order: SolanaOrder,
+  symbol: string,
+  sizeFor: NonNullable<Parameters<typeof renewOrders>[0]["sizeFor"]>,
+  log?: (line: string) => void,
+) {
+  const address = new PublicKey(order.address);
+  const sizer = await program.account.sizer.fetchNullable(sizerAddress(address));
+  if (!sizer?.sizer.equals(payer.publicKey)) return;
+  const want = await sizeFor(order, symbol);
+  if (!want) return;
+  const maxShares = want.maxShares < BigInt(sizer.maxShares.toString()) ? want.maxShares : BigInt(sizer.maxShares.toString());
+  const startBps = Math.max(want.startBps, sizer.minStartBps);
+  const depthBps = Math.min(want.depthBps, sizer.maxDepthBps);
+  if (maxShares <= 0n || depthBps <= startBps) return;
+  if (maxShares === order.maxShares && startBps === order.startBps && depthBps === order.depthBps) return;
+  const ix = await resizeOrderInstruction(program, { signer: payer.publicKey, order: address, maxShares, startBps, depthBps });
+  const sig = await program.provider.sendAndConfirm!(new Transaction().add(ix), [payer]);
+  Object.assign(order, { maxShares, startBps, depthBps });
+  log?.(`resized ${symbol} for ${order.holder}: ${Number(maxShares) / 1e6} shares, ${startBps}–${depthBps} bps (${sig})`);
 }

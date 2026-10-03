@@ -202,3 +202,19 @@ pub struct Order {
     pub active: bool,
     pub bump: u8,
 }
+
+/// Someone the holder lets re-size their standing order before each close, as
+/// a lending position's risk changes, within bounds the holder set. The order's
+/// premium cap and allowance still bound what any renewal spends.
+#[account]
+#[derive(InitSpace)]
+pub struct Sizer {
+    pub order: Pubkey,
+    pub sizer: Pubkey,
+    /// The most shares the sizer may set.
+    pub max_shares: u64,
+    /// The sizer's start and depth stay within these, in bps below the price.
+    pub min_start_bps: u16,
+    pub max_depth_bps: u16,
+    pub bump: u8,
+}

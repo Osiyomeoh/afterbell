@@ -94,6 +94,8 @@ export const requestAddress = (vault: PublicKey, owner: PublicKey) => pda([seed(
 /** A holder's standing order for one stock: the SPL delegate for its premium allowance. */
 export const orderAddress = (vault: PublicKey, holder: PublicKey, feedId: Uint8Array) =>
   pda([seed("order"), vault.toBytes(), holder.toBytes(), feedId]);
+/** Who the holder lets re-size an order before each close, and within what bounds. */
+export const sizerAddress = (order: PublicKey) => pda([seed("sizer"), order.toBytes()]);
 /** The pool's value at the roll that ended `round`: what that round's requests fill at. */
 export const rateAddress = (vault: PublicKey, round: bigint) => pda([seed("rate"), vault.toBytes(), le64(round, false)]);
 
@@ -207,6 +209,37 @@ export function cancelOrderInstruction(
   return program.methods
     .cancelOrder()
     .accountsPartial({ holder: args.holder, order: args.order, holderToken: args.holderToken, tokenProgram: TOKEN_PROGRAM_ID })
+    .instruction();
+}
+
+/** Names (or replaces) the key that may re-size the holder's order, within `bounds`. */
+export function setSizerInstruction(
+  program: Program<AfterbellVault>,
+  args: { holder: PublicKey; order: PublicKey; sizer: PublicKey; maxShares: bigint; minStartBps: number; maxDepthBps: number },
+): Promise<TransactionInstruction> {
+  return program.methods
+    .setSizer({
+      sizer: args.sizer,
+      maxShares: bn(args.maxShares),
+      minStartBps: args.minStartBps,
+      maxDepthBps: args.maxDepthBps,
+    })
+    .accountsPartial({ holder: args.holder, order: args.order, sizer: sizerAddress(args.order) })
+    .instruction();
+}
+
+export function removeSizerInstruction(program: Program<AfterbellVault>, args: { holder: PublicKey; order: PublicKey }): Promise<TransactionInstruction> {
+  return program.methods.removeSizer().accountsPartial({ holder: args.holder, order: args.order, sizer: sizerAddress(args.order) }).instruction();
+}
+
+/** The sizer's re-size of an order: shares and band; the premium cap and allowance stay the holder's. */
+export function resizeOrderInstruction(
+  program: Program<AfterbellVault>,
+  args: { signer: PublicKey; order: PublicKey; maxShares: bigint; startBps: number; depthBps: number },
+): Promise<TransactionInstruction> {
+  return program.methods
+    .resizeOrder(bn(args.maxShares), args.startBps, args.depthBps)
+    .accountsPartial({ signer: args.signer, order: args.order, sizer: sizerAddress(args.order) })
     .instruction();
 }
 
