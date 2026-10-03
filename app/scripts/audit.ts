@@ -6,7 +6,9 @@
 import { join } from "node:path";
 import { audit, type AuditResult } from "../src/lib/audit";
 import { solanaVaultState } from "../src/server/chain";
+import { SOLANA_V1_DEPLOYMENT } from "../src/server/deployment";
 import { evmVaultState } from "../src/server/evmChain";
+import { v1AuditRows } from "../src/server/v1Audit";
 
 const usd = (x: number | null) => (x === null ? "-" : `$${x.toFixed(6)}`);
 
@@ -16,6 +18,7 @@ process.env.EVM_DEPLOYMENT_FILE ||= join(import.meta.dirname, "..", "..", "evm",
 async function main() {
   const chains = [
     ["Solana devnet", solanaVaultState()],
+    ["Solana devnet, the first vault", SOLANA_V1_DEPLOYMENT && v1AuditRows(SOLANA_V1_DEPLOYMENT).then((audit) => ({ audit }))],
     ["Robinhood Chain testnet", evmVaultState()],
   ] as const;
   let bad = 0;
