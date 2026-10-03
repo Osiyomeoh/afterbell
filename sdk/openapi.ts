@@ -130,6 +130,9 @@ const paths = {
   "/api/positions": {
     get: { summary: "A wallet's protection", parameters: [owner], responses: { 200: json(obj({ positions: { type: "array", items: ref("Position") } })), 400: refused, 503: refused } },
   },
+  "/api/history": {
+    get: { summary: "Every position a wallet bought, newest first, paid out or not, with its transactions", parameters: [owner], responses: { 200: json(obj({ history: { type: "array", items: { type: "object" } } })), 400: refused, 503: refused } },
+  },
   "/api/vault": {
     get: {
       summary: "A vault, its pool and every series",
@@ -172,6 +175,7 @@ const paths = {
   },
   "/api/overnight": { get: { summary: "The stock's price since the close, against its protection", parameters: [symbol], responses: { 200: json({ type: "object" }), 404: refused, 503: refused } } },
   "/api/hedge": { get: { summary: "The hedge on Hyperliquid: the short the open protection calls for, the short held, and its trades", responses: { 200: json({ type: "object" }), 503: refused } } },
+  "/api/verify": { get: { summary: "Every settlement, renewal, hedge trade and private payment, each with its transaction, and the record night by night", responses: { 200: json({ type: "object" }), 503: refused } } },
   "/api/status": {
     get: {
       summary: "Whether each part of the service is running",

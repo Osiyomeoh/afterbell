@@ -1,7 +1,7 @@
 # Afterbell
 
 [![CI](https://github.com/Osiyomeoh/afterbell/actions/workflows/ci.yml/badge.svg)](https://github.com/Osiyomeoh/afterbell/actions/workflows/ci.yml)
-![Tests](https://img.shields.io/badge/tests-346%20TS%20%C2%B7%2086%20Foundry%20%C2%B7%2065%20Rust-2ea44f)
+![Tests](https://img.shields.io/badge/tests-348%20TS%20%C2%B7%2086%20Foundry%20%C2%B7%2065%20Rust-2ea44f)
 ![Contract coverage](https://img.shields.io/badge/contract%20coverage-98%25%20lines-2ea44f)
 ![Slither](https://img.shields.io/badge/Slither-0%20open%20findings-2ea44f)
 ![Secret scan](https://img.shields.io/badge/gitleaks-clean-2ea44f)
@@ -25,6 +25,22 @@ Everything below is live, on test money.
 5. **Buy it privately:** [/private](https://afterbell-nine.vercel.app/private), through Helius's Solana Rings.
 6. **From an agent:** `claude mcp add --transport http afterbell https://afterbell-nine.vercel.app/mcp`.
 7. **Run the tests:** `npm ci && npm test`; `cd evm && forge test`; `cd solana && cargo test`; `npm run e2e` drives the hosted app in Chrome, desktop and phone (CI runs it after every open).
+
+## Proof
+
+Each claim, with the transaction that shows it. [/verify](https://afterbell-nine.vercel.app/verify) reads the full list from the chain as it loads.
+
+| Claim | Chain | Evidence |
+|---|---|---|
+| Vault settled on Chainlink's round at the open (TSLA, 1 Oct, $355.81) | Robinhood Chain mainnet | [0xd01d…2936](https://robinhoodchain.blockscout.com/tx/0xd01d8da478c7942bd00802389a88c738d090558dc9f13a5b1212f3f6797a2936) |
+| Settled a second stock on mainnet (EWY, 2 Oct, $191.57) | Robinhood Chain mainnet | [0xbd43…0c41](https://robinhoodchain.blockscout.com/tx/0xbd43cfe99ea835c667fe324e0590001f3a2f669e459fc7498ba62c31323f0c41) |
+| A keeper renewed a standing order without the holder signing ($11.52, position #2) | Robinhood Chain mainnet | [0xa0b8…59ae](https://robinhoodchain.blockscout.com/tx/0xa0b873406c323a81d3a903cbb643daa19049074c1b88fc7cd1c045e6258c59ae) |
+| Vault settled on Pyth's first print after the open (TSLA, 2 Oct, $360.08) | Solana devnet | [2PUU…rUst](https://explorer.solana.com/tx/2PUUr6GP3EQGB4VjTq4D5YcauBDvdXXD3DV1H3NEN65aJ6n7TQ76bC57yVfhdoBBw2zpiueykywAm5FcKg8YrUst?cluster=devnet) |
+| QQQ (the Nasdaq-100) settled (2 Oct, $751.33) | Solana devnet | [pBJE…Lfxi](https://explorer.solana.com/tx/pBJEXDW4jXnh673844fNcXXe5mwVwY4fhomgekmhcBEyR128uHEoSZG4eEX8KGCFqkpQa1JeFZyKUppy6JpfLxi?cluster=devnet) |
+| Protection bought privately: the premium as a confidential transfer | Solana devnet | [Kku9…kNe5](https://explorer.solana.com/tx/Kku9m8HqTTi222PeVnK1GNK8tBZBYJhbrkdZVibZeSJ4t6T6vnxepcHGTi9UmUrczPDewo5UyFu7WwByaTkqNe5?cluster=devnet) |
+| The contracts | both | [Robinhood vault](https://robinhoodchain.blockscout.com/address/0xbd619a58F5D3f4573774aD67105E299a5b9d9Ab5), [renewer](https://robinhoodchain.blockscout.com/address/0x710Df188d43F6778E84C83025ee589c292544627), [Solana program](https://explorer.solana.com/address/J6n3JUafVkx4MpKTnAnZSwTcGFueRrjxgiXWMC4L7RGG?cluster=devnet) |
+
+So far (3 Oct): 9 openings settled across both chains, 15 positions sold, 1 automatic renewal. **Not yet shown:** every buyer so far is one of our own wallets, and the current vaults have no hedge trade on record yet.
 
 ## Status
 

@@ -15,11 +15,16 @@ import { solanaLedger } from "./ledger";
 
 export type Proof = { label: string; detail: string; href: string };
 
+/** One opening across both chains: what was covered, what it took in and what it paid. */
+export type Night = { openTs: number; day: string; symbols: string[]; positions: number; premiums: number; paid: number };
+
 export type VerifyView = {
   counts: { openings: number; positions: number; wallets: number; outside: number; paid: number; renewals: number; hedgeTrades: number };
   /** When outside buyers start counting. */
   campaignOpen: number;
   settlements: Proof[];
+  /** Every settled opening, newest first. */
+  nights: Night[];
   renewals: Proof[];
   hedge: Proof[];
   privacy: Proof[];
@@ -92,6 +97,18 @@ async function load(): Promise<VerifyView> {
       };
     });
 
+  const byNight = new Map<string, Night>();
+  for (const r of [...solana, ...evmLedger].filter((r) => r.state === "settled")) {
+    const day = nyDay(r.openTs);
+    const n = byNight.get(day) ?? { openTs: r.openTs, day, symbols: [], positions: 0, premiums: 0, paid: 0 };
+    if (!n.symbols.includes(r.symbol)) n.symbols.push(r.symbol);
+    n.positions += r.sales;
+    n.premiums += r.premiums;
+    n.paid += r.paid;
+    byNight.set(day, n);
+  }
+  const nights = [...byNight.values()].sort((a, b) => b.openTs - a.openTs);
+
   const renewals: Proof[] = renewedLogs.map((l) => ({
     label: `${dollars(Number(l.args.premium) / 1e6)}, position #${l.args.positionId}, for the ${nyDay(Number(l.args.openTs))} open`,
     detail: `Bought by the renewer for ${l.args.holder!.slice(0, 6)}…${l.args.holder!.slice(-4)} within their standing order; the NFT went to them`,
@@ -148,6 +165,7 @@ async function load(): Promise<VerifyView> {
     },
     campaignOpen: FIRST_CAMPAIGN_OPEN,
     settlements,
+    nights,
     renewals,
     hedge: hedgeProofs,
     privacy,

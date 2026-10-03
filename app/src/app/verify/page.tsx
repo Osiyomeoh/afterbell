@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 
 import { Stat, Stats } from "@/components/Stats";
 import { nyTime, usd } from "@/lib/format";
-import { verifyView, type Proof } from "@/server/verify";
+import { verifyView, type Night, type Proof } from "@/server/verify";
 
 export const dynamic = "force-dynamic";
 
@@ -52,6 +52,7 @@ export default async function VerifyPage() {
         </Stats>
       </div>
 
+      <Nights nights={v.nights} />
       <Proofs title="Settlements" intro="Each opening a vault settled, on the oracle's price at the open, and what it paid." proofs={v.settlements} />
       <Proofs
         title="Automatic renewals"
@@ -93,6 +94,41 @@ function Proofs({ title, intro, proofs }: { title: string; intro: string; proofs
           ))}
         </ul>
       )}
+    </section>
+  );
+}
+
+/** Night by night: each opening covered, what holders paid for it and what the vaults paid back at the bell. */
+function Nights({ nights }: { nights: Night[] }) {
+  if (nights.length === 0) return null;
+  return (
+    <section className="mt-10">
+      <h2 className="font-medium">Night by night</h2>
+      <p className="mt-1 max-w-3xl text-sm text-muted">Every opening the vaults have settled, both chains together. Also at /api/verify as JSON.</p>
+      <div className="mt-3 overflow-x-auto rounded-2xl border border-line bg-surface">
+        <table className="w-full text-sm">
+          <thead className="text-left text-xs text-muted">
+            <tr>
+              <th className="px-4 py-2 font-normal">Open</th>
+              <th className="px-4 py-2 font-normal">Stocks</th>
+              <th className="px-4 py-2 text-right font-normal">Positions</th>
+              <th className="px-4 py-2 text-right font-normal">Premiums</th>
+              <th className="px-4 py-2 text-right font-normal">Paid out</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-line">
+            {nights.map((n) => (
+              <tr key={n.day}>
+                <td className="px-4 py-2 whitespace-nowrap">{n.day}</td>
+                <td className="px-4 py-2">{n.symbols.join(", ")}</td>
+                <td className="px-4 py-2 text-right tabular-nums">{n.positions}</td>
+                <td className="px-4 py-2 text-right tabular-nums">{usd(n.premiums)}</td>
+                <td className="px-4 py-2 text-right tabular-nums">{usd(n.paid)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </section>
   );
 }
