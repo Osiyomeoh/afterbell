@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 
 import { Stat, Stats } from "@/components/Stats";
 import { nyTime, usd } from "@/lib/format";
-import { verifyView, type Night, type Proof } from "@/server/verify";
+import { verifyView, type Book, type Night, type Proof } from "@/server/verify";
 
 export const dynamic = "force-dynamic";
 
@@ -59,6 +59,7 @@ export default async function VerifyPage() {
         intro="Protection a keeper bought for a holder's standing order on Robinhood Chain, within the order's price cap, without the holder signing."
         proofs={v.renewals}
       />
+      {v.book && <BookTable book={v.book} />}
       <Proofs title="The hedge" intro="The short the open protection calls for, traded through the night and bought back at the bell." proofs={v.hedge} />
       <Proofs
         title="Private protection"
@@ -126,6 +127,41 @@ function Nights({ nights }: { nights: Night[] }) {
                 <td className="px-4 py-2 text-right tabular-nums">{usd(n.paid)}</td>
               </tr>
             ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+/** Premiums against payouts and the hedge, over the hedge's window. */
+function BookTable({ book }: { book: Book }) {
+  const rows: [string, number][] = [
+    ["Premiums taken", book.premiums],
+    ["Paid out at the bell", -book.paid],
+    ["Hedge, closed P&L", book.hedgePnl],
+    ["Hedge, trading fees", -book.fees],
+    ["Hedge, funding", book.funding],
+  ];
+  return (
+    <section className="mt-10">
+      <h2 className="font-medium">Payouts against the hedge</h2>
+      <p className="mt-1 max-w-3xl text-sm text-muted">
+        Openings since {nyTime(book.since)} on both chains, next to the TSLA short on Hyperliquid over the same window. The short covers TSLA only.
+      </p>
+      <div className="mt-3 max-w-md overflow-x-auto rounded-2xl border border-line bg-surface">
+        <table className="w-full text-sm">
+          <tbody className="divide-y divide-line">
+            {rows.map(([label, value]) => (
+              <tr key={label}>
+                <td className="px-4 py-2">{label}</td>
+                <td className="px-4 py-2 text-right tabular-nums">{usd(value)}</td>
+              </tr>
+            ))}
+            <tr className="font-medium">
+              <td className="px-4 py-2">Net</td>
+              <td className="px-4 py-2 text-right tabular-nums">{usd(book.net)}</td>
+            </tr>
           </tbody>
         </table>
       </div>

@@ -18,6 +18,9 @@ export type Proof = { label: string; detail: string; href: string };
 /** One opening across both chains: what was covered, what it took in and what it paid. */
 export type Night = { openTs: number; day: string; symbols: string[]; positions: number; premiums: number; paid: number };
 
+/** The book over the hedge's window: premiums in, payouts out, and what the TSLA short made or lost. */
+export type Book = { since: number; premiums: number; paid: number; hedgePnl: number; fees: number; funding: number; net: number };
+
 export type VerifyView = {
   counts: { openings: number; positions: number; wallets: number; outside: number; paid: number; renewals: number; hedgeTrades: number };
   /** When outside buyers start counting. */
@@ -27,6 +30,8 @@ export type VerifyView = {
   nights: Night[];
   renewals: Proof[];
   hedge: Proof[];
+  /** Null until the hedge account reports. */
+  book: Book | null;
   privacy: Proof[];
   contracts: Proof[];
 };
@@ -153,6 +158,21 @@ async function load(): Promise<VerifyView> {
       : []),
   ];
 
+  const window = activity ? nights.filter((n) => n.openTs >= activity.since) : [];
+  const premiums = window.reduce((t, n) => t + n.premiums, 0);
+  const paidOut = window.reduce((t, n) => t + n.paid, 0);
+  const book: Book | null = activity
+    ? {
+        since: activity.since,
+        premiums,
+        paid: paidOut,
+        hedgePnl: activity.closedPnl,
+        fees: activity.fees,
+        funding: activity.funding,
+        net: premiums - paidOut + activity.closedPnl - activity.fees + activity.funding,
+      }
+    : null;
+
   return {
     counts: {
       openings: settlements.length,
@@ -168,6 +188,7 @@ async function load(): Promise<VerifyView> {
     nights,
     renewals,
     hedge: hedgeProofs,
+    book,
     privacy,
     contracts,
   };
