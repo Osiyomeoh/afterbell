@@ -1,0 +1,23 @@
+name: audit
+
+# Recomputes every payout on both chains from on-chain state and fails on any mismatch.
+# Read-only: public RPCs, no secrets.
+on:
+  schedule:
+    # After the keeper's last settle run.
+    - cron: "0 18 * * 1-5"
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  payouts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run audit
