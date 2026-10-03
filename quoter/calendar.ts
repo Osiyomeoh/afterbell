@@ -133,3 +133,15 @@ export function sessionsFrom(fromIso: string, now: number, holidays: ReadonlySet
   }
   return out;
 }
+
+/** The next `count` closes after `now`, each trading day's 16:00 ET or early close. */
+export function upcomingCloses(now: number, count: number, holidays: ReadonlySet<string> = new Set(), earlyCloses: EarlyCloses = new Map()): SessionTimes[] {
+  const out: SessionTimes[] = [];
+  for (let day = 0; out.length < count && day < count * 2 + 14; day++) {
+    const date = nyDate(now + day * 86_400);
+    if (!isTradingDay(date, holidays)) continue;
+    const closeTs = closeOf(date, earlyCloses);
+    if (closeTs > now) out.push({ date: isoDate(date), openTs: nyTimestamp(date, 9, 30), closeTs });
+  }
+  return out;
+}

@@ -38,6 +38,9 @@ export function Footer() {
           <Link className="whitespace-nowrap hover:text-text" href="/verify">
             Verify
           </Link>
+          <a className="whitespace-nowrap hover:text-text" href="/calendar.ics" title="A reminder 30 minutes before each close, holidays included">
+            Pre-close alert
+          </a>
           <Link className="whitespace-nowrap hover:text-text" href="/private">
             Private protection
           </Link>
