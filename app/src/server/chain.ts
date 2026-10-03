@@ -12,7 +12,7 @@ import type { Sale } from "@/lib/team";
 
 import { SOLANA_DEPLOYMENT, type SolanaV2Deployment } from "./deployment";
 import type { LedgerRow } from "./ledger";
-import type { HistoryRow, PoolState, PositionRow, SeriesRow, VaultState } from "./vaultTypes";
+import type { HistoryRow, PoolState, PositionRow, SeriesRow, VaultState, AuditRow } from "./vaultTypes";
 
 export const RPC = process.env.SOLANA_RPC || process.env.NEXT_PUBLIC_SOLANA_RPC || "https://api.devnet.solana.com";
 
@@ -31,7 +31,7 @@ export const readOnly = {
 
 /** Every sale, paid or not, with the wallet that bought it: for counting buyers. */
 type WithSales = { sales: Sale[] };
-type SolanaVaultState = VaultState & WithSales & { history: HistoryRow[] } & { ledger: LedgerRow[]; pool: PoolState };
+type SolanaVaultState = VaultState & WithSales & { history: HistoryRow[]; audit: AuditRow[] } & { ledger: LedgerRow[]; pool: PoolState };
 
 type Num = { toString(): string };
 const big = (x: Num) => BigInt(x.toString());
@@ -200,6 +200,7 @@ async function load(d: SolanaV2Deployment): Promise<SolanaVaultState> {
     locked: money(b.locked),
     series: seriesRows,
     positions: rows.filter((r) => !r.closed).map((r) => r.row),
+    audit: rows.map((r) => ({ ...r.row, paid: r.closed ? money(r.paid) : null, forfeited: r.forfeited })),
     history: rows.map((r) => ({
       chain: "solana" as const,
       address: r.row.address,

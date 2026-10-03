@@ -1,7 +1,7 @@
 # Afterbell
 
 [![CI](https://github.com/Osiyomeoh/afterbell/actions/workflows/ci.yml/badge.svg)](https://github.com/Osiyomeoh/afterbell/actions/workflows/ci.yml)
-![Tests](https://img.shields.io/badge/tests-348%20TS%20%C2%B7%2086%20Foundry%20%C2%B7%2065%20Rust-2ea44f)
+![Tests](https://img.shields.io/badge/tests-353%20TS%20%C2%B7%2086%20Foundry%20%C2%B7%2065%20Rust-2ea44f)
 ![Contract coverage](https://img.shields.io/badge/contract%20coverage-98%25%20lines-2ea44f)
 ![Slither](https://img.shields.io/badge/Slither-0%20open%20findings-2ea44f)
 ![Secret scan](https://img.shields.io/badge/gitleaks-clean-2ea44f)
@@ -85,6 +85,7 @@ Full tables: [research/results/tsla-weekend-proof.md](research/results/tsla-week
 npm install
 npm test                          # unit tests
 npm run proof                     # Hyperliquid vs Pyth on every TSLA opening
+npm run audit                     # recompute every live payout on both chains from its terms and the oracle price; fails on any mismatch
 npx tsx research/proof-multi.ts   # six markets, Hyperliquid prices only
 npx tsx research/chainlink.ts     # Chainlink's TSLA feed on Robinhood Chain vs Pyth's open
 npx tsx pricing/report.ts         # protection backtest on every TSLA opening

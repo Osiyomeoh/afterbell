@@ -74,5 +74,8 @@ export type VaultState = {
   positions: PositionRow[];
 };
 
+/** A position with what it paid, for recomputing payouts (paid null until paid). */
+export type AuditRow = PositionRow & { paid: number | null; forfeited: boolean };
+
 /** A position in a wallet's history, with the wallet that bought it. */
 export type HistoryRow = import("@/lib/api").HistoryRow & { buyer: string };

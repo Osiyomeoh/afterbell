@@ -7,6 +7,7 @@
     "coverage": "vitest run --coverage",
     "e2e": "playwright test",
     "proof": "tsx research/proof.ts",
+    "audit": "tsx --tsconfig app/tsconfig.json app/scripts/audit.ts",
     "typecheck": "tsc --noEmit",
     "solana:idl": "cp solana/target/idl/afterbell_vault.json solana/target/types/afterbell_vault.ts solana/client/idl/",
     "solana:setup": "tsx solana/scripts/setup.ts",

@@ -7,12 +7,12 @@ import { claimUnits } from "@root/solana/keeper/plan";
 
 import type { Sale } from "@/lib/team";
 
-import type { HistoryRow, PoolState, PositionRow, SeriesRow, VaultState } from "./vaultTypes";
+import type { HistoryRow, PoolState, PositionRow, SeriesRow, VaultState, AuditRow } from "./vaultTypes";
 import { evmDeployment } from "./evmDeployment";
 import type { LedgerRow } from "./ledger";
 
 /** `sales`: every sale with the wallet that bought it (the renewer, for a renewal). */
-type EvmVaultState = VaultState & { history: HistoryRow[] } & { ledger: LedgerRow[]; pool: PoolState; sales: Sale[] };
+type EvmVaultState = VaultState & { history: HistoryRow[]; audit: AuditRow[] } & { ledger: LedgerRow[]; pool: PoolState; sales: Sale[] };
 
 // The contract's SeriesState enum, in order.
 const STATES = ["open", "settled", "voided"] as const;
@@ -182,6 +182,7 @@ async function load(d: EvmDeployment): Promise<EvmVaultState> {
     locked: money(locked),
     series,
     positions: rows.filter((r) => !r.p.closed).map((r) => r.row),
+    audit: rows.map((r) => ({ ...r.row, paid: r.p.closed ? money(r.p.paid) : null, forfeited: false })),
     history: rows.map((r) => ({
       chain: "robinhood" as const,
       address: r.row.address,
