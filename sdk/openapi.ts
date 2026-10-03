@@ -173,6 +173,15 @@ const paths = {
       responses: { 200: json({ type: "object" }), 400: refused, 503: refused },
     },
   },
+  "/api/kamino/cover": {
+    get: {
+      summary: "Auto-cover for a wallet's Kamino loans: protection that repays what a liquidating opening pushes over the limit",
+      description:
+        "For each loan: protection on each stock starting at the opening that makes the loan liquidatable, on its value times the liquidation threshold, so the payout matches the shortfall down to 10% further; and what it costs until the next open. Loans the stocks can't liquidate within 50%, or that are liquidatable already, are skipped with a reason.",
+      parameters: [query("wallet", "A Solana wallet", true)],
+      responses: { 200: json({ type: "object" }), 400: refused, 503: refused },
+    },
+  },
   "/api/overnight": { get: { summary: "The stock's price since the close, against its protection", parameters: [symbol], responses: { 200: json({ type: "object" }), 404: refused, 503: refused } } },
   "/api/hedge": { get: { summary: "The hedge on Hyperliquid: the short the open protection calls for, the short held, and its trades", responses: { 200: json({ type: "object" }), 503: refused } } },
   "/api/verify": { get: { summary: "Every settlement, renewal, hedge trade and private payment, each with its transaction, and the record night by night", responses: { 200: json({ type: "object" }), 503: refused } } },
