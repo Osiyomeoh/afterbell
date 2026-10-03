@@ -1,0 +1,31 @@
+[package]
+name = "cover-desk"
+version = "0.1.0"
+description = "An example program that buys Afterbell protection from its own code: a desk PDA holds the cover"
+edition = "2021"
+rust-version = "1.89.0"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "cover_desk"
+
+[features]
+default = []
+cpi = ["no-entrypoint"]
+no-entrypoint = []
+no-log-ix-name = []
+idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build", "afterbell-vault/idl-build"]
+anchor-debug = []
+custom-heap = []
+custom-panic = []
+
+[dependencies]
+anchor-lang = "1.2.0"
+anchor-spl = "1.2.0"
+afterbell-vault = { path = "../../programs/afterbell-vault", features = ["cpi"] }
+
+# Its own workspace: in Afterbell's, the `cpi` feature would build the vault without its entrypoint.
+[workspace]
+
+[profile.release]
+overflow-checks = true
