@@ -44,6 +44,9 @@ export function Footer() {
           <Link className="whitespace-nowrap hover:text-text" href="/private">
             Private protection
           </Link>
+          <Link className="whitespace-nowrap hover:text-text" href="/backtest">
+            Backtest
+          </Link>
           <Link className="whitespace-nowrap hover:text-text" href="/status">
             Status
           </Link>

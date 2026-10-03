@@ -2,6 +2,7 @@ import { Connection, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import type { Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
+import { evmChain } from "@root/evm/client/vault";
 import { DEFAULT_BAND } from "@root/hedger/target";
 
 import { explorer, nyTime } from "@/lib/format";
@@ -39,7 +40,7 @@ export async function statusReport(now = Math.floor(Date.now() / 1000)): Promise
     run("Robinhood Chain keeper", async () => {
       const s = evmVaultState();
       if (!s) return { state: "warn", detail: "The Robinhood Chain vault isn't deployed here." };
-      return keeper((await s).ledger, now, EVM_GRACE_SECS, VOIDABLE_AFTER_SECS);
+      return keeper((await s).ledger, now, EVM_GRACE_SECS, VOIDABLE_AFTER_SECS, (tx) => `${evmChain(evmDeployment()!).blockExplorers?.default.url}/tx/${tx}`);
     }),
     run("Hedge on Hyperliquid", () => hedge(now)),
     run("Quotes on Solana", async () => solanaQuotes()),
@@ -79,7 +80,13 @@ async function hedge(now: number): Promise<Omit<Check, "name">> {
   const band = Math.max(DEFAULT_BAND.minShares, DEFAULT_BAND.minNotional / h.mid);
   const rebalancing = lastTrade !== undefined && now - lastTrade < REBALANCE_GRACE_SECS;
   const state: CheckState = off <= band || rebalancing ? "ok" : "warn";
-  return { state, detail: `Short ${held.toFixed(3)} ${h.symbol} against a target of ${h.target.toFixed(3)} on ${h.network}.${traded}` };
+  const lag = off > band ? ` ${off.toFixed(3)} off target.` : "";
+  const site = h.network === "mainnet" ? "hyperliquid.xyz" : "hyperliquid-testnet.xyz";
+  return {
+    state,
+    detail: `Short ${held.toFixed(3)} ${h.symbol} against a target of ${h.target.toFixed(3)} on ${h.network}.${lag}${traded}`,
+    href: `https://app.${site}/explorer/address/${h.account.address}`,
+  };
 }
 
 function solanaQuotes(): Omit<Check, "name"> {
