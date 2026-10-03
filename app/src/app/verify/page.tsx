@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { Metadata } from "next";
 
 import { Stat, Stats } from "@/components/Stats";
@@ -119,8 +120,12 @@ function Nights({ nights }: { nights: Night[] }) {
           </thead>
           <tbody className="divide-y divide-line">
             {nights.map((n) => (
-              <tr key={n.day}>
-                <td className="px-4 py-2 whitespace-nowrap">{n.day}</td>
+              <tr key={n.openTs}>
+                <td className="px-4 py-2 whitespace-nowrap">
+                  <Link href={`/night/${n.openTs}`} className="text-brass hover:underline">
+                    {n.day}
+                  </Link>
+                </td>
                 <td className="px-4 py-2">{n.symbols.join(", ")}</td>
                 <td className="px-4 py-2 text-right tabular-nums">{n.positions}</td>
                 <td className="px-4 py-2 text-right tabular-nums">{usd(n.premiums)}</td>
