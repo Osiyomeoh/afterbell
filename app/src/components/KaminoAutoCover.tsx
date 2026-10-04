@@ -37,6 +37,7 @@ export function KaminoAutoCover({ vault }: { vault: Where | null }) {
   const [nights, setNights] = useState<number>(NIGHT_OPTIONS[0]);
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [sample, setSample] = useState(false);
 
   const owner = wallet?.publicKey.toBase58();
 
@@ -52,7 +53,7 @@ export function KaminoAutoCover({ vault }: { vault: Where | null }) {
     if (!owner) return setData(null);
     let live = true;
     setData(null);
-    fetch(`/api/kamino/cover?wallet=${owner}`, { cache: "no-store" })
+    fetch(sample ? "/api/kamino/cover?sample=1" : `/api/kamino/cover?wallet=${owner}`, { cache: "no-store" })
       .then(async (r) => {
         const body = await r.json();
         if (!r.ok) throw new Error(body.error ?? `request failed (${r.status})`);
@@ -63,7 +64,7 @@ export function KaminoAutoCover({ vault }: { vault: Where | null }) {
     return () => {
       live = false;
     };
-  }, [owner]);
+  }, [owner, sample]);
 
   useEffect(() => {
     if (where) refreshOrders(where.vault);
@@ -148,9 +149,23 @@ export function KaminoAutoCover({ vault }: { vault: Where | null }) {
       ) : "error" in data ? (
         <p className="mt-4 text-sm text-muted">Couldn&apos;t read your loans: {data.error}</p>
       ) : data.covers.length === 0 ? (
-        <p className="mt-4 text-sm text-muted">This wallet has no Kamino loans.</p>
+        <div className="mt-4 text-sm text-muted">
+          <p>This wallet has no Kamino loans.</p>
+          <button className="mt-2 text-brass hover:underline" onClick={() => setSample(true)}>
+            Try it on a sample loan →
+          </button>
+        </div>
       ) : (
         <>
+          {sample && (
+            <p className="mt-4 text-sm text-muted">
+              A made-up loan, not read from Kamino: $3,000 of TSLA and $2,000 of NVDA, $3,150 borrowed. The orders it sets are real, on devnet test
+              money, in your wallet.{" "}
+              <button className="text-brass hover:underline" onClick={() => setSample(false)}>
+                Back to your loans
+              </button>
+            </p>
+          )}
           <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
             <span className="text-muted">Run for</span>
             {NIGHT_OPTIONS.map((n) => (
