@@ -2,9 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { DataTable } from "@/components/DataTable";
+import { KaminoAutoCover } from "@/components/KaminoAutoCover";
 import { LoanForm, LoanResults } from "@/components/KaminoLoans";
 import { Stat, Stats } from "@/components/Stats";
 import { dayLabel, nyTime, pct, usd } from "@/lib/format";
+import { SOLANA_DEPLOYMENT } from "@/server/deployment";
 import { kaminoView } from "@/server/kamino";
 import { kaminoLoans } from "@/server/kaminoLoans";
 
@@ -53,6 +55,9 @@ export default async function KaminoPage({ searchParams }: { searchParams: Promi
       )}
     </section>
   );
+  const autoCover = (
+    <KaminoAutoCover vault={SOLANA_DEPLOYMENT && { vault: SOLANA_DEPLOYMENT.vault, collateralMint: SOLANA_DEPLOYMENT.collateralMint }} />
+  );
 
   if (!viewResult.ok) {
     return (
@@ -62,6 +67,7 @@ export default async function KaminoPage({ searchParams }: { searchParams: Promi
           <p className="mt-3 text-muted">Couldn&apos;t read Kamino&apos;s markets right now: {viewResult.error}</p>
         </section>
         {loanCheck}
+        {autoCover}
       </>
     );
   }
@@ -89,6 +95,7 @@ export default async function KaminoPage({ searchParams }: { searchParams: Promi
       </Stats>
 
       {loanCheck}
+      {autoCover}
 
       <LiquidationMap map={view.liquidationMap} />
 

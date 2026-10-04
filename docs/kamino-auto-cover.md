@@ -34,7 +34,7 @@ Loans are skipped, with a reason, when:
 | Standing orders a keeper renews within a price cap | Built (Solana `order`, `solana/keeper/renew.ts`) |
 | Re-sizing an order to the loan each night | Built in the program (`set_sizer` / `remove_sizer` / `resize_order`, 6 tests in `tests/sizer.rs`); the keeper re-sizes before quoting through `renewOrders({ sizeFor })`. The holder names a sizer key and bounds (most shares, shallowest start, deepest depth); the premium cap and allowance stay the holder's. Not yet on devnet: needs a program upgrade. `kaminoSizer` (`solana/keeper/kaminoSize.ts`) reads the holder's own cover from `/api/kamino/cover` and turns its lines into shares at the reference price. |
 | Paying toward the loan | **To build.** Today the payout goes to the holder's wallet. Next: an option to settle into a Kamino `repay` for the obligation, in the same transaction as the claim. |
-| Opt-in page | **To build.** On `/kamino`: connect a wallet, see its cover and price, set an order (cap, end date). Only the connected wallet's loans are shown. |
+| Opt-in page | Built (`KaminoAutoCover` on `/kamino#cover`). Connect a wallet, see each loan's gap, cover lines and tonight's price, pick 7/14/30 nights, and set a standing order per stock (cap 1.5× tonight's premium); existing orders listed with a stop. Only the connected wallet is read. Lines over 1,000 shares are skipped and named. Nightly re-sizing waits on the devnet upgrade. |
 | A pooled book | **To build.** Per-stock limits on what the vault sells, so one bad night doesn't drain it. The backtest pays 46¢ per $1 overall, but six stocks pay back more than $1. |
 
 ## Timing risk
@@ -47,6 +47,6 @@ liquidation to wait for the settle, or a keeper that settles and repays in the o
 ## Order of work
 
 1. ~~An order-update instruction, plus a keeper step~~ done, wired to `coverPlan` through `kaminoSizer`; left is the devnet upgrade.
-2. Opt-in UI on `/kamino`, using the connected wallet only.
+2. ~~Opt-in UI on `/kamino`, using the connected wallet only.~~ done.
 3. Claim-and-repay in one transaction.
 4. Per-stock exposure limits in the quoter.
