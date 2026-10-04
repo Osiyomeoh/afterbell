@@ -14,7 +14,7 @@ export async function kaminoCover(wallet: string): Promise<{ wallet: string; cov
 }
 
 /**
- * A made-up loan, marked as such, for trying auto-cover without one: $3,000 of TSLA and $2,000 of NVDA
+ * A made-up loan, marked as such, for trying auto-cover without one: $3,000 of TSLA and $2,000 of QQQ
  * at a 70% liquidation threshold, $3,150 borrowed, so it's liquidatable if both open 10% down.
  */
 export const SAMPLE_LOAN: KaminoLoan & { marketName: string } = {
@@ -26,7 +26,7 @@ export const SAMPLE_LOAN: KaminoLoan & { marketName: string } = {
   depositUsd: 5000,
   stocks: [
     { symbol: "TSLA", usd: 3000 },
-    { symbol: "NVDA", usd: 2000 },
+    { symbol: "QQQ", usd: 2000 },
   ],
 };
 

@@ -16,7 +16,7 @@ import type { LoanCover } from "@/server/kaminoCover";
 const MAX_SHARES_PER_QUOTE = 1000;
 
 type Covers = { wallet: string; covers: LoanCover[]; readAt: number };
-type Where = { vault: string; collateralMint: string };
+type Where = { vault: string; collateralMint: string; sells: string[] };
 
 const errorMessage = (e: unknown) => (e as { shortMessage?: string }).shortMessage ?? (e as Error).message ?? String(e);
 
@@ -78,6 +78,10 @@ export function KaminoAutoCover({ vault }: { vault: Where | null }) {
     const skipped: string[] = [];
     try {
       for (const line of cover.plan.lines) {
+        if (vault && !vault.sells.includes(line.symbol)) {
+          skipped.push(`${line.symbol} (the Solana vault doesn't sell it yet)`);
+          continue;
+        }
         const shares = sharesFor(line, cover);
         if (!shares) {
           skipped.push(`${line.symbol} (no price)`);
@@ -101,7 +105,7 @@ export function KaminoAutoCover({ vault }: { vault: Where | null }) {
         const { order, allowance } = standingOrder({ shares, start, depth: stop, premium: q.priced.premium, openTs: q.priced.openTs, nights });
         setStatus(`Approve ${line.symbol}'s standing order in your wallet…`);
         await protectEveryNightOnSolana(connection, wallet, send, q.solana, { ...order, allowance });
-        setWhere({ vault: q.solana.vault, collateralMint: q.solana.collateralMint });
+        setWhere((w) => ({ vault: q.solana.vault, collateralMint: q.solana.collateralMint, sells: w?.sells ?? [] }));
         done.push(line.symbol);
       }
       setStatus(
@@ -159,7 +163,7 @@ export function KaminoAutoCover({ vault }: { vault: Where | null }) {
         <>
           {sample && (
             <p className="mt-4 text-sm text-muted">
-              A made-up loan, not read from Kamino: $3,000 of TSLA and $2,000 of NVDA, $3,150 borrowed. The orders it sets are real, on devnet test
+              A made-up loan, not read from Kamino: $3,000 of TSLA and $2,000 of QQQ, $3,150 borrowed. The orders it sets are real, on devnet test
               money, in your wallet.{" "}
               <button className="text-brass hover:underline" onClick={() => setSample(false)}>
                 Back to your loans

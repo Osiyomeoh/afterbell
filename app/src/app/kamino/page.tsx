@@ -56,7 +56,7 @@ export default async function KaminoPage({ searchParams }: { searchParams: Promi
     </section>
   );
   const autoCover = (
-    <KaminoAutoCover vault={SOLANA_DEPLOYMENT && { vault: SOLANA_DEPLOYMENT.vault, collateralMint: SOLANA_DEPLOYMENT.collateralMint }} />
+    <KaminoAutoCover vault={SOLANA_DEPLOYMENT && { vault: SOLANA_DEPLOYMENT.vault, collateralMint: SOLANA_DEPLOYMENT.collateralMint, sells: Object.keys(SOLANA_DEPLOYMENT.feeds) }} />
   );
 
   if (!viewResult.ok) {
