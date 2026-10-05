@@ -1,10 +1,32 @@
-import { getAccount, getAssociatedTokenAddressSync, getMint, TOKEN_2022_PROGRAM_ID } from "@solana/spl-token";
+import {
+  getAccount,
+  getAssociatedTokenAddressSync,
+  getMint,
+  TOKEN_2022_PROGRAM_ID,
+} from "@solana/spl-token";
 import { Connection, PublicKey } from "@solana/web3.js";
 
 import { stockByFeedId } from "@root/quoter/stocks";
 import type { Card } from "@root/solana/client/art";
-import { assetsFor, bpsOf, maxPayoutUnits, roomLeft, saleRefusal, stakeOf, totalAssets, type RoundLimits } from "@root/solana/client/pool";
-import { feedConfigAddress, getProgram, rateAddress, requestAddress, seriesAddress, token2022Account } from "@root/solana/client/vault";
+import {
+  assetsFor,
+  bpsOf,
+  maxPayoutUnits,
+  roomLeft,
+  saleRefusal,
+  stakeOf,
+  totalAssets,
+  type RoundLimits,
+} from "@root/solana/client/pool";
+import {
+  feedConfigAddress,
+  feedIdBytes,
+  getProgram,
+  rateAddress,
+  requestAddress,
+  seriesAddress,
+  token2022Account,
+} from "@root/solana/client/vault";
 import { claimUnits, type SeriesState } from "@root/solana/keeper/plan";
 
 import { explorer } from "@/lib/format";
@@ -12,15 +34,26 @@ import type { Sale } from "@/lib/team";
 
 import { SOLANA_DEPLOYMENT, type SolanaV2Deployment } from "./deployment";
 import type { LedgerRow } from "./ledger";
-import type { HistoryRow, PoolState, PositionRow, SeriesRow, VaultState, AuditRow } from "./vaultTypes";
+import type {
+  HistoryRow,
+  PoolState,
+  PositionRow,
+  SeriesRow,
+  VaultState,
+  AuditRow,
+} from "./vaultTypes";
 
-export const RPC = process.env.SOLANA_RPC || process.env.NEXT_PUBLIC_SOLANA_RPC || "https://api.devnet.solana.com";
+export const RPC =
+  process.env.SOLANA_RPC ||
+  process.env.NEXT_PUBLIC_SOLANA_RPC ||
+  "https://api.devnet.solana.com";
 
 /**
  * The RPC for another vault's record (v1's): RPC when it's on the current
  * vault's cluster, so SOLANA_RPC covers it too, else the one its record names.
  */
-export const rpcFor = (d: { rpc: string }) => (SOLANA_DEPLOYMENT && d.rpc === SOLANA_DEPLOYMENT.rpc ? RPC : d.rpc);
+export const rpcFor = (d: { rpc: string }) =>
+  SOLANA_DEPLOYMENT && d.rpc === SOLANA_DEPLOYMENT.rpc ? RPC : d.rpc;
 
 /** Reads only; nothing on the server signs with this wallet. */
 export const readOnly = {
@@ -31,14 +64,20 @@ export const readOnly = {
 
 /** Every sale, paid or not, with the wallet that bought it: for counting buyers. */
 type WithSales = { sales: Sale[] };
-type SolanaVaultState = VaultState & WithSales & { history: HistoryRow[]; audit: AuditRow[] } & { ledger: LedgerRow[]; pool: PoolState };
+type SolanaVaultState = VaultState &
+  WithSales & { history: HistoryRow[]; audit: AuditRow[] } & {
+    ledger: LedgerRow[];
+    pool: PoolState;
+  };
 
 type Num = { toString(): string };
 const big = (x: Num) => BigInt(x.toString());
 const hex = (bytes: number[]) => Buffer.from(bytes).toString("hex");
 const stateOf = (s: object) => Object.keys(s)[0] as SeriesState;
 
-type VaultAccount = Awaited<ReturnType<ReturnType<typeof getProgram>["account"]["vault"]["fetch"]>>;
+type VaultAccount = Awaited<
+  ReturnType<ReturnType<typeof getProgram>["account"]["vault"]["fetch"]>
+>;
 
 const books = (v: VaultAccount) => ({
   pendingDepositAssets: big(v.pendingDepositAssets),
@@ -84,30 +123,50 @@ async function load(d: SolanaV2Deployment): Promise<SolanaVaultState> {
   const { connection, program } = reader();
   const vault = new PublicKey(d.vault);
   const byVault = [{ memcmp: { offset: 8, bytes: vault.toBase58() } }];
-  const [v, series, positions, feeds, held, shareMint, orders] = await Promise.all([
-    program.account.vault.fetch(vault),
-    program.account.series.all(byVault),
-    program.account.position.all(byVault),
-    program.account.feedConfig.all(byVault),
-    getAccount(connection, new PublicKey(d.vaultToken)),
-    getMint(connection, new PublicKey(d.shareMint), "confirmed", TOKEN_2022_PROGRAM_ID),
-    program.account.order.all(byVault),
-  ]);
+  const [v, series, positions, feeds, held, shareMint, orders] =
+    await Promise.all([
+      program.account.vault.fetch(vault),
+      program.account.series.all(byVault),
+      program.account.position.all(byVault),
+      program.account.feedConfig.all(byVault),
+      getAccount(connection, new PublicKey(d.vaultToken)),
+      getMint(
+        connection,
+        new PublicKey(d.shareMint),
+        "confirmed",
+        TOKEN_2022_PROGRAM_ID,
+      ),
+      program.account.order.all(byVault),
+    ]);
   // A renewal is bought by the standing order's address on its holder's behalf.
-  const orderHolder = new Map(orders.map((o) => [o.publicKey.toBase58(), o.account.holder.toBase58()]));
+  const orderHolder = new Map(
+    orders.map((o) => [o.publicKey.toBase58(), o.account.holder.toBase58()]),
+  );
   const unit = big(v.collateralUnit);
   const money = (x: bigint) => Number(x) / Number(unit);
   const dollars8 = (x: bigint) => Number(x) / 1e8;
   // Each feed's ticker, as the vault allowed it.
-  const symbols = new Map(feeds.map((f) => [hex(f.account.feedId), f.account.symbol]));
-  const symbolOf = (feedId: number[]) => symbols.get(hex(feedId)) ?? stockByFeedId(hex(feedId))?.symbol ?? `0x${hex(feedId).slice(0, 8)}`;
+  const symbols = new Map(
+    feeds.map((f) => [hex(f.account.feedId), f.account.symbol]),
+  );
+  const symbolOf = (feedId: number[]) =>
+    symbols.get(hex(feedId)) ??
+    stockByFeedId(hex(feedId))?.symbol ??
+    `0x${hex(feedId).slice(0, 8)}`;
 
-  const seriesByKey = new Map(series.map((s) => [s.publicKey.toBase58(), s.account]));
+  const seriesByKey = new Map(
+    series.map((s) => [s.publicKey.toBase58(), s.account]),
+  );
   const rows = positions.map((p) => {
     const a = p.account;
     const s = seriesByKey.get(a.series.toBase58())!;
     const state = stateOf(s.state);
-    const terms = { shares: big(a.shares), upper: big(a.upper), lower: big(a.lower), premium: big(a.premium) };
+    const terms = {
+      shares: big(a.shares),
+      upper: big(a.upper),
+      lower: big(a.lower),
+      premium: big(a.premium),
+    };
     const row: PositionRow = {
       address: p.publicKey.toBase58(),
       series: a.series.toBase58(),
@@ -120,13 +179,21 @@ async function load(d: SolanaV2Deployment): Promise<SolanaVaultState> {
       lower: dollars8(terms.lower),
       premium: money(terms.premium),
       maxPayout: money(big(a.maxPayout)),
-      claimable: state === "open" ? null : money(claimUnits(state, terms, big(s.price), unit)),
+      claimable:
+        state === "open"
+          ? null
+          : money(claimUnits(state, terms, big(s.price), unit)),
       settlementPrice: state === "settled" ? dollars8(big(s.price)) : null,
       art: `/api/position-art/solana/${p.publicKey.toBase58()}/image`,
       mint: a.mint.toBase58(),
     };
     // A position whose NFT was burned before it was paid closes paying no one.
-    return { row, closed: a.closed, paid: big(a.paid), forfeited: a.closed && a.paidTo.equals(PublicKey.default) };
+    return {
+      row,
+      closed: a.closed,
+      paid: big(a.paid),
+      forfeited: a.closed && a.paidTo.equals(PublicKey.default),
+    };
   });
 
   const seriesRows: SeriesRow[] = series
@@ -138,9 +205,12 @@ async function load(d: SolanaV2Deployment): Promise<SolanaVaultState> {
         openTs: s.account.openTs.toNumber(),
         state,
         price: state === "settled" ? dollars8(big(s.account.price)) : null,
-        publishTime: state === "settled" ? s.account.publishTime.toNumber() : null,
+        publishTime:
+          state === "settled" ? s.account.publishTime.toNumber() : null,
         positions: s.account.sold,
-        premiums: rows.filter((r) => r.row.series === s.publicKey.toBase58()).reduce((t, r) => t + r.row.premium, 0),
+        premiums: rows
+          .filter((r) => r.row.series === s.publicKey.toBase58())
+          .reduce((t, r) => t + r.row.premium, 0),
         maxPayouts: money(big(s.account.locked)),
       };
     })
@@ -200,7 +270,11 @@ async function load(d: SolanaV2Deployment): Promise<SolanaVaultState> {
     locked: money(b.locked),
     series: seriesRows,
     positions: rows.filter((r) => !r.closed).map((r) => r.row),
-    audit: rows.map((r) => ({ ...r.row, paid: r.closed ? money(r.paid) : null, forfeited: r.forfeited })),
+    audit: rows.map((r) => ({
+      ...r.row,
+      paid: r.closed ? money(r.paid) : null,
+      forfeited: r.forfeited,
+    })),
     history: rows.map((r) => ({
       chain: "solana" as const,
       address: r.row.address,
@@ -216,7 +290,11 @@ async function load(d: SolanaV2Deployment): Promise<SolanaVaultState> {
       paid: r.closed ? money(r.paid) : null,
       forfeited: r.forfeited,
     })),
-    sales: rows.map((r) => ({ chain: "solana" as const, buyer: r.row.buyer, openTs: r.row.openTs })),
+    sales: rows.map((r) => ({
+      chain: "solana" as const,
+      buyer: r.row.buyer,
+      openTs: r.row.openTs,
+    })),
   };
 }
 
@@ -229,23 +307,51 @@ async function load(d: SolanaV2Deployment): Promise<SolanaVaultState> {
  * A position's purchase and payout transactions: the first that touched its
  * account, and the last once it's closed (the keeper's payout).
  */
-export async function solanaPositionTxs(address: string, closed: boolean): Promise<{ buyTx: string | null; payTx: string | null }> {
-  const sigs = (await reader().connection.getSignaturesForAddress(new PublicKey(address), { limit: 50 })).filter((s) => !s.err);
+export async function solanaPositionTxs(
+  address: string,
+  closed: boolean,
+): Promise<{ buyTx: string | null; payTx: string | null }> {
+  const sigs = (
+    await reader().connection.getSignaturesForAddress(new PublicKey(address), {
+      limit: 50,
+    })
+  ).filter((s) => !s.err);
   const url = (sig?: string) => (sig ? explorer("tx", sig) : null);
-  return { buyTx: url(sigs.at(-1)?.signature), payTx: closed && sigs.length > 1 ? url(sigs[0]?.signature) : null };
+  return {
+    buyTx: url(sigs.at(-1)?.signature),
+    payTx: closed && sigs.length > 1 ? url(sigs[0]?.signature) : null,
+  };
 }
 
-export async function positionsHeldBy(owner: PublicKey): Promise<PositionRow[] | null> {
+export async function positionsHeldBy(
+  owner: PublicKey,
+): Promise<PositionRow[] | null> {
   const state = solanaVaultState();
   if (!state) return null;
   const { connection } = reader();
-  const [s, accounts] = await Promise.all([state, connection.getParsedTokenAccountsByOwner(owner, { programId: TOKEN_2022_PROGRAM_ID }, "confirmed")]);
+  const [s, accounts] = await Promise.all([
+    state,
+    connection.getParsedTokenAccountsByOwner(
+      owner,
+      { programId: TOKEN_2022_PROGRAM_ID },
+      "confirmed",
+    ),
+  ]);
   const held = new Map<string, string>();
   for (const { pubkey, account } of accounts.value) {
-    const info = account.data.parsed.info as { mint: string; tokenAmount: { amount: string } };
+    const info = account.data.parsed.info as {
+      mint: string;
+      tokenAmount: { amount: string };
+    };
     if (info.tokenAmount.amount === "1") held.set(info.mint, pubkey.toBase58());
   }
-  return s.positions.filter((p) => p.mint && held.has(p.mint)).map((p) => ({ ...p, buyer: owner.toBase58(), nftAccount: held.get(p.mint!) }));
+  return s.positions
+    .filter((p) => p.mint && held.has(p.mint))
+    .map((p) => ({
+      ...p,
+      buyer: owner.toBase58(),
+      nftAccount: held.get(p.mint!),
+    }));
 }
 
 /** One underwriter's stake: shares held and their value, what waits for the roll, and what earlier rolls filled. */
@@ -254,14 +360,25 @@ export async function solanaUnderwriter(owner: PublicKey) {
   if (!d) return null;
   const { connection, program } = reader();
   const vault = new PublicKey(d.vault);
-  const balance = (account: PublicKey) => connection.getTokenAccountBalance(account, "confirmed").then((b) => BigInt(b.value.amount), () => 0n);
+  const balance = (account: PublicKey) =>
+    connection.getTokenAccountBalance(account, "confirmed").then(
+      (b) => BigInt(b.value.amount),
+      () => 0n,
+    );
   const [v, request, shares, testUsd, held, shareMint] = await Promise.all([
     program.account.vault.fetch(vault),
     program.account.request.fetchNullable(requestAddress(vault, owner)),
     balance(token2022Account(owner, new PublicKey(d.shareMint))),
-    balance(getAssociatedTokenAddressSync(new PublicKey(d.collateralMint), owner)),
+    balance(
+      getAssociatedTokenAddressSync(new PublicKey(d.collateralMint), owner),
+    ),
     getAccount(connection, new PublicKey(d.vaultToken)),
-    getMint(connection, new PublicKey(d.shareMint), "confirmed", TOKEN_2022_PROGRAM_ID),
+    getMint(
+      connection,
+      new PublicKey(d.shareMint),
+      "confirmed",
+      TOKEN_2022_PROGRAM_ID,
+    ),
   ]);
   const round = big(v.round);
   const r = request && {
@@ -277,15 +394,24 @@ export async function solanaUnderwriter(owner: PublicKey) {
   // A request queued in a round already rolled fills at that roll's rate.
   const rate = (queued: bigint, amount: bigint) =>
     amount > 0n && queued < round
-      ? program.account.roundRate.fetch(rateAddress(vault, queued)).then((x) => ({ assets: big(x.assets), supply: big(x.supply) }))
+      ? program.account.roundRate
+          .fetch(rateAddress(vault, queued))
+          .then((x) => ({ assets: big(x.assets), supply: big(x.supply) }))
       : null;
-  const [deposit, redeem] = r ? await Promise.all([rate(r.depositRound, r.depositAssets), rate(r.redeemRound, r.redeemShares)]) : [null, null];
+  const [deposit, redeem] = r
+    ? await Promise.all([
+        rate(r.depositRound, r.depositAssets),
+        rate(r.redeemRound, r.redeemShares),
+      ])
+    : [null, null];
   const stake = stakeOf(r, round, { deposit, redeem });
   const unit = Number(big(v.collateralUnit));
   const money = (x: bigint) => Number(x) / unit;
   return {
     shares: money(shares),
-    value: money(assetsFor(shares, totalAssets(held.amount, books(v)), shareMint.supply)),
+    value: money(
+      assetsFor(shares, totalAssets(held.amount, books(v)), shareMint.supply),
+    ),
     testUsd: money(testUsd),
     pendingDeposit: money(stake.pendingDeposit),
     pendingRedeemShares: money(stake.pendingRedeemShares),
@@ -302,21 +428,75 @@ export async function solanaUnderwriter(owner: PublicKey) {
  * sure failure. The round sells one opening at a time, and each sale must fit
  * the pool's limits.
  */
-export async function solanaSaleError(q: { feedId: Uint8Array; openTs: bigint; shares: bigint; upper: bigint; lower: bigint }): Promise<string | null> {
+export async function solanaSaleError(q: {
+  feedId: Uint8Array;
+  openTs: bigint;
+  shares: bigint;
+  upper: bigint;
+  lower: bigint;
+}): Promise<string | null> {
   const d = SOLANA_DEPLOYMENT;
   if (!d) return "the Solana vault v2 isn't deployed yet";
   const { program } = reader();
   const vault = new PublicKey(d.vault);
-  const [v, series] = await Promise.all([program.account.vault.fetch(vault), program.account.series.fetchNullable(seriesAddress(vault, q.feedId, q.openTs))]);
+  const [v, series] = await Promise.all([
+    program.account.vault.fetch(vault),
+    program.account.series.fetchNullable(
+      seriesAddress(vault, q.feedId, q.openTs),
+    ),
+  ]);
   const limits = limitsOf(v);
   const unit = big(v.collateralUnit);
   const seriesLocked = series ? big(series.locked) : 0n;
-  const refusal = saleRefusal(limits, seriesLocked, q.openTs, maxPayoutUnits(q.shares, q.upper, q.lower, unit));
+  const refusal = saleRefusal(
+    limits,
+    seriesLocked,
+    q.openTs,
+    maxPayoutUnits(q.shares, q.upper, q.lower, unit),
+  );
   if (!refusal) return null;
-  if (refusal === "wrong-round") return "the pool is still closing out its last opening; it sells the next one once its keeper rolls it";
-  if (limits.roundNav === 0n) return "the pool has no underwriters yet, so it can't sell protection";
+  if (refusal === "wrong-round")
+    return "the pool is still closing out its last opening; it sells the next one once its keeper rolls it";
+  if (limits.roundNav === 0n)
+    return "the pool has no underwriters yet, so it can't sell protection";
   const room = Number(roomLeft(limits, seriesLocked).stock) / Number(unit);
   return `the pool can cover at most $${room.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} more on this stock tonight; try fewer shares or a narrower range`;
+}
+
+/**
+ * How much more the pool can cover tonight on each stock it sells, in dollars: the per-stock limit less what
+ * the round's series for that stock has locked, and never more than the round's own room. Null when the
+ * vault isn't deployed.
+ */
+export async function solanaStockRooms(): Promise<Record<
+  string,
+  number
+> | null> {
+  const d = SOLANA_DEPLOYMENT;
+  if (!d) return null;
+  const { program } = reader();
+  const vault = new PublicKey(d.vault);
+  const v = await program.account.vault.fetch(vault);
+  const limits = limitsOf(v);
+  const unit = Number(big(v.collateralUnit));
+  const entries = await Promise.all(
+    Object.entries(d.feeds).map(
+      async ([symbol, f]): Promise<[string, number]> => {
+        const series =
+          limits.roundOpenTs === 0n
+            ? null
+            : await program.account.series.fetchNullable(
+                seriesAddress(vault, feedIdBytes(f.feedId), limits.roundOpenTs),
+              );
+        return [
+          symbol,
+          Number(roomLeft(limits, series ? big(series.locked) : 0n).stock) /
+            unit,
+        ];
+      },
+    ),
+  );
+  return Object.fromEntries(entries);
 }
 
 /** What a position's NFT shows, read from its accounts; null if it isn't this vault's. */
@@ -328,9 +508,19 @@ export async function positionCard(address: PublicKey): Promise<Card | null> {
   const p = await program.account.position.fetchNullable(address);
   if (!p || !p.vault.equals(vault)) return null;
   const s = await program.account.series.fetch(p.series);
-  const [v, feed] = await Promise.all([program.account.vault.fetch(vault), program.account.feedConfig.fetchNullable(feedConfigAddress(vault, Uint8Array.from(s.feedId)))]);
+  const [v, feed] = await Promise.all([
+    program.account.vault.fetch(vault),
+    program.account.feedConfig.fetchNullable(
+      feedConfigAddress(vault, Uint8Array.from(s.feedId)),
+    ),
+  ]);
   const state = stateOf(s.state);
-  const terms = { shares: big(p.shares), upper: big(p.upper), lower: big(p.lower), premium: big(p.premium) };
+  const terms = {
+    shares: big(p.shares),
+    upper: big(p.upper),
+    lower: big(p.lower),
+    premium: big(p.premium),
+  };
   return {
     number: big(p.number),
     symbol: feed?.symbol ?? stockByFeedId(hex(s.feedId))?.symbol ?? "?",
@@ -339,7 +529,11 @@ export async function positionCard(address: PublicKey): Promise<Card | null> {
     maxPayout: big(p.maxPayout),
     state,
     price: big(s.price),
-    payout: p.closed ? big(p.paid) : state === "settled" ? claimUnits(state, terms, big(s.price), big(v.collateralUnit)) : 0n,
+    payout: p.closed
+      ? big(p.paid)
+      : state === "settled"
+        ? claimUnits(state, terms, big(s.price), big(v.collateralUnit))
+        : 0n,
     closed: p.closed,
     forfeited: p.closed && p.paidTo.equals(PublicKey.default),
   };

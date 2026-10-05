@@ -35,7 +35,7 @@ Loans are skipped, with a reason, when:
 | Re-sizing an order to the loan each night | Built in the program (`set_sizer` / `remove_sizer` / `resize_order`, 6 tests in `tests/sizer.rs`); the keeper re-sizes before quoting through `renewOrders({ sizeFor })`. The holder names a sizer key and bounds (most shares, shallowest start, deepest depth); the premium cap and allowance stay the holder's. Not yet on devnet: needs a program upgrade. `kaminoSizer` (`solana/keeper/kaminoSize.ts`) reads the holder's own cover from `/api/kamino/cover` and turns its lines into shares at the reference price. |
 | Paying toward the loan | **Built, tested locally.** `claimAndRepayInstructions` (solana/client/kamino.ts) puts the vault's `process` for the holder's own position and Kamino's `repay` (from Kamino's SDK) in one transaction. `npm run solana:replay` runs it against Kamino's xStocks market cloned from mainnet: $270.46 paid, and the obligation's USDC debt fell by exactly that. In the app: a Repay Kamino button on My protection (`claimAndRepayKamino`, app/src/lib/claim.ts), shown only when the vault pays mainnet USDC; today's devnet vault pays TestUSD, so it's hidden. |
 | Opt-in page | Built (`KaminoAutoCover` on `/kamino#cover`). Connect a wallet, see each loan's gap, cover lines and tonight's price, pick 7/14/30 nights, and set a standing order per stock (cap 1.5× tonight's premium); existing orders listed with a stop. Only the connected wallet is read. Lines over 1,000 shares are skipped and named. Nightly re-sizing waits on the devnet upgrade. |
-| A pooled book | **To build.** Per-stock limits on what the vault sells, so one bad night doesn't drain it. The backtest pays 46¢ per $1 overall, but six stocks pay back more than $1. |
+| A pooled book | **Per-stock limits: in place.** Both vaults cap what one stock can lock at `maxFeedBps` of the round's pool (20% today) and revert past it; the quote route checks the room before signing. `/kamino` now reads each stock's room tonight (`solanaStockRooms`) and flags a cover line that pays more than it. Still open: different caps per stock (the backtest pays 46¢ per $1 overall, but six stocks pay back more than $1). |
 
 ## Timing risk
 
@@ -50,4 +50,4 @@ liquidation to wait for the settle, or a keeper that settles and repays in the o
 2. ~~Opt-in UI on `/kamino`, using the connected wallet only.~~ done.
 3. ~~A replay of a real gap~~ done: `npm run solana:replay` replays TSLA's worst recorded opening (23 Jul 2026, −8.8%) against a sample loan on a local validator; the vault pays $270.46 against a $266.43 shortfall.
 4. Claim-and-repay in one transaction. Done: the replay, and the button (hidden until a mainnet USDC vault).
-5. Per-stock exposure limits in the quoter.
+5. Per-stock exposure limits: enforced on-chain and before signing; `/kamino` flags lines over a stock's room. Next: caps that differ by stock.
