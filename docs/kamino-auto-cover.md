@@ -48,5 +48,6 @@ liquidation to wait for the settle, or a keeper that settles and repays in the o
 
 1. ~~An order-update instruction, plus a keeper step~~ done, wired to `coverPlan` through `kaminoSizer`; left is the devnet upgrade.
 2. ~~Opt-in UI on `/kamino`, using the connected wallet only.~~ done.
-3. Claim-and-repay in one transaction.
-4. Per-stock exposure limits in the quoter.
+3. ~~A replay of a real gap~~ done: `npm run solana:replay` replays TSLA's worst recorded opening (23 Jul 2026, −8.8%) against a sample loan on a local validator; the vault pays $270.46 against a $266.43 shortfall.
+4. Claim-and-repay in one transaction.
+5. Per-stock exposure limits in the quoter.

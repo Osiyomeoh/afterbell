@@ -14,6 +14,7 @@
     "solana:smoke": "tsx solana/scripts/smoke-buy.ts",
     "solana:keeper": "tsx solana/scripts/keeper.ts",
     "solana:cycle": "tsx solana/scripts/localnet-cycle.ts",
+    "solana:replay": "tsx solana/scripts/gap-replay.ts",
     "solana:local": "tsx solana/scripts/localnet-app.ts",
     "evm:abi": "tsx evm/scripts/abi.ts",
     "evm:keeper": "tsx evm/scripts/keeper.ts",
