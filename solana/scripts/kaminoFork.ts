@@ -1,0 +1,114 @@
+/**
+ * Kamino's xStocks market on a local validator: its lending and farms
+ * programs, the TSLAx and USDC reserves and the accounts they read, copied
+ * from mainnet (read-only) at startup. Two edits make it usable locally:
+ *
+ * - TSLAx's and USDC's mint authority is a local key, so a test can mint
+ *   collateral to deposit and dollars to repay with.
+ * - Scope's prices for the two reserves are stamped later than they were
+ *   read, so they stay within Kamino's maximum price age (180 s for USDC)
+ *   while a test runs. The prices themselves are mainnet's.
+ */
+import { writeFileSync } from "node:fs";
+import { join } from "node:path";
+
+import { PublicKey } from "@solana/web3.js";
+
+export const KLEND = new PublicKey("KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD");
+export const FARMS = new PublicKey("FarmsPZpWu9i7Kky8tPN37rs2TpmMrAZrC7S7vJa91Hr");
+export const XSTOCKS_MARKET = new PublicKey("5wJeMrUYECGq41fxRESKALVcHnNX26TAWy4W98yULsua");
+export const TSLAX_RESERVE = new PublicKey("5iTiczqgUegqA3PpoNpotizMbY9n1sRWr3oL6igKvWuf");
+export const USDC_RESERVE = new PublicKey("97zoywd8mPZsGTg8q1wdD2Wgkdrs2tqusp1Qqcxbyj7E");
+export const TSLAX_MINT = new PublicKey("XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB");
+export const USDC_MINT = new PublicKey("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
+const SCOPE_PRICES = new PublicKey("3t4JZcueEzTbVP6kLxXrL3VpWx45jDer4eqysweBchNH");
+/** The Scope entries the two reserves read: TSLAx price and TWAP, USDC price and TWAP. */
+const SCOPE_INDEXES = [338, 273, 13, 456];
+
+/** Each reserve's vaults, collateral mint and debt farm, as its account on mainnet names them. */
+const RESERVE_ACCOUNTS = [
+  // TSLAx: liquidity supply, collateral supply, collateral mint, fee vault
+  "AvhRUjab47DCo9efnzmDha8xUeQFEs36Yywv1x8t3T2W",
+  "5nFXkYBqkEmKZHFabSiiyjX2XVxUT9jfuUkLFoVTvVk5",
+  "6bZpUNY1qmbvQBgCmfQJUA377X63ATvnpCHYh8hQnfjC",
+  "BBjnJAbKBrA6dfoxB51fa14Pqet6ZRZBU9ai2skU3U3o",
+  // USDC: liquidity supply, collateral supply, collateral mint, fee vault, debt farm
+  "72Gz8BM8vDr5zdeHmFB5A2ptNZYfVgDuw5LDkNwGDdTA",
+  "DWSGoajpT2X7TmnW2uCtfUoKEy8CPoBYnu94ntrpjk44",
+  "69nwLK2t639e2c2ZWmZAbs2HWKZwG4pXVPzBTiEtNmwf",
+  "DPHXY8LbH4cPPAgBDNnrU7B2XwmhWcBZ9wTBi3uZpfh4",
+  "82eHAjSXZEyA3UpBxTjVYXF4QJmAEtLR6kvWXQca7mqd",
+].map((k) => new PublicKey(k));
+/** Where a Reserve's last-update slot sits: after the discriminator and its version. */
+const RESERVE_LAST_UPDATE_SLOT_AT = 8 + 8;
+/** Where a farm's global config sits in its FarmState: after the discriminator and the farm admin. */
+const FARM_GLOBAL_CONFIG_AT = 8 + 32;
+
+const MAINNET = process.env.MAINNET_RPC_URL ?? "https://api.mainnet-beta.solana.com";
+
+type Raw = { data: [string, "base64"]; owner: string; lamports: number; executable: boolean; rentEpoch: number; space: number };
+
+async function rpc<T>(method: string, params: unknown[]): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetch(MAINNET, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }) });
+    const body = (await res.json().catch(() => ({}))) as { result?: T; error?: { message: string } };
+    if (body.result !== undefined) return body.result;
+    if (attempt === 4) throw new Error(`${method}: ${body.error?.message ?? res.status}`);
+    await new Promise((r) => setTimeout(r, 1_500 * (attempt + 1)));
+  }
+}
+
+async function fetchAccounts(keys: PublicKey[]): Promise<Map<string, Raw>> {
+  const { value } = await rpc<{ value: (Omit<Raw, "space"> | null)[] }>("getMultipleAccounts", [keys.map((k) => k.toBase58()), { encoding: "base64" }]);
+  const out = new Map<string, Raw>();
+  value.forEach((a, i) => {
+    if (!a) throw new Error(`${keys[i]!.toBase58()} isn't on mainnet`);
+    out.set(keys[i]!.toBase58(), { ...a, rentEpoch: 0, space: Buffer.from(a.data[0], "base64").length });
+  });
+  return out;
+}
+
+const edit = (a: Raw, f: (data: Buffer) => void) => {
+  const data = Buffer.from(a.data[0], "base64");
+  f(data);
+  a.data = [data.toString("base64"), "base64"];
+};
+
+/**
+ * Writes the accounts into `dir` and returns the validator arguments that load
+ * them, with `mintAuthority` able to mint TSLAx and USDC. Scope's prices are
+ * stamped `freshUntil`: when the test last needs them.
+ */
+export async function kaminoFork(dir: string, freshUntil: number, mintAuthority: PublicKey): Promise<string[]> {
+  const accounts = await fetchAccounts([XSTOCKS_MARKET, TSLAX_RESERVE, USDC_RESERVE, TSLAX_MINT, USDC_MINT, SCOPE_PRICES, ...RESERVE_ACCOUNTS]);
+  for (const a of [...accounts.values()].filter((a) => a.owner === FARMS.toBase58())) {
+    const config = new PublicKey(Buffer.from(a.data[0], "base64").subarray(FARM_GLOBAL_CONFIG_AT, FARM_GLOBAL_CONFIG_AT + 32));
+    for (const [k, v] of await fetchAccounts([config])) accounts.set(k, v);
+  }
+
+  for (const mint of [TSLAX_MINT, USDC_MINT]) {
+    edit(accounts.get(mint.toBase58())!, (d) => {
+      d.writeUInt32LE(1, 0);
+      mintAuthority.toBuffer().copy(d, 4);
+    });
+  }
+  // A local chain starts at slot 0, behind mainnet. Kamino counts slots since each reserve's last
+  // update, so those start at 0 too (accruing a few slots' interest, not mainnet's), and Scope's
+  // prices read as fresh until `freshUntil`.
+  for (const reserve of [TSLAX_RESERVE, USDC_RESERVE]) edit(accounts.get(reserve.toBase58())!, (d) => d.writeBigUInt64LE(0n, RESERVE_LAST_UPDATE_SLOT_AT));
+  // Scope's OraclePrices: discriminator, oracle mappings, then 56-byte dated prices (price 16, slot 8, unix time 8, …).
+  edit(accounts.get(SCOPE_PRICES.toBase58())!, (d) => {
+    for (const i of SCOPE_INDEXES) {
+      d.writeBigUInt64LE(0n, 8 + 32 + 56 * i + 16);
+      d.writeBigUInt64LE(BigInt(freshUntil), 8 + 32 + 56 * i + 24);
+    }
+  });
+
+  const args = ["--url", "mainnet-beta", "--clone-upgradeable-program", KLEND.toBase58(), "--clone-upgradeable-program", FARMS.toBase58()];
+  for (const [key, account] of accounts) {
+    const file = join(dir, `kamino-${key}.json`);
+    writeFileSync(file, JSON.stringify({ pubkey: key, account }));
+    args.push("--account", key, file);
+  }
+  return args;
+}

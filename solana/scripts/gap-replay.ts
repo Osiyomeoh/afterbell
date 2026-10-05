@@ -10,8 +10,15 @@
  * and isn't on Kamino: $10,000 of TSLA at a 70% liquidation threshold with
  * $6,650 borrowed, so it can be liquidated from a 5% gap. A local validator
  * has no Pyth receiver, so the print is a PriceUpdateV2 account preloaded at
- * genesis, as in localnet-cycle.ts. Repaying Kamino from the payout isn't
- * built yet: the payout lands in the borrower's wallet.
+ * genesis, as in localnet-cycle.ts.
+ *
+ * The vault's collateral is USDC, and the borrower also has a real loan on
+ * Kamino's xStocks market, cloned from mainnet (kaminoFork.ts): TSLAx
+ * deposited, USDC borrowed. Once the series settles, the borrower claims the
+ * payout and repays Kamino with it in one transaction. Kamino's prices can't
+ * move during a local run, so the opening's effect on the loan is computed
+ * from the made-up loan; what the cloned loan shows is the payout reaching
+ * Kamino's debt atomically.
  *
  *   npm run solana:replay     (needs solana-test-validator and a built program)
  */
@@ -22,15 +29,17 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import anchor from "@anchor-lang/core";
-import { getAccount, getOrCreateAssociatedTokenAccount, mintTo } from "@solana/spl-token";
+import { address } from "@solana/kit";
+import { getAccount, getAssociatedTokenAddressSync, getOrCreateAssociatedTokenAccount, mintTo, TOKEN_2022_PROGRAM_ID } from "@solana/spl-token";
 import { Connection, Keypair, LAMPORTS_PER_SOL, PublicKey, sendAndConfirmTransaction, Transaction } from "@solana/web3.js";
 
 import { coverPayout, coverPlan, shortfall } from "../../app/src/lib/kaminoCover";
 import type { KaminoLoan } from "../../app/src/lib/kaminoLoan";
 import { signForSolana, type PricedProtection } from "../../quoter/quoter";
 import tslaGaps from "../../research/data/pyth-tsla-gaps.json";
-import { buyInstructions, feedIdBytes, getProgram, PROGRAM_ID, seriesAddress, TSLA_FEED_ID } from "../client/vault";
-import { runKeeper } from "../keeper/keeper";
+import { claimAndRepayInstructions, kaminoInstructions, loadKaminoMarket } from "../client/kamino";
+import { buyInstructions, feedIdBytes, getProgram, holderOf, PROGRAM_ID, seriesAddress, settleInstruction, TSLA_FEED_ID } from "../client/vault";
+import { kaminoFork, TSLAX_MINT, TSLAX_RESERVE, USDC_MINT, USDC_RESERVE, XSTOCKS_MARKET } from "./kaminoFork";
 
 const RPC = "http://127.0.0.1:8899";
 const RECEIVER = new PublicKey("rec2HHDDnjLfj4kE7VyEtFA1HPGQLK33259532cRyHp");
@@ -39,9 +48,9 @@ const USD = 1_000_000n;
 /** The premium in this replay is nominal; the app quotes the real one. */
 const PREMIUM = 5;
 
-const unusedHermes = () => {
-  throw new Error("the replay never calls Hermes");
-};
+/** TSLAx the borrower deposits on Kamino (8 decimals), and the USDC they borrow against it. */
+const TSLAX_DEPOSIT = 30n * 10n ** 8n;
+const BORROWED = 6_000n * USD;
 
 function check(ok: boolean, what: string) {
   if (!ok) throw new Error(`FAILED: ${what}`);
@@ -107,9 +116,11 @@ async function main() {
     }),
   );
 
+  // Kamino, with USDC and TSLAx mintable by the payer and its prices fresh until a minute after the open.
+  const kamino = await kaminoFork(dir, openTs + 60, payer!.publicKey);
   const validator = spawn(
     "solana-test-validator",
-    ["--reset", "--quiet", "--ledger", join(dir, "ledger"), "--bpf-program", PROGRAM_ID.toBase58(), SO, "--account", priceUpdate.toBase58(), accountFile],
+    ["--reset", "--quiet", "--ledger", join(dir, "ledger"), "--bpf-program", PROGRAM_ID.toBase58(), SO, "--account", priceUpdate.toBase58(), accountFile, ...kamino],
     { stdio: "ignore" },
   );
   try {
@@ -119,7 +130,7 @@ async function main() {
         await connection.getVersion();
         break;
       } catch {
-        if (i > 60) throw new Error("the local validator didn't start");
+        if (i > 120) throw new Error("the local validator didn't start");
         await new Promise((r) => setTimeout(r, 1000));
       }
     }
@@ -127,16 +138,30 @@ async function main() {
       await connection.confirmTransaction(await connection.requestAirdrop(k.publicKey, 10 * LAMPORTS_PER_SOL), "confirmed");
     }
 
-    // The vault as on devnet, with 100,000 TestUSD underwritten.
+    // The vault as on devnet, with 100,000 USDC underwritten.
     const deployments = join(dir, "localnet.json");
     execFileSync("npx", ["tsx", "solana/scripts/setup.ts"], {
-      env: { ...process.env, RPC_URL: RPC, ANCHOR_WALLET: payerFile, OUT: deployments, QUOTER: quoter!.publicKey.toBase58() },
+      env: { ...process.env, RPC_URL: RPC, ANCHOR_WALLET: payerFile, OUT: deployments, QUOTER: quoter!.publicKey.toBase58(), MINT: USDC_MINT.toBase58() },
       stdio: "inherit",
     });
     const d = JSON.parse(readFileSync(deployments, "utf8"));
     const vault = new PublicKey(d.vault);
     const mint = new PublicKey(d.collateralMint);
     const program = getProgram(connection, new anchor.Wallet(payer!));
+
+    // The borrower's Kamino loan: TSLAx deposited, USDC borrowed against it.
+    const send = (ixs: Parameters<Transaction["add"]>, signer = borrower!) => sendAndConfirmTransaction(connection, new Transaction().add(...ixs), [signer]);
+    const tslax = (await getOrCreateAssociatedTokenAccount(connection, payer!, TSLAX_MINT, borrower!.publicKey, false, "confirmed", {}, TOKEN_2022_PROGRAM_ID)).address;
+    await mintTo(connection, payer!, TSLAX_MINT, tslax, payer!, TSLAX_DEPOSIT, [], {}, TOKEN_2022_PROGRAM_ID);
+    const owner = { owner: borrower!.publicKey };
+    await send(await kaminoInstructions(connection, await loadKaminoMarket(connection, XSTOCKS_MARKET), "deposit", { ...owner, reserve: TSLAX_RESERVE, amount: TSLAX_DEPOSIT }));
+    await send(await kaminoInstructions(connection, await loadKaminoMarket(connection, XSTOCKS_MARKET), "borrow", { ...owner, reserve: USDC_RESERVE, amount: BORROWED }));
+    const kaminoDebt = async () => {
+      const market = await loadKaminoMarket(connection, XSTOCKS_MARKET);
+      const obligation = await market.getUserVanillaObligation(address(borrower!.publicKey.toBase58()));
+      return obligation.getBorrowByReserve(address(USDC_RESERVE.toBase58()))!.amount.toNumber() / 1e6;
+    };
+    check(true, `the borrower deposited ${Number(TSLAX_DEPOSIT) / 1e8} TSLAx on the cloned Kamino and borrowed ${usd(Number(BORROWED) / 1e6)} USDC`);
 
     // The borrower buys the cover against a signed quote.
     const token = (await getOrCreateAssociatedTokenAccount(connection, payer!, mint, borrower!.publicKey)).address;
@@ -155,19 +180,35 @@ async function main() {
     await sendAndConfirmTransaction(connection, new Transaction().add(...ixs), [borrower!]);
     check(true, `the borrower bought ${shares} shares of cover for ${usd(PREMIUM)} (nominal)`);
 
-    // The open passes; the keeper settles at TSLA's real opening and pays.
+    // The open passes; the keeper settles at TSLA's real opening.
     for (;;) {
       const t = await connection.getBlockTime(await connection.getSlot());
       if (t !== null && t >= openTs + 2) break;
       await new Promise((r) => setTimeout(r, 2000));
     }
-    const before = (await getAccount(connection, token)).amount;
-    await runKeeper({ connection, payer: keeper!, vault, hermes: unusedHermes, postedUpdate: () => priceUpdate, log: (l) => console.log(`    keeper: ${l}`) });
-    const series = await program.account.series.fetch(seriesAddress(vault, feedIdBytes(TSLA_FEED_ID), BigInt(openTs)));
+    const seriesKey = seriesAddress(vault, feedIdBytes(TSLA_FEED_ID), BigInt(openTs));
+    await send([await settleInstruction(program, { vault, series: seriesKey, priceUpdate })], keeper!);
+    const series = await program.account.series.fetch(seriesKey);
     check(series.state.settled !== undefined, `the series settled at ${usd(Number(series.price.toString()) / 1e8)}, TSLA's opening on ${worst.to}`);
-    const paid = Number((await getAccount(connection, token)).amount - before) / 1e6;
+
+    // The borrower claims the payout and repays Kamino with it, in one transaction.
+    const [position] = await program.account.position.all([{ memcmp: { offset: 8, bytes: vault.toBase58() } }]);
+    const nft = (await holderOf(connection, position!.account.mint))!;
     const expected = shares * (upper - worst.open);
-    check(Math.abs(paid - expected) < 0.01, `the vault paid the borrower ${usd(paid)}: ${shares} × (${usd(upper)} − ${usd(worst.open)})`);
+    const repay = BigInt(Math.round(expected * 1e6));
+    const [walletBefore, debtBefore] = [(await getAccount(connection, token)).amount, await kaminoDebt()];
+    const claimAndRepay = await claimAndRepayInstructions(
+      connection,
+      await loadKaminoMarket(connection, XSTOCKS_MARKET),
+      [program, { keeper: borrower!.publicKey, vault, series: seriesKey, collateralMint: mint, keeperToken: token, payees: [{ position: position!.publicKey, nftAccount: nft.account, payeeToken: getAssociatedTokenAddressSync(mint, nft.owner) }] }],
+      { ...owner, reserve: USDC_RESERVE, repay },
+    );
+    await send(claimAndRepay);
+    const debtAfter = await kaminoDebt();
+    const paid = debtBefore - debtAfter;
+    check(Math.abs(paid - expected) < 0.01, `in one transaction, the vault paid ${usd(expected)} (${shares} × (${usd(upper)} − ${usd(worst.open)})) and Kamino's debt fell from ${usd(debtBefore)} to ${usd(debtAfter)}`);
+    const kept = Number((await getAccount(connection, token)).amount - walletBefore) / 1e6;
+    check(kept >= 0 && kept < 1, `the wallet kept only the ${usd(kept)} tip the vault pays whoever processes a series`);
     check(paid >= short, `which covers the ${usd(short)} the opening put the loan over its limit`);
     check(Math.abs(coverPayout(plan.lines, drop) - short) < 0.01, "auto-cover's sizing pays exactly the shortfall before rounding to whole shares");
 
@@ -175,7 +216,6 @@ async function main() {
     console.log(`  debt over limit    ${usd(short).padStart(13)}    ${usd(Math.max(0, short - paid)).padStart(10)}  (after repaying with the payout)`);
     console.log(`  liquidatable       ${"yes".padStart(13)}    ${(short - paid > 0 ? "yes" : "no").padStart(10)}`);
     console.log(`  cost of cover      ${usd(0).padStart(13)}    ${usd(PREMIUM).padStart(10)}  (nominal)`);
-    console.log(`\nRepaying Kamino from the payout in the same transaction isn't built yet; here the payout lands in the borrower's wallet.`);
     console.log("PASS");
   } finally {
     validator.kill();
