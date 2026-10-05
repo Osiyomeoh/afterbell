@@ -10,10 +10,31 @@ import {
   PROGRAM_ID as KLEND_PROGRAM_ID,
   VanillaObligation,
 } from "@kamino-finance/klend-sdk";
-import { address, createNoopSigner, createSolanaRpc, type Instruction } from "@solana/kit";
-import { Connection, PublicKey, TransactionInstruction, type AccountMeta } from "@solana/web3.js";
+import {
+  address,
+  createNoopSigner,
+  createSolanaRpc,
+  type Instruction,
+} from "@solana/kit";
+import {
+  Connection,
+  PublicKey,
+  TransactionInstruction,
+  type AccountMeta,
+} from "@solana/web3.js";
 
 import { processInstruction } from "./vault";
+
+/** Kamino's xStocks market (mainnet), where tokenized stocks are lent against, and its USDC. */
+export const XSTOCKS_MARKET = new PublicKey(
+  "5wJeMrUYECGq41fxRESKALVcHnNX26TAWy4W98yULsua",
+);
+export const USDC_RESERVE = new PublicKey(
+  "97zoywd8mPZsGTg8q1wdD2Wgkdrs2tqusp1Qqcxbyj7E",
+);
+export const USDC_MINT = new PublicKey(
+  "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+);
 
 type Action = "deposit" | "borrow" | "repay";
 
@@ -24,13 +45,24 @@ export function toLegacy(ix: Instruction): TransactionInstruction {
     isSigner: (a.role & 2) !== 0,
     isWritable: (a.role & 1) !== 0,
   }));
-  return new TransactionInstruction({ programId: new PublicKey(ix.programAddress), keys, data: Buffer.from(ix.data ?? new Uint8Array()) });
+  return new TransactionInstruction({
+    programId: new PublicKey(ix.programAddress),
+    keys,
+    data: Buffer.from(ix.data ?? new Uint8Array()),
+  });
 }
 
 /** A Kamino market, read through the connection's RPC. */
-export async function loadKaminoMarket(connection: Connection, market: PublicKey): Promise<KaminoMarket> {
+export async function loadKaminoMarket(
+  connection: Connection,
+  market: PublicKey,
+): Promise<KaminoMarket> {
   const rpc = createSolanaRpc(connection.rpcEndpoint);
-  const m = await KaminoMarket.load(rpc as never, address(market.toBase58()), DEFAULT_RECENT_SLOT_DURATION_MS);
+  const m = await KaminoMarket.load(
+    rpc as never,
+    address(market.toBase58()),
+    DEFAULT_RECENT_SLOT_DURATION_MS,
+  );
   if (!m) throw new Error(`no Kamino market at ${market.toBase58()}`);
   return m;
 }
@@ -43,11 +75,16 @@ export async function kaminoInstructions(
   connection: Connection,
   market: KaminoMarket,
   action: Action,
-  { owner, reserve, amount }: { owner: PublicKey; reserve: PublicKey; amount: bigint },
+  {
+    owner,
+    reserve,
+    amount,
+  }: { owner: PublicKey; reserve: PublicKey; amount: bigint },
 ): Promise<TransactionInstruction[]> {
   await market.loadReserves();
   const slot = await connection.getSlot("confirmed");
-  const blockTime = (await connection.getBlockTime(slot)) ?? Math.floor(Date.now() / 1000);
+  const blockTime =
+    (await connection.getBlockTime(slot)) ?? Math.floor(Date.now() / 1000);
   const props = {
     kaminoMarket: market,
     amount: amount.toString(),
@@ -61,11 +98,34 @@ export async function kaminoInstructions(
   } as const;
   const built =
     action === "deposit"
-      ? await KaminoAction.buildDepositTxns({ ...props, initUserMetadata: { skipInitialization: false, skipLutCreation: true } } as never)
+      ? await KaminoAction.buildDepositTxns({
+          ...props,
+          initUserMetadata: {
+            skipInitialization: false,
+            skipLutCreation: true,
+          },
+        } as never)
       : action === "borrow"
         ? await KaminoAction.buildBorrowTxns(props as never)
         : await KaminoAction.buildRepayTxns(props as never);
   return KaminoAction.actionToIxs(built).map(toLegacy);
+}
+
+/** What `owner` owes in USDC on the market, in units; 0 with no loan there. */
+export async function usdcDebt(
+  market: KaminoMarket,
+  owner: PublicKey,
+): Promise<bigint> {
+  const obligation = await market.getObligationByAddress(
+    await new VanillaObligation(KLEND_PROGRAM_ID).toPda(
+      market.getAddress(),
+      address(owner.toBase58()),
+    ),
+  );
+  const borrow = obligation?.getBorrowByReserve(
+    address(USDC_RESERVE.toBase58()),
+  );
+  return borrow ? BigInt(borrow.amount.ceil().toFixed()) : 0n;
 }
 
 /**
@@ -77,7 +137,18 @@ export async function claimAndRepayInstructions(
   connection: Connection,
   market: KaminoMarket,
   claim: Parameters<typeof processInstruction>,
-  { owner, reserve, repay }: { owner: PublicKey; reserve: PublicKey; repay: bigint },
+  {
+    owner,
+    reserve,
+    repay,
+  }: { owner: PublicKey; reserve: PublicKey; repay: bigint },
 ): Promise<TransactionInstruction[]> {
-  return [await processInstruction(...claim), ...(await kaminoInstructions(connection, market, "repay", { owner, reserve, amount: repay }))];
+  return [
+    await processInstruction(...claim),
+    ...(await kaminoInstructions(connection, market, "repay", {
+      owner,
+      reserve,
+      amount: repay,
+    })),
+  ];
 }

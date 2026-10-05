@@ -247,7 +247,7 @@ export function KaminoAutoCover({ vault }: { vault: Where | null }) {
 
       <p className="mt-4 text-xs text-faint">
         Orders keep tonight&apos;s size. Re-sizing them to the loan each night (a sizer you name, within your bounds) comes with the next devnet program
-        upgrade. The payout goes to your wallet; repaying the loan with it in the same transaction is still to build.
+        upgrade. The payout goes to your wallet. Once the vault pays in mainnet USDC, My protection adds a Repay Kamino button that claims the payout and repays your loan with it, in one transaction.
       </p>
     </section>
   );

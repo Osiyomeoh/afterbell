@@ -6,15 +6,29 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
 import { fetchPositions, type PositionRow } from "@/lib/api";
-import { solanaStandingOrders, stopEveryNightOnSolana, type SolanaStandingOrder } from "@/lib/buy";
-import { claimPosition } from "@/lib/claim";
+import {
+  solanaStandingOrders,
+  stopEveryNightOnSolana,
+  type SolanaStandingOrder,
+} from "@/lib/buy";
+import {
+  claimAndRepayKamino,
+  claimPosition,
+  KAMINO_REPAYABLE_MINT,
+} from "@/lib/claim";
 import { explorer, nyTime, usd } from "@/lib/format";
 import { useSendTransaction } from "@/lib/send";
 
 import { History } from "./history";
 import { type Claimed, ExampleCard, PositionsTable } from "./shared";
 
-export function SolanaPositions({ vault, nextOpen }: { vault: { vault: string; collateralMint: string }; nextOpen: number }) {
+export function SolanaPositions({
+  vault,
+  nextOpen,
+}: {
+  vault: { vault: string; collateralMint: string };
+  nextOpen: number;
+}) {
   const wallet = useAnchorWallet();
   const sendTransaction = useSendTransaction();
   const { connection } = useConnection();
@@ -26,7 +40,10 @@ export function SolanaPositions({ vault, nextOpen }: { vault: { vault: string; c
 
   const load = useCallback(() => {
     if (!wallet) return;
-    fetchPositions(wallet.publicKey.toBase58()).then((r) => setRows(r.positions), (e: Error) => setError(e.message));
+    fetchPositions(wallet.publicKey.toBase58()).then(
+      (r) => setRows(r.positions),
+      (e: Error) => setError(e.message),
+    );
   }, [wallet]);
   useEffect(load, [load]);
 
@@ -34,14 +51,24 @@ export function SolanaPositions({ vault, nextOpen }: { vault: { vault: string; c
     return (
       <div className="grid items-center gap-6 rounded-2xl border border-line bg-surface p-6 sm:grid-cols-[1fr_16rem]">
         <div>
-          <p className="text-lg font-medium">Your protection lives in your wallet, as an NFT.</p>
+          <p className="text-lg font-medium">
+            Your protection lives in your wallet, as an NFT.
+          </p>
           <ul className="mt-3 space-y-1.5 text-sm leading-relaxed text-muted">
             <li>It shows the stock, the open it covers and where it pays.</li>
-            <li>After the bell, it pays whoever holds it: our keeper sends the payout, or you claim it here.</li>
-            <li>You can send it to another wallet, and the payout follows it.</li>
+            <li>
+              After the bell, it pays whoever holds it: our keeper sends the
+              payout, or you claim it here.
+            </li>
+            <li>
+              You can send it to another wallet, and the payout follows it.
+            </li>
           </ul>
           <div className="mt-5 flex flex-wrap items-center gap-3">
-            <button onClick={() => setVisible(true)} className="rounded-xl bg-brass px-4 py-2.5 font-medium text-ink">
+            <button
+              onClick={() => setVisible(true)}
+              className="rounded-xl bg-brass px-4 py-2.5 font-medium text-ink"
+            >
               Connect a wallet
             </button>
             <Link href="/" className="text-sm text-muted hover:text-text">
@@ -54,11 +81,22 @@ export function SolanaPositions({ vault, nextOpen }: { vault: { vault: string; c
     );
   }
 
-  async function claim(p: PositionRow) {
+  async function claim(p: PositionRow, repayKamino = false) {
     if (!wallet || !p.nftAccount) return;
     try {
       setClaiming(p.address);
-      const sig = await claimPosition(connection, wallet, sendTransaction, { ...vault, series: p.series, position: p.address, nftAccount: p.nftAccount });
+      const args = {
+        ...vault,
+        series: p.series,
+        position: p.address,
+        nftAccount: p.nftAccount,
+      };
+      const sig = repayKamino
+        ? await claimAndRepayKamino(connection, wallet, sendTransaction, {
+            ...args,
+            payoutUnits: BigInt(Math.floor((p.claimable ?? 0) * 1e6)),
+          })
+        : await claimPosition(connection, wallet, sendTransaction, args);
       setClaimed((c) => [...c, { key: p.address, url: explorer("tx", sig) }]);
       load();
     } catch (e) {
@@ -69,7 +107,19 @@ export function SolanaPositions({ vault, nextOpen }: { vault: { vault: string; c
   }
   return (
     <>
-      <PositionsTable chain="solana" rows={rows} error={error} claiming={claiming} claimed={claimed} onClaim={claim} />
+      <PositionsTable
+        chain="solana"
+        rows={rows}
+        error={error}
+        claiming={claiming}
+        claimed={claimed}
+        onClaim={(p) => claim(p)}
+        onRepay={
+          vault.collateralMint === KAMINO_REPAYABLE_MINT
+            ? (p) => claim(p, true)
+            : undefined
+        }
+      />
       <SolanaStandingOrders vault={vault} />
       <History owner={wallet.publicKey.toBase58()} />
     </>
@@ -77,7 +127,11 @@ export function SolanaPositions({ vault, nextOpen }: { vault: { vault: string; c
 }
 
 /** The wallet's Solana standing orders, each with a way to stop it. */
-function SolanaStandingOrders({ vault }: { vault: { vault: string; collateralMint: string } }) {
+function SolanaStandingOrders({
+  vault,
+}: {
+  vault: { vault: string; collateralMint: string };
+}) {
   const wallet = useAnchorWallet();
   const sendTransaction = useSendTransaction();
   const { connection } = useConnection();
@@ -87,7 +141,9 @@ function SolanaStandingOrders({ vault }: { vault: { vault: string; collateralMin
   const load = useCallback(() => {
     if (!wallet) return;
     // A vault deployed before standing orders has none to list.
-    solanaStandingOrders(connection, wallet, vault.vault).then(setOrders, () => setOrders([]));
+    solanaStandingOrders(connection, wallet, vault.vault).then(setOrders, () =>
+      setOrders([]),
+    );
   }, [connection, wallet, vault.vault]);
   useEffect(load, [load]);
 
@@ -95,7 +151,13 @@ function SolanaStandingOrders({ vault }: { vault: { vault: string; collateralMin
     if (!wallet) return;
     try {
       setBusy(o.symbol);
-      await stopEveryNightOnSolana(connection, wallet, sendTransaction, vault, o.feedId);
+      await stopEveryNightOnSolana(
+        connection,
+        wallet,
+        sendTransaction,
+        vault,
+        o.feedId,
+      );
       load();
     } catch (e) {
       setError((e as Error).message);
@@ -110,12 +172,21 @@ function SolanaStandingOrders({ vault }: { vault: { vault: string; collateralMin
       <h3 className="font-medium">Protected every night</h3>
       <ul className="mt-3 divide-y divide-line">
         {orders.map((o) => (
-          <li key={o.symbol} className="flex flex-wrap items-center justify-between gap-3 py-2.5">
+          <li
+            key={o.symbol}
+            className="flex flex-wrap items-center justify-between gap-3 py-2.5"
+          >
             <span>
-              {o.maxShares} {o.symbol}, {o.startBps / 100}% to {o.depthBps / 100}% below the price, at most <span className="num">{usd(o.maxPremium)}</span> a
-              night, until {nyTime(o.until)}
+              {o.maxShares} {o.symbol}, {o.startBps / 100}% to{" "}
+              {o.depthBps / 100}% below the price, at most{" "}
+              <span className="num">{usd(o.maxPremium)}</span> a night, until{" "}
+              {nyTime(o.until)}
             </span>
-            <button onClick={() => stop(o)} disabled={busy === o.symbol} className="rounded-lg border border-line px-2.5 py-1 text-xs hover:border-loss disabled:opacity-40">
+            <button
+              onClick={() => stop(o)}
+              disabled={busy === o.symbol}
+              className="rounded-lg border border-line px-2.5 py-1 text-xs hover:border-loss disabled:opacity-40"
+            >
               {busy === o.symbol ? "Stopping…" : "Stop"}
             </button>
           </li>
