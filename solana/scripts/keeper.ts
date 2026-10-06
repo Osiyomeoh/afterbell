@@ -6,6 +6,8 @@
  *
  *   PYTH_API_KEY=<your key> npm run solana:keeper
  *   PYTH_API_KEY=<your key> npm run solana:keeper -- --plan   # read-only: what it would do, and pay
+ *   PYTH_API_KEY=<your key> npm run solana:keeper -- --no-pay # settle and void, but let holders claim
+ *                                                             # (and repay a Kamino loan with the payout)
  *
  * RPC_URL        defaults to devnet
  * ANCHOR_WALLET  pays the fees (any funded wallet), defaults to ~/.config/solana/id.json
@@ -76,7 +78,7 @@ async function main() {
   }
 
   const payer = loadKeypair(walletPath);
-  const report = await runKeeper({ connection, payer, vault, hermes: hermesFromEnv, log: (line) => console.log(line) });
+  const report = await runKeeper({ connection, payer, vault, hermes: hermesFromEnv, pay: !process.argv.includes("--no-pay"), log: (line) => console.log(line) });
   for (const w of report.waiting) console.log(`waiting ${w.series}: ${w.reason}`);
   if (report.tips > 0n) console.log(`tips earned ${report.tips} units`);
   // Renew once the pool has rolled: the next open's protection sells from the new round.
