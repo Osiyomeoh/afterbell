@@ -9,6 +9,8 @@ import { dayLabel, nyTime, pct, usd } from "@/lib/format";
 import { SOLANA_DEPLOYMENT } from "@/server/deployment";
 import { kaminoView } from "@/server/kamino";
 import { kaminoLoans } from "@/server/kaminoLoans";
+import { headToHead } from "@/lib/proof";
+import tslaGaps from "@root/research/data/pyth-tsla-gaps.json";
 
 export const dynamic = "force-dynamic";
 
@@ -68,6 +70,7 @@ export default async function KaminoPage({ searchParams }: { searchParams: Promi
         </section>
         {loanCheck}
         {autoCover}
+        <Proof />
       </>
     );
   }
@@ -96,6 +99,7 @@ export default async function KaminoPage({ searchParams }: { searchParams: Promi
 
       {loanCheck}
       {autoCover}
+      <Proof />
 
       <LiquidationMap map={view.liquidationMap} />
 
@@ -202,6 +206,49 @@ function LiquidationMap({ map }: { map: Awaited<ReturnType<typeof kaminoView>>["
           value. A loan counts once it can be liquidated, not by how much of it would be: Kamino liquidates part of a loan at a time.
         </p>
       </div>
+    </section>
+  );
+}
+
+/** The TSLA loan the replay ran: 30 TSLAx ($9,672 at the close before) at Kamino's 65% threshold, $6,000 borrowed. */
+const PROOF_LOAN = { obligation: "proof", market: "proof", debtUsd: 6000, liquidationLimitUsd: 6286.81, depositUsd: 9672.01, stocks: [{ symbol: "TSLA", usd: 9672.01 }] };
+
+/** Evidence: the replay against Kamino's own market, and loan-sized cover against all-or-nothing weekend cover on every recorded TSLA opening. */
+function Proof() {
+  const p = headToHead(PROOF_LOAN, tslaGaps.gaps, { trigger: 0.03, binaryUsd: 500 });
+  const first = tslaGaps.gaps[0]!.to;
+  const last = tslaGaps.gaps.at(-1)!.to;
+  return (
+    <section id="proof" className="mt-10 scroll-mt-6">
+      <h2 className="font-medium">Proof</h2>
+      <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted">
+        We replayed TSLA&apos;s worst recorded opening, 8.8% down, against Kamino&apos;s xStocks market cloned from mainnet. A loan of 30 TSLAx with
+        $6,000 borrowed went $266.43 over its liquidation limit. Its auto-cover paid $270.46, and in the same transaction Kamino took it as repayment:
+        the debt fell from $6,000.00 to $5,729.54 and the loan was safe again (solana/scripts/gap-replay.ts in the repo).
+      </p>
+      <p className="mt-3 max-w-3xl text-sm leading-relaxed text-muted">
+        The same loan through all {p.openings} TSLA openings Pyth recorded from {dayLabel(first)} to {dayLabel(last)}, under auto-cover and under
+        all-or-nothing cover that pays a flat $500 when a weekend opening falls 3% or more. The loan went under {p.liquidations} time
+        {p.liquidations === 1 ? "" : "s"}; auto-cover repaid {p.bandedCovered} of {p.liquidations}, weekend cover {p.binaryCovered}.
+      </p>
+      <div className="mt-4 overflow-hidden rounded-2xl border border-line bg-surface">
+        <DataTable
+          rows={p.rows}
+          rowKey={(r) => r.to}
+          columns={[
+            { label: "Opening", phone: "title", cell: (r) => `${dayLabel(r.to)}${r.weekend ? " (after a weekend)" : ""}` },
+            { label: "Gap", numeric: true, cell: (r) => <span className={r.gap < 0 ? "text-loss" : ""}>{pct(r.gap, 1)}</span> },
+            { label: "Over the limit", numeric: true, cell: (r) => (r.shortfall > 0 ? usd(r.shortfall, 2) : "—") },
+            { label: "Auto-cover pays", numeric: true, cell: (r) => usd(r.banded, 2) },
+            { label: "Weekend cover pays", numeric: true, cell: (r) => usd(r.binary, 2) },
+          ]}
+        />
+      </div>
+      <p className="mt-3 max-w-3xl text-xs text-faint">
+        Only openings where the loan went under or the weekend cover would pay are listed. Weekend cover pays nothing on a weeknight, however far the
+        stock falls, and pays its flat sum whether or not a loan needs it. Auto-cover pays in proportion to how far past the liquidating opening the
+        stock falls, so it repays what the gap costs.
+      </p>
     </section>
   );
 }
