@@ -1,6 +1,6 @@
 # Afterbell: submission
 
-Colosseum's Crypto World's Fair, 2026. Every claim below links to the transaction or page that shows it.
+Colosseum's Crypto World's Fair, 2026. Every claim below links to the transaction or page that shows it. A tour by the judging criteria, with the test behind each claim: [docs/JUDGES.md](JUDGES.md).
 
 ## In one line
 
@@ -21,7 +21,8 @@ Tokenized stocks trade around the clock; the stock doesn't. Whatever happens whi
 - **Protect every night:** a standing order a keeper renews within the holder's price cap, on Robinhood Chain mainnet.
 - **Loan-aware protection:**
   - any Kamino borrower's loan: the opening that makes it liquidatable, how often its stocks have opened that far down, and the pricing model's chance of that tonight;
-  - cover down to exactly that price, in one click;
+  - auto-cover: protection sized so its payout covers what a liquidating opening leaves over the limit, renewed each night by a sizer the borrower names, within bounds the program enforces;
+  - claim-and-repay: the payout repays Kamino in the same transaction. Replayed on TSLA's worst recorded opening against Kamino's xStocks market cloned from mainnet: a loan $266.43 over its limit, cover paid $270.46, and Kamino took it as repayment ([Proof on /kamino](https://afterbell-nine.vercel.app/kamino#proof));
   - a liquidation map of every Kamino loan against tokenized stocks.
 - **Private protection:** the premium and the payout as confidential transfers on Helius's Solana Rings, through a desk that buys in its own name.
 - **For agents and integrators:** an MCP server (8 tools, hosted with no keys), a Blink, a typed SDK and an OpenAPI description.
@@ -32,15 +33,15 @@ Tokenized stocks trade around the clock; the stock doesn't. Whatever happens whi
 
 - **First settlements:** both Solana vaults on 28 Sep, on Pyth's opening print ($368.09). Robinhood Chain on Chainlink's round in force at the 29 Sep open, $359.345 ([tx](https://robinhoodchain.blockscout.com/tx/0x637a6c9b56ee72a5c6b17b36fb95d89efa5091077b855515d020bc5349cb5c2b)).
 - **First automatic renewal on mainnet**, 30 Sep: position #2 bought for its holder at $11.52 within their standing order ([tx](https://robinhoodchain.blockscout.com/tx/0xa0b873406c323a81d3a903cbb643daa19049074c1b88fc7cd1c045e6258c59ae)).
-- **Hedge:** 16 trades through the first night, bought back at 13:30:03 UTC, +$5.21 closed.
+- **Hedge:** 16 trades through the first night, bought back at 13:30:03 UTC, +$5.21 closed; 158 trades by 6 Oct, all on Hyperliquid testnet against our own quoting account.
 - **Private premium** with no token or amount on-chain ([tx](https://explorer.solana.com/tx/Kku9m8HqTTi222PeVnK1GNK8tBZBYJhbrkdZVibZeSJ4t6T6vnxepcHGTi9UmUrczPDewo5UyFu7WwByaTkqNe5?cluster=devnet)).
 
 ## Engineering
 
 - **Tests:**
-  - 346 TypeScript tests; 86 Foundry tests, 4 of them fuzz and 7 invariants, over random sequences of every action on the vault and on standing orders;
+  - 361 TypeScript tests; 86 Foundry tests, 4 of them fuzz and 7 invariants, over random sequences of every action on the vault and on standing orders;
   - 5 fork tests of settlement against Chainlink's live feed;
-  - 65 Rust tests of the compiled Solana program, including randomized sequences.
+  - 82 Rust tests: 23 unit and 59 on the compiled Solana program in LiteSVM, including randomized sequences and a program buying by CPI.
 - **Coverage:** the EVM contracts 98% of lines.
 - **Security checks:** Slither in CI with every finding fixed or explained; gitleaks over the whole history.
 - **No audit yet.** One comes before any real money.
