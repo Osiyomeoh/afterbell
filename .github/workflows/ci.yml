@@ -55,6 +55,23 @@ jobs:
       # Fails on any finding of low severity or above that isn't suppressed with a reason in the source.
       - run: slither . --config-file slither.config.json --fail-low
 
+  gitleaks:
+    runs-on: ubuntu-latest
+    env:
+      GITLEAKS_VERSION: 8.30.1
+      GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # The whole history, every branch; .gitleaksignore lists the public addresses it would otherwise flag.
+      - working-directory: ${{ runner.temp }}
+        run: |
+          curl -fsSL -o gitleaks.tar.gz "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  gitleaks.tar.gz" | sha256sum -c -
+          tar -xzf gitleaks.tar.gz gitleaks
+      - run: ${{ runner.temp }}/gitleaks git --no-banner --redact --log-opts="--all"
+
   solana:
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -95,6 +112,8 @@ jobs:
       - run: echo "$HOME/solana-release/bin" >> "$GITHUB_PATH"
       # rust-toolchain.toml pins the toolchain; rustup installs it on first use.
       - run: cargo test -p afterbell-vault --lib
-      # The LiteSVM tests load the compiled program from target/deploy.
+      # The LiteSVM tests load the compiled programs from target/deploy: the vault, and the
+      # cover-desk example that buys from it by CPI (its own workspace, so it's built on its own).
       - run: cargo build-sbf
+      - run: cargo build-sbf --manifest-path examples/cover-desk/Cargo.toml --sbf-out-dir target/deploy
       - run: cargo test -p afterbell-vault --tests

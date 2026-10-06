@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/Osiyomeoh/afterbell/actions/workflows/ci.yml/badge.svg)](https://github.com/Osiyomeoh/afterbell/actions/workflows/ci.yml)
 [![Payout audit](https://github.com/Osiyomeoh/afterbell/actions/workflows/audit.yml/badge.svg)](https://github.com/Osiyomeoh/afterbell/actions/workflows/audit.yml)
-![Tests](https://img.shields.io/badge/tests-353%20TS%20%C2%B7%2086%20Foundry%20%C2%B7%2065%20Rust-2ea44f)
+![Tests](https://img.shields.io/badge/tests-361%20TS%20%C2%B7%2086%20Foundry%20%C2%B7%2082%20Rust-2ea44f)
 ![Contract coverage](https://img.shields.io/badge/contract%20coverage-98%25%20lines-2ea44f)
 ![Slither](https://img.shields.io/badge/Slither-0%20open%20findings-2ea44f)
 ![Secret scan](https://img.shields.io/badge/gitleaks-clean-2ea44f)
@@ -13,7 +13,7 @@
 
 Tokenized stocks trade 24/7; the stock doesn't. Whatever happens while the exchange is shut lands all at once on the next opening print, and a token holder has no put to buy. Afterbell sells that put: a fixed premium, a fixed maximum payout, settled on the first oracle price at or after the 09:30 ET open.
 
-Built for Colosseum's Crypto World's Fair (September to October 2026). Design: [docs/design.md](docs/design.md).
+Built for Colosseum's Crypto World's Fair (September to October 2026). For judges: [docs/JUDGES.md](docs/JUDGES.md), the project by the judging criteria, each claim with the test that checks it. Design: [docs/design.md](docs/design.md).
 
 ## Try it in 60 seconds
 
@@ -22,11 +22,11 @@ Everything below is live, on test money.
 1. **Buy protection:** [afterbell-nine.vercel.app](https://afterbell-nine.vercel.app). No wallet? Click "Use a test wallet": it gets 1,000 TestUSD and buys in one click.
 2. **Check every claim:** [/verify](https://afterbell-nine.vercel.app/verify) links each settlement (Pyth on Solana, Chainlink on Robinhood Chain mainnet), automatic renewal, hedge trade and private payment to its transaction.
 3. **Friday's open:** [/event](https://afterbell-nine.vercel.app/event) follows Tesla's Q3 deliveries and the jobs report, from sale to settlement.
-4. **Where Kamino's loans break:** [/kamino](https://afterbell-nine.vercel.app/kamino) maps all 1,609 loans against tokenized stocks and checks any wallet's loan: the opening that liquidates it, the chance of that tonight, and cover down to that price.
+4. **Where Kamino's loans break:** [/kamino](https://afterbell-nine.vercel.app/kamino) maps all 1,609 loans against tokenized stocks and checks any wallet's loan: the opening that liquidates it, the chance of that tonight, and auto-cover sized to pay back what that opening leaves over the limit. Its Proof section replays TSLA's worst recorded opening against Kamino's own market, cloned from mainnet, where the payout repays the loan in the same transaction.
 5. **Buy it privately:** [/private](https://afterbell-nine.vercel.app/private), through Helius's Solana Rings.
 6. **Is the pricing sound?** [/backtest](https://afterbell-nine.vercel.app/backtest) replays today's pricing, with no look-ahead, on every recorded opening of 34 stocks (1,984 nights): 46¢ paid back per $1 of premium, with each stock shown, losers included.
 7. **From an agent:** `claude mcp add --transport http afterbell https://afterbell-nine.vercel.app/mcp`.
-7. **Run the tests:** `npm ci && npm test`; `cd evm && forge test`; `cd solana && cargo test`; `npm run e2e` drives the hosted app in Chrome, desktop and phone (CI runs it after every open).
+8. **Run the tests:** `npm ci && npm test`; `cd evm && forge test`; `npm run solana:test`; `npm run e2e` drives the hosted app in Chrome, desktop and phone (CI runs it after every open).
 
 ## Proof
 
@@ -42,7 +42,7 @@ Each claim, with the transaction that shows it. [/verify](https://afterbell-nine
 | Protection bought privately: the premium as a confidential transfer | Solana devnet | [Kku9…kNe5](https://explorer.solana.com/tx/Kku9m8HqTTi222PeVnK1GNK8tBZBYJhbrkdZVibZeSJ4t6T6vnxepcHGTi9UmUrczPDewo5UyFu7WwByaTkqNe5?cluster=devnet) |
 | The contracts | both | [Robinhood vault](https://robinhoodchain.blockscout.com/address/0xbd619a58F5D3f4573774aD67105E299a5b9d9Ab5), [renewer](https://robinhoodchain.blockscout.com/address/0x710Df188d43F6778E84C83025ee589c292544627), [Solana program](https://explorer.solana.com/address/J6n3JUafVkx4MpKTnAnZSwTcGFueRrjxgiXWMC4L7RGG?cluster=devnet) |
 
-So far (3 Oct): 9 openings settled across both chains, 15 positions sold, 1 automatic renewal. **Not yet shown:** every buyer so far is one of our own wallets, and the current vaults have no hedge trade on record yet.
+So far (6 Oct): 9 openings settled across both chains, 15 positions sold, 1 automatic renewal, 158 hedge trades on Hyperliquid testnet. **Not yet shown:** every buyer so far is one of our own wallets, and the hedge fills against our own quoting account, since testnet has no other TSLA liquidity.
 
 ## Status
 
@@ -56,14 +56,14 @@ So far (3 Oct): 9 openings settled across both chains, 15 positions sold, 1 auto
 - `app/`: the web app, for both chains. Protect prices any of the 34 stocks live with the quoter's own code, My protection lists and claims positions, Vault shows collateral and every series, and Track record shows what each series took in, settled on and paid out. It also has a devnet faucet and the Blink. On both chains a position is an NFT and anyone can underwrite the pool; on Robinhood Chain (any injected EVM wallet) buying is one transaction. Buying, settling, paying out, depositing and withdrawing have run end to end against a local chain, and on Solana against a local validator. It's hosted at [afterbell-nine.vercel.app](https://afterbell-nine.vercel.app) and sells on both chains.
 - `agent/`: Afterbell as an MCP server, hosted (no keys) and local (the agent's own devnet wallet with a spending cap).
 - `sdk/`: a typed client for the public API, and the helpers that turn a signed quote into the purchase a wallet signs on either chain; the MCP server and the app use it. The API is described at `/api/openapi.json` (a test keeps that document in step with every route), and [docs/integrate.md](docs/integrate.md) shows a wallet, a protocol or an agent adding protection.
-- Tests: 346 TypeScript (including a check of every stock's Chainlink history, that TSLA's agrees with Pyth's, and the hedger's signatures against Hyperliquid's own SDKs), 86 Foundry (4 fuzz and 7 invariants, 3 of them on standing orders), 5 fork tests of settlement against Chainlink's live TSLA feed, 23 Rust unit and 42 LiteSVM tests of the compiled Solana program (including randomized sequences). CI also runs Slither on the EVM contracts (each finding on the deployed renewer reviewed in `evm/slither.db.json`) and gitleaks runs over the history.
+- Tests: 361 TypeScript (including a check of every stock's Chainlink history, that TSLA's agrees with Pyth's, and the hedger's signatures against Hyperliquid's own SDKs), 86 Foundry (4 fuzz and 7 invariants, 3 of them on standing orders), 5 fork tests of settlement against Chainlink's live TSLA feed, 23 Rust unit and 59 LiteSVM tests of the compiled Solana program (including randomized sequences). CI also runs Slither on the EVM contracts (each finding on the deployed renewer reviewed in `evm/slither.db.json`) and gitleaks over the whole history.
 - Coverage (`npm run coverage`, `forge coverage --ir-minimum`): the EVM contracts 98% of lines and 83% of branches; pricing 88% of lines, the SDK 88%, the Solana client 81%, the quoter 77%. The keepers, the agent and the privacy desk mostly talk to live networks, so they're exercised by the local end-to-end cycles (`npm run evm:cycle`, `npm run solana:cycle`) and on devnet and mainnet rather than by unit tests; overall, 50% of TypeScript lines.
 
 **Settled on 28 Sep:** both Solana vaults' first series, on Pyth's opening print for TSLA, $368.09 (tables below). The app is hosted at [afterbell-nine.vercel.app](https://afterbell-nine.vercel.app) ([docs/hosting.md](docs/hosting.md)) and sells from the new Solana vault.
 
-**Since then:** Robinhood Chain's first series settled on Chainlink (30 Sep, for the 29 Sep open), both chains' keepers run on a schedule, and the first standing order renewed itself on mainnet (30 Sep). Every one of these is linked at [/verify](https://afterbell-nine.vercel.app/verify).
+**Since then:** Robinhood Chain's first series settled on Chainlink (30 Sep, for the 29 Sep open), and the first standing order renewed itself on mainnet (30 Sep). The keepers are run by the team after each open; their weekday workflow ([`keeper.yml`](.github/workflows/keeper.yml)) is written and starts once its keeper wallets are set. Every one of these is linked at [/verify](https://afterbell-nine.vercel.app/verify).
 
-**Next:** Friday 2 Oct, Tesla's third-quarter deliveries and the jobs report: the first night aimed at outside buyers ([/event](https://afterbell-nine.vercel.app/event)).
+**Friday 2 Oct**, Tesla's third-quarter deliveries and the jobs report ([/event](https://afterbell-nine.vercel.app/event)): three positions sold for that open, all to our own wallets, and it settled on both chains (TSLA at $360.08 and QQQ at $751.33 on Pyth, EWY at $191.57 on Chainlink), paying nothing.
 
 **Trading on Hyperliquid testnet since 28 Sep:** the hedger ([below](#hedge-on-hyperliquid)). It sizes a short in Hyperliquid's `xyz:TSLA` to what the protection the vaults have sold (both Solana vaults and Robinhood Chain's) stands to pay per $1 fall, from the model that prices it, rebalances overnight and buys it back at the open. Its plan mode reads the live vaults and Hyperliquid and prints the order it would send, and the Vault page shows the same. On 28 Sep it opened its first short on HyperCore testnet, 2.72 TSLA at $370.47 against the six positions open for that day's open, filling against our own quoting account (testnet has no other TSLA liquidity); details below.
 
@@ -102,7 +102,7 @@ The app extends the recorded openings with any since, from each stock's settleme
 
 ## EVM vault (Robinhood Chain)
 
-**On Robinhood Chain mainnet** (chain 4663, recorded in [`evm/deployments/robinhood.json`](evm/deployments/robinhood.json), with the deploy's transactions in [`evm/broadcast`](evm/broadcast/Deploy.s.sol/4663/run-latest.json)). Deployed on 28 Sep in 50 transactions for 0.00025 ETH of gas. Its collateral is TestUSD, which has no value; the settlement is real, on Chainlink's feeds. The deploy allowed all 34 Chainlink equity feeds and underwrote the pool with TestUSD the way anyone would (a deposit request, a roll, a claim). Nothing has been bought from it yet.
+**On Robinhood Chain mainnet** (chain 4663, recorded in [`evm/deployments/robinhood.json`](evm/deployments/robinhood.json), with the deploy's transactions in [`evm/broadcast`](evm/broadcast/Deploy.s.sol/4663/run-latest.json)). Deployed on 28 Sep in 50 transactions for 0.00025 ETH of gas. Its collateral is TestUSD, which has no value; the settlement is real, on Chainlink's feeds. The deploy allowed all 34 Chainlink equity feeds and underwrote the pool with TestUSD the way anyone would (a deposit request, a roll, a claim). Its first series, for the 29 Sep open, settled on Chainlink's round in force, $359.345.
 
 | | |
 |---|---|
@@ -163,6 +163,7 @@ A Solana program can't afford to verify an ed25519 signature itself, so the buye
 ```bash
 cd solana
 anchor build --arch v0              # SBPF v0, which every cluster and LiteSVM run
+cargo build-sbf --manifest-path examples/cover-desk/Cargo.toml --sbf-out-dir target/deploy   # the CPI example the composability test loads
 cargo test -p afterbell-vault       # unit tests, then LiteSVM tests of the compiled program
 ```
 
@@ -214,7 +215,7 @@ The keeper ([`solana/keeper`](solana/keeper)) is permissionless. For each series
 
 - **Protect** prices protection live in the browser, with the same quoter code the server signs with, as you set shares and where protection starts and stops. It draws the payoff and replays the same protection on every past opening of the stock. Buying takes a signed quote from `POST /api/quote`, then the wallet signs the Ed25519 check and `buy` in one transaction, and the position arrives as an NFT. A switch sells the same protection on Robinhood Chain instead (`/?chain=robinhood` opens it there), settled by Chainlink, where the position is an NFT bought in one transaction. A picker chooses the stock (`/?symbol=NVDA`); one only Robinhood Chain can settle opens on that chain.
 - **A test wallet**, for trying it with nothing installed: "Use a test wallet" (and "Afterbell test wallet" in the connect dialog) makes a devnet wallet kept in this browser, funds it from the faucet as it connects, and buys like any other. Test money only: its key sits in the browser's storage.
-- **Protect every night** (Robinhood Chain): a checkbox at checkout sets a standing order, renewed after each open for the next one at the quote service's price, never above a nightly cap of half again tonight's price, for 7, 14 or 30 nights. My protection lists the orders, with Stop. It appears once the renewer is deployed.
+- **Protect every night** (Robinhood Chain): a checkbox at checkout sets a standing order, renewed after each open for the next one at the quote service's price, never above a nightly cap of half again tonight's price, for 7, 14 or 30 nights. My protection lists the orders, with Stop.
 - **`GET /api/market?symbol=`** returns the close, the live price, holidays and the openings history the quoter prices from, and every stock covered with the chains that can settle it. For TSLA and QQQ it uses Pyth when a key is configured, otherwise Hyperliquid's prices, labelled as such; for the rest, Chainlink's close and Hyperliquid's live price. Hyperliquid's price at the close is a median 2.7 bps from Pyth's.
 - **`POST /api/quote`** re-prices on the server, never trusting the browser's numbers. It signs with the quoter key from the environment and refuses if that key isn't the vault's quoter. On either chain it also refuses a sale the vault would reject: before the last opening is rolled, or beyond what the pool can cover on that stock.
 - **Test money:** `POST /api/faucet` tops a devnet wallet up to 1,000 TestUSD when it holds less than 100, and sends 0.02 SOL when it has less than 0.01, so a fresh wallet can buy. The faucet key is TestUSD's mint authority and pays for all of it.
@@ -294,11 +295,11 @@ What a user trusts, and what stops each party from taking more than the rules al
 
 - **The quote signer.** The vaults sell only at a price the quote service signed (EIP-712 on Robinhood Chain, ed25519 on Solana), bound to the buyer, stock, strikes, open and an expiry. A leaked signer key could sell underpriced cover, but only within the round's risk limits: at most 50% of the pool locked per round, 20% per stock, fixed at the roll. The contract can't know exchange holidays, so the signature also vouches that the open is real.
 - **The oracle.** Settlement uses the first price at or after 09:30 ET: Pyth on Solana, the Chainlink round in force at the open on Robinhood Chain. A print too late after the open can't settle; the series is voided and every buyer's premium comes back.
-- **The keeper.** Anyone can run it, with any funded wallet; it can only settle on the oracle's print, pay a position to whoever holds its NFT, roll the pool and renew standing orders within each order's own caps (shares, strikes, premium, end date). It earns a fixed tip and never holds funds. The scheduled run uses a dedicated gas-only wallet, never the deployer.
+- **The keeper.** Anyone can run it, with any funded wallet; it can only settle on the oracle's print, pay a position to whoever holds its NFT, roll the pool and renew standing orders within each order's own caps (shares, strikes, premium, end date). It earns a fixed tip and never holds funds. The scheduled run is set up to use a dedicated gas-only wallet, never the deployer.
 - **Standing orders.** An order spends only through the holder's token approval and its own limits, and the holder can cancel it at any time.
 - **Underwriters.** The worst night costs the pool at most half its value. Withdrawals wait for the round to settle, so nobody leaves ahead of a known loss.
 - **The hedge.** The Hyperliquid short is run by the operator off-chain; it lowers the pool's risk, but the vault's payouts never depend on it.
-- **Checks.** Foundry invariant and fork tests, Slither (0 open findings), randomized sequence tests on the Solana program, gitleaks on every push. Not audited: TestUSD on both chains has no value.
+- **Checks.** Foundry invariant and fork tests, Slither (0 open findings), randomized sequence tests on the Solana program, gitleaks over the whole history on every pull request. Not audited: TestUSD on both chains has no value.
 
 ## How we got here
 

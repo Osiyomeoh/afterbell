@@ -10,6 +10,7 @@
     "audit": "cd app && tsx --tsconfig tsconfig.json scripts/audit.ts",
     "typecheck": "tsc --noEmit",
     "solana:idl": "cp solana/target/idl/afterbell_vault.json solana/target/types/afterbell_vault.ts solana/client/idl/",
+    "solana:test": "cd solana && cargo build-sbf && cargo build-sbf --manifest-path examples/cover-desk/Cargo.toml --sbf-out-dir target/deploy && cargo test -p afterbell-vault",
     "solana:setup": "tsx solana/scripts/setup.ts",
     "solana:smoke": "tsx solana/scripts/smoke-buy.ts",
     "solana:keeper": "tsx solana/scripts/keeper.ts",
