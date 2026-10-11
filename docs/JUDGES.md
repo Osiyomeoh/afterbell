@@ -4,6 +4,14 @@ Afterbell sells protection for tokenized stocks until the next 09:30 ET open. A 
 
 Where it stands on 6 October: live on Solana devnet and on Robinhood Chain **mainnet** (with test collateral), hedged on Hyperliquid testnet. 9 openings settled across both chains, 15 positions sold, 1 standing order renewed with no signature from its holder, 158 hedge trades. Every buyer so far is one of our own wallets, and the collateral is test money ([what isn't done](#what-isnt-done)). The live counts are at [/verify](https://afterbell-nine.vercel.app/verify) and [`/api/verify`](https://afterbell-nine.vercel.app/api/verify).
 
+## One command
+
+```bash
+npm ci && npm run prove
+```
+
+It builds the vault program, starts a local validator with Kamino's xStocks market as mainnet had it (the lending and farms programs and 16 accounts, read on 11 Oct and saved in [`solana/fixtures/kamino`](../solana/fixtures/kamino)), and replays TSLA's worst recorded opening: a TSLAx loan on Kamino, cover sized to it, a settle at the real opening price, and the payout repaying Kamino in the same transaction. It needs Rust and the Solana CLI, and no RPC or wallet. It ends `PASS`, with the loan over its limit by $266.43 without cover and $0 with it.
+
 ## Five minutes in a browser
 
 Nothing below needs a wallet of your own, and all of it works at any hour: a quote always prices the next open, and close to an open it moves to the one after.
@@ -23,7 +31,7 @@ Nothing below needs a wallet of your own, and all of it works at any hour: a quo
 | Solana vault (Anchor): signed quotes, a pool anyone underwrites, positions as Token-2022 NFTs, standing orders, a sizer | Solana devnet | [program `J6n3…7RGG`](https://explorer.solana.com/address/J6n3JUafVkx4MpKTnAnZSwTcGFueRrjxgiXWMC4L7RGG?cluster=devnet), [TSLA settled on Pyth's opening print](https://explorer.solana.com/tx/2PUUr6GP3EQGB4VjTq4D5YcauBDvdXXD3DV1H3NEN65aJ6n7TQ76bC57yVfhdoBBw2zpiueykywAm5FcKg8YrUst?cluster=devnet) |
 | EVM vault: the same product, an ERC-7540 pool, ERC-721 positions with on-chain art, EIP-2612 buys | Robinhood Chain mainnet, 34 Chainlink feeds allowed | [vault](https://robinhoodchain.blockscout.com/address/0xbd619a58F5D3f4573774aD67105E299a5b9d9Ab5), [TSLA settled on Chainlink's round at the open](https://robinhoodchain.blockscout.com/tx/0xd01d8da478c7942bd00802389a88c738d090558dc9f13a5b1212f3f6797a2936) |
 | Standing orders ("protect every night"), renewed by a keeper | Robinhood Chain mainnet; Solana devnet | [renewal with no holder signature](https://robinhoodchain.blockscout.com/tx/0xa0b873406c323a81d3a903cbb643daa19049074c1b88fc7cd1c045e6258c59ae) |
-| Kamino claim-and-repay: claim a payout and repay the loan in one transaction | Local validator, Kamino's xStocks market cloned from mainnet | `npm run solana:replay` ([`gap-replay.ts`](../solana/scripts/gap-replay.ts)) |
+| Kamino claim-and-repay: claim a payout and repay the loan in one transaction | Local validator, Kamino's xStocks market cloned from mainnet and saved in the repo | `npm run prove` ([`gap-replay.ts`](../solana/scripts/gap-replay.ts)), no RPC needed |
 | Hedger: a short in Hyperliquid's `xyz:TSLA` sized to what both vaults stand to pay, bought back at the bell | Hyperliquid testnet | [hedger.md](hedger.md), the hedge on [/vault](https://afterbell-nine.vercel.app/vault) |
 | Keepers: settle, pay out, roll, renew | Run by the team after each open; a weekday workflow is written and starts once its keeper wallets are set | [`keeper.yml`](../.github/workflows/keeper.yml) |
 | Payout audit: recompute every live payout on both chains | GitHub Actions, daily | [`audit.yml`](../.github/workflows/audit.yml), `npm run audit` |
@@ -119,6 +127,6 @@ cd evm && forge test                     # 86 Foundry tests
 npm run solana:test                      # 82 Rust tests, after building the program and the cover-desk example
 npm run evm:cycle                        # a full round on a local chain: sell, move an NFT, settle, pay, roll
 npm run solana:cycle                     # the same on a local validator
-npm run solana:replay                    # TSLA's worst opening against Kamino's market cloned from mainnet
+npm run prove                            # TSLA's worst opening against Kamino's market, from the saved snapshot
 npm run audit                            # recompute every live payout on both chains
 ```

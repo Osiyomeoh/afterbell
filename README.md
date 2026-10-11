@@ -13,7 +13,7 @@
 
 Tokenized stocks trade 24/7; the stock doesn't. Whatever happens while the exchange is shut lands all at once on the next opening print, and a token holder has no put to buy. Afterbell sells that put: a fixed premium, a fixed maximum payout, settled on the first oracle price at or after the 09:30 ET open.
 
-Built for Colosseum's Crypto World's Fair (September to October 2026). For judges: [docs/JUDGES.md](docs/JUDGES.md), the project by the judging criteria, each claim with the test that checks it. Design: [docs/design.md](docs/design.md).
+Built for Colosseum's Crypto World's Fair (September to October 2026). For judges: [docs/JUDGES.md](docs/JUDGES.md), the project by the judging criteria, each claim with the test that checks it. `npm ci && npm run prove` replays TSLA's worst opening against a snapshot of Kamino's market, with no RPC. Design: [docs/design.md](docs/design.md).
 
 ## Try it in 60 seconds
 
