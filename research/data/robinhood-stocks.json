@@ -10,7 +10,7 @@
    "chainlink": "0x6B22A786bAa607d76728168703a39Ea9C99f2cD0",
    "hyperliquid": "xyz:AAPL",
    "hyperliquidTracks": "stock",
-   "annualVol": 0.32
+   "annualVol": 0.3
   },
   {
    "symbol": "AMD",
@@ -20,7 +20,7 @@
    "chainlink": "0x943A29E7ae51A4798823ca9eEd2ed533B2A22C72",
    "hyperliquid": "xyz:AMD",
    "hyperliquidTracks": "stock",
-   "annualVol": 0.68
+   "annualVol": 0.65
   },
   {
    "symbol": "AMZN",
@@ -30,7 +30,7 @@
    "chainlink": "0xD5a1508ceD74c084eBf3cBe853e2C968fB2a651C",
    "hyperliquid": "xyz:AMZN",
    "hyperliquidTracks": "stock",
-   "annualVol": 0.41
+   "annualVol": 0.38
   },
   {
    "symbol": "ASML",
@@ -40,7 +40,7 @@
    "chainlink": "0xB4106147E8cce40b7d46124090d373A71b70f87D",
    "hyperliquid": "xyz:ASML",
    "hyperliquidTracks": "stock",
-   "annualVol": 0.47
+   "annualVol": 0.45
   },
   {
    "symbol": "BABA",
@@ -50,7 +50,7 @@
    "chainlink": "0x62Cc8F9b5f56a33c9C8A60c8B92779f523c4E984",
    "hyperliquid": "xyz:BABA",
    "hyperliquidTracks": "stock",
-   "annualVol": 0.43
+   "annualVol": 0.42
   },
   {
    "symbol": "CLSK",
@@ -60,7 +60,7 @@
    "chainlink": "0x810c12D3a554Bc47fd39597Fe3b3AAC4941F50eF",
    "hyperliquid": null,
    "hyperliquidTracks": "stock",
-   "annualVol": 0.93
+   "annualVol": 0.89
   },
   {
    "symbol": "COIN",
@@ -70,7 +70,7 @@
    "chainlink": "0xA3a468A452940B7D6b69991207B508c609a98Ef2",
    "hyperliquid": "xyz:COIN",
    "hyperliquidTracks": "stock",
-   "annualVol": 0.76
+   "annualVol": 0.73
   },
   {
    "symbol": "CRCL",
@@ -80,7 +80,7 @@
    "chainlink": "0x6652eDf64bA3731C4F2D3ce821A0Fb1f1f6b482a",
    "hyperliquid": "xyz:CRCL",
    "hyperliquidTracks": "stock",
-   "annualVol": 0.91
+   "annualVol": 0.87
   },
   {
    "symbol": "CRWV",
@@ -90,7 +90,7 @@
    "chainlink": "0xe1b3aABCAFAd1c94708dc1367dcfF8Aa4407487C",
    "hyperliquid": "xyz:CRWV",
    "hyperliquidTracks": "stock",
-   "annualVol": 0.99
+   "annualVol": 0.94
   },
   {
    "symbol": "DELL",
@@ -100,7 +100,7 @@
    "chainlink": "0x1C6c8cADBe02E19129c39dDB92281cE4c0bf206b",
    "hyperliquid": "xyz:DELL",
    "hyperliquidTracks": "stock",
-   "annualVol": 0.82
+   "annualVol": 0.77
   },
   {
    "symbol": "EWY",
@@ -110,7 +110,7 @@
    "chainlink": "0xEFdf54610B62A7753Ec30bDc380847c12D32e1D1",
    "hyperliquid": "xyz:EWY",
    "hyperliquidTracks": "stock",
-   "annualVol": 0.6
+   "annualVol": 0.57
   },
   {
    "symbol": "GME",
@@ -120,7 +120,7 @@
    "chainlink": "0x27C71df6A64fB476468EdF256CF72c038baB5B67",
    "hyperliquid": "xyz:GME",
    "hyperliquidTracks": "stock",
-   "annualVol": 0.39
+   "annualVol": 0.41
   },
   {
    "symbol": "GOOGL",
@@ -130,7 +130,7 @@
    "chainlink": "0xF6f373a037c30F0e5010d854385cA89185AE638b",
    "hyperliquid": "xyz:GOOGL",
    "hyperliquidTracks": "stock",
-   "annualVol": 0.35
+   "annualVol": 0.34
   },
   {
    "symbol": "INTC",
@@ -140,7 +140,7 @@
    "chainlink": "0x3f390C5C24628Ac7C489515402235FeAD71D1913",
    "hyperliquid": "xyz:INTC",
    "hyperliquidTracks": "stock",
-   "annualVol": 0.75
+   "annualVol": 0.72
   },
   {
    "symbol": "IONQ",
@@ -150,7 +150,7 @@
    "chainlink": "0x22EfeC4919baf55F360E0EDee4AbEB26DE4971eb",
    "hyperliquid": null,
    "hyperliquidTracks": "stock",
-   "annualVol": 0.79
+   "annualVol": 0.74
   },
   {
    "symbol": "META",
@@ -160,7 +160,7 @@
    "chainlink": "0x7C38C00C30BEe9378381E7B6135d7283356D71b1",
    "hyperliquid": "xyz:META",
    "hyperliquidTracks": "stock",
-   "annualVol": 0.49
+   "annualVol": 0.48
   },
   {
    "symbol": "MSFT",
@@ -170,7 +170,7 @@
    "chainlink": "0x45C3C877C15E6BA2EBB19eA114Ea508d14C1Af2E",
    "hyperliquid": "xyz:MSFT",
    "hyperliquidTracks": "stock",
-   "annualVol": 0.41
+   "annualVol": 0.39
   },
   {
    "symbol": "MSTR",
@@ -180,7 +180,7 @@
    "chainlink": "0x396118bdFB181e6240E74D243F266B061c0edc3D",
    "hyperliquid": "xyz:MSTR",
    "hyperliquidTracks": "stock",
-   "annualVol": 0.89
+   "annualVol": 0.85
   },
   {
    "symbol": "MU",
@@ -190,7 +190,7 @@
    "chainlink": "0x425EEFdCf05ed6526C3cE61Af99429A228a6d596",
    "hyperliquid": "xyz:MU",
    "hyperliquidTracks": "stock",
-   "annualVol": 0.82
+   "annualVol": 0.78
   },
   {
    "symbol": "NBIS",
@@ -200,7 +200,7 @@
    "chainlink": "0xE1D87B116Ba0fe898998f1D140339D1fA1E09705",
    "hyperliquid": "xyz:NBIS",
    "hyperliquidTracks": "stock",
-   "annualVol": 1.3
+   "annualVol": 1.24
   },
   {
    "symbol": "NVDA",
@@ -210,7 +210,7 @@
    "chainlink": "0x379EC4f7C378F34a1B47E4F3cbeBCbAC3E8E9F15",
    "hyperliquid": "xyz:NVDA",
    "hyperliquidTracks": "stock",
-   "annualVol": 0.38
+   "annualVol": 0.36
   },
   {
    "symbol": "ORCL",
@@ -220,7 +220,7 @@
    "chainlink": "0x0e6a64a2B58A6693a531E6c555f3A5d042eEA844",
    "hyperliquid": "xyz:ORCL",
    "hyperliquidTracks": "stock",
-   "annualVol": 0.54
+   "annualVol": 0.53
   },
   {
    "symbol": "PLTR",
@@ -230,7 +230,7 @@
    "chainlink": "0x820ABedFF239034956B7A9d2F0a331f9F075eB4c",
    "hyperliquid": "xyz:PLTR",
    "hyperliquidTracks": "stock",
-   "annualVol": 0.72
+   "annualVol": 0.68
   },
   {
    "symbol": "QQQ",
@@ -240,7 +240,7 @@
    "chainlink": "0x80901d846d5D7B030F26B480776EE3b29374C2ae",
    "hyperliquid": "xyz:XYZ100",
    "hyperliquidTracks": "index",
-   "annualVol": 0.2
+   "annualVol": 0.19
   },
   {
    "symbol": "RGTI",
@@ -250,7 +250,7 @@
    "chainlink": "0x2A045cF1C49c61c166C036d2f06FA2D2d984f765",
    "hyperliquid": null,
    "hyperliquidTracks": "stock",
-   "annualVol": 0.8
+   "annualVol": 0.75
   },
   {
    "symbol": "RKLB",
@@ -260,7 +260,7 @@
    "chainlink": "0x045477BF65Aef6f4F2386ad0164579e48381CC74",
    "hyperliquid": "xyz:RKLB",
    "hyperliquidTracks": "stock",
-   "annualVol": 0.8
+   "annualVol": 0.77
   },
   {
    "symbol": "SLV",
@@ -280,7 +280,7 @@
    "chainlink": "0xfb133Fa4B7b385802B693a293606682Df47109A3",
    "hyperliquid": "xyz:SNDK",
    "hyperliquidTracks": "stock",
-   "annualVol": 1.26
+   "annualVol": 1.18
   },
   {
    "symbol": "SPCX",
@@ -290,7 +290,7 @@
    "chainlink": "0xB265810950ba6c5C0Ff821c9963014a56fD8Bffb",
    "hyperliquid": "xyz:SPCX",
    "hyperliquidTracks": "stock",
-   "annualVol": 0.72
+   "annualVol": 0.71
   },
   {
    "symbol": "SPY",
@@ -300,7 +300,7 @@
    "chainlink": "0x319724394D3A0e3669269846abE664Cd621f9f6A",
    "hyperliquid": "xyz:SP500",
    "hyperliquidTracks": "index",
-   "annualVol": 0.12
+   "annualVol": 0.11
   },
   {
    "symbol": "TSLA",
@@ -310,7 +310,7 @@
    "chainlink": "0x4A1166a659A55625345e9515b32adECea5547C38",
    "hyperliquid": "xyz:TSLA",
    "hyperliquidTracks": "stock",
-   "annualVol": 0.55
+   "annualVol": 0.53
   },
   {
    "symbol": "TSM",
@@ -320,7 +320,7 @@
    "chainlink": "0x874cF94aa8eC88Fd9560094dD065f2fB3E41Fc2F",
    "hyperliquid": "xyz:TSM",
    "hyperliquidTracks": "stock",
-   "annualVol": 0.4
+   "annualVol": 0.39
   },
   {
    "symbol": "USAR",
@@ -330,7 +330,7 @@
    "chainlink": "0xA994d3684e8400A6c8078226925779FdeE682DD9",
    "hyperliquid": "xyz:USAR",
    "hyperliquidTracks": "stock",
-   "annualVol": 0.8
+   "annualVol": 0.75
   },
   {
    "symbol": "USO",
@@ -340,7 +340,7 @@
    "chainlink": "0x75a9c76Ef439e2C7c2E5a34Ab105EcFe3766431c",
    "hyperliquid": "xyz:CL",
    "hyperliquidTracks": "index",
-   "annualVol": 0.51
+   "annualVol": 0.5
   }
  ]
 }
