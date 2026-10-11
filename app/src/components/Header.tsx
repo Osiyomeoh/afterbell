@@ -28,6 +28,7 @@ const WalletButton = dynamic(
 // Every page is reachable from here; on a phone the row scrolls sideways.
 const NAV: { href: string; label: string }[] = [
   { href: "/", label: "Protect" },
+  { href: "/try", label: "Try it" },
   { href: "/positions", label: "My protection" },
   { href: "/vault", label: "Vault" },
   { href: "/kamino", label: "Kamino loans" },

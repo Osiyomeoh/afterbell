@@ -7,6 +7,8 @@ import type { Opening } from "@root/pricing/model";
 import type { GapReport } from "@root/quoter/gapReport";
 import type { Market, PricedProtection, QuoterConfig } from "@root/quoter/quoter";
 
+import type { WaitlistView } from "./waitlist";
+
 export type PriceSource = "pyth" | "chainlink" | "hyperliquid";
 
 /** A stock the app prices: whether each vault sells it now, and which chains' oracles can settle it. */
@@ -206,6 +208,8 @@ export type DripResponse = { signature: string | null; testUsd: number; sol: num
 
 export const requestTestFunds = (owner: string) =>
   fetch("/api/faucet", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ owner }) }).then((r) => json<DripResponse>(r));
+
+export const fetchWaitlist = () => fetch("/api/waitlist", { cache: "no-store" }).then((r) => json<WaitlistView>(r));
 
 export const fetchHoldings = (owner: string) =>
   fetch(`/api/holdings?owner=${owner}`, { cache: "no-store" }).then((r) => json<{ holdings: { stock: string; symbol: string; shares: number }[] }>(r));

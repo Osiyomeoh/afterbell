@@ -2,8 +2,9 @@ import Link from "next/link";
 import type { Metadata } from "next";
 
 import { Stat, Stats } from "@/components/Stats";
-import { nyTime, usd } from "@/lib/format";
+import { explorer, nyTime, usd } from "@/lib/format";
 import { verifyView, type Book, type Night, type Proof } from "@/server/verify";
+import { waitlistView } from "@/server/waitlist";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +16,8 @@ export const metadata: Metadata = {
 /** Each claim the app makes, with the transaction or account that shows it, for anyone who'd rather check than trust. */
 export default async function VerifyPage() {
   let v: Awaited<ReturnType<typeof verifyView>>;
+  // The waitlist is a side note here: if it can't be read, the rest of the page still shows.
+  const list = waitlistView().catch(() => null);
   try {
     v = await verifyView();
   } catch (e) {
@@ -26,6 +29,7 @@ export default async function VerifyPage() {
     );
   }
   const c = v.counts;
+  const w = await list;
   return (
     <>
       <section className="py-10">
@@ -51,6 +55,17 @@ export default async function VerifyPage() {
             note={`counted from the ${nyTime(v.campaignOpen)} open; before it, every buyer was the team`}
           />
         </Stats>
+        {w && (
+          <Stats>
+            <Stat label="Wallets on the mainnet waitlist" value={String(w.count)} note="each signed a devnet memo; the team's left out" />
+            <Stat label="Of them, bought test cover first" value={String(w.tried)} note={`of ${w.testers} outside ${w.testers === 1 ? "wallet" : "wallets"} that bought`} />
+            <Stat
+              label="Most asked for"
+              value={w.wanted[0]?.symbol ?? "None yet"}
+              note={w.wanted.length > 0 ? w.wanted.slice(0, 3).map((x) => `${x.symbol} ${x.count}`).join(" · ") : "once someone joins"}
+            />
+          </Stats>
+        )}
       </div>
 
       <Nights nights={v.nights} />
@@ -67,6 +82,20 @@ export default async function VerifyPage() {
         intro="A holder paying for protection through a desk on Helius's Solana Rings: the premium's transaction shows neither the token nor the amount."
         proofs={v.privacy}
       />
+      {w && (
+        <Proofs
+          title="The waitlist"
+          intro="Each wallet that asked for Afterbell with real money: a devnet transaction sending nothing to the waitlist's address, with a memo naming who they are and what they'd protect. The latest twenty."
+          proofs={[
+            { label: "Every signup, at the waitlist's address", detail: w.address, href: explorer("address", w.address) },
+            ...w.signups.slice(0, 20).map((s) => ({
+              label: `${s.wallet.slice(0, 4)}…${s.wallet.slice(-4)}: ${s.role}${s.stocks.length ? `, ${s.stocks.join(" ")}` : ""}`,
+              detail: nyTime(s.time),
+              href: explorer("tx", s.signature),
+            })),
+          ]}
+        />
+      )}
       <Proofs title="Contracts and programs" intro="Where everything above runs." proofs={v.contracts} />
     </>
   );

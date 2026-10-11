@@ -16,6 +16,8 @@ export const TEAM_WALLETS: ReadonlySet<string> = new Set([
   "Dmqcim6dHaPkxxzLVjXYrEwyhnzSzbBw4GvoLqtboCNV",
   "FL1PSYmNFZxgE4WHyMXSojnCZuYhSGAdZghjRPkhxaWf",
   "8a2pWdwozLdR4JDKFdS9n3yhpcneCHAmr5mjTKKWG81C",
+  // The in-browser test wallet that checked the waitlist's signup on 11 Oct.
+  "4SBWmvoXMDCqeYt2ApHFZeFDdQNCmCj74BiRNZiiYedN",
   // Robinhood Chain: the team's wallet, the vault's owner, the renewer and its keeper.
   "0x81b8361bdb60a9483b432dae88101a5bc0f76378",
   "0x63e37160334fbea25f1c5df6f3a69af1906efcd1",

@@ -201,6 +201,27 @@ const paths = {
       responses: { 200: json({ type: "object" }), 400: refused, 404: refused, 500: refused, 503: refused },
     },
   },
+  "/api/waitlist": {
+    get: {
+      summary: "The mainnet waitlist",
+      description:
+        "Wallets that asked for Afterbell with real money, read from Solana devnet: each signed a transaction sending nothing to the waitlist's address, with a memo naming a role and up to five stocks. The team's wallets are left out.",
+      responses: {
+        200: json(
+          obj({
+            count: num("Wallets on the list"),
+            byRole: { type: "object", description: "Wallets per role: holder, borrower, protocol, agent" },
+            tried: num("Of them, wallets that bought test cover from the vaults"),
+            testers: num("Outside wallets that bought test cover, on the list or not"),
+            wanted: { type: "array", description: "The stocks the list names, most-named first", items: obj({ symbol: str(), count: num() }) },
+            signups: { type: "array", description: "Each wallet's latest signup, newest first", items: obj({ wallet: str(), role: str(), stocks: { type: "array", items: str() }, signature: str(), time: num("Unix seconds") }) },
+            address: str("The waitlist's address on devnet"),
+          }),
+        ),
+        502: refused,
+      },
+    },
+  },
   "/api/actions/protect": {
     get: { summary: "The Solana Action (Blink): what it offers", parameters: [symbol], responses: { 200: json({ type: "object" }), 404: actionRefused } },
     post: {
