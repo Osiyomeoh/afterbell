@@ -15,7 +15,7 @@ const FEEDBACK_URL = process.env.NEXT_PUBLIC_FEEDBACK_URL;
 const STEPS: { title: string; body: React.ReactNode }[] = [
   {
     title: "Get a wallet with test money",
-    body: "Press Connect a wallet below. With no Solana wallet in this browser it makes a test wallet kept here, funded at once with 1,000 TestUSD and a little devnet SOL. Phantom or Solflare set to devnet works too.",
+    body: "Press Use a test wallet below: it makes one kept in this browser, funded at once with 1,000 TestUSD and a little devnet SOL. Phantom or Solflare set to devnet works too.",
   },
   {
     title: "Protect a stock until the next open",

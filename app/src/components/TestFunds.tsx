@@ -11,7 +11,7 @@ import { TestWalletName } from "@/lib/testWallet";
 
 /** The connected wallet's TestUSD and SOL, with a button to top up from the devnet faucet. */
 export function TestFunds({ mint, refreshKey }: { mint: string; refreshKey?: unknown }) {
-  const { publicKey, wallet } = useWallet();
+  const { publicKey, wallet, select } = useWallet();
   const { connection } = useConnection();
   const [balances, setBalances] = useState<{ testUsd: number; sol: number } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -68,6 +68,14 @@ export function TestFunds({ mint, refreshKey }: { mint: string; refreshKey?: unk
           This runs on Solana devnet with TestUSD, a token with no value. Connect a wallet and get 1,000 TestUSD and a little devnet SOL for fees
           here, free.
         </p>
+        {/* Wallets like Phantom open on mainnet; a test wallet skips switching networks. */}
+        <button
+          onClick={() => select(TestWalletName)}
+          className="mt-3 rounded-lg border border-line px-3 py-1.5 text-sm hover:border-brass"
+        >
+          Use a test wallet
+        </button>
+        <p className="mt-2 text-xs text-faint">Nothing to install: it&apos;s kept in this browser and funded at once.</p>
       </div>
     );
   }
