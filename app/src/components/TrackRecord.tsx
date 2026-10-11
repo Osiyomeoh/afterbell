@@ -28,7 +28,7 @@ export function TrackRecord() {
   }, []);
 
   const replay = useMemo(
-    () => market && backtest(market.history, STRUCTURE, { shares: 1, annualVol: market.annualVol, margin: market.config.margin }),
+    () => market && backtest(market.history, STRUCTURE, { shares: 1, annualVol: market.annualVol, margin: market.config.margin, minRate: market.config.minRate }),
     [market],
   );
 

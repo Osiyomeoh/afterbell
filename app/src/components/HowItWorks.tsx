@@ -11,7 +11,7 @@ const STEPS = [
   {
     title: "Choose your levels",
     body: "Pick a stock, your shares, and where protection starts and stops.",
-    detail: `Priced from how that stock has actually opened after every recorded close, read from the oracle it settles on, plus a ${margin} margin. Outside the session it's quoted from the lower of the last close and the live price, so a drop after the close can't buy cheap protection.`,
+    detail: `Priced from how that stock has actually opened after every recorded close, read from the oracle it settles on, plus a ${margin} margin, and never under ${DEFAULT_QUOTER_CONFIG.minRate * 100}% of the most it can pay. Outside the session it's quoted from the lower of the last close and the live price, so a drop after the close can't buy cheap protection.`,
   },
   {
     title: "Pay once",

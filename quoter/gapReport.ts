@@ -172,7 +172,7 @@ function line(
     }
   }
 
-  const r = backtest(h, structure, { shares: 1, annualVol: market.annualVol, margin: cfg.margin });
+  const r = backtest(h, structure, { shares: 1, annualVol: market.annualVol, margin: cfg.margin, minRate: cfg.minRate });
   return {
     symbol: market.symbol,
     shares,

@@ -176,7 +176,7 @@ export function Protect() {
 
   const record = useMemo(() => {
     if (!market) return null;
-    return backtest(market.history, { deductible: start, depth: Math.max(depth, start + 0.01) }, { shares: 1, annualVol: market.annualVol, margin: market.config.margin });
+    return backtest(market.history, { deductible: start, depth: Math.max(depth, start + 0.01) }, { shares: 1, annualVol: market.annualVol, margin: market.config.margin, minRate: market.config.minRate });
   }, [market, start, depth]);
 
   /**

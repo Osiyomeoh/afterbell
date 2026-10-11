@@ -28,7 +28,7 @@ export type BacktestResult = {
 export function backtest(
   openings: readonly Opening[],
   structure: Structure,
-  opts: { shares: number; annualVol: number; margin: number },
+  opts: { shares: number; annualVol: number; margin: number; minRate?: number },
 ): BacktestResult {
   const nights: BacktestNight[] = [];
   for (let i = MIN_HISTORY; i < openings.length; i++) {
@@ -40,7 +40,7 @@ export function backtest(
       upper: o.close * (1 - structure.deductible),
       lower: o.close * (1 - structure.depth),
     };
-    const price = priceProtection(model, o.close, p, opts.margin);
+    const price = priceProtection(model, o.close, p, opts.margin, opts.minRate);
     nights.push({ from: o.from, to: o.to, close: o.close, open: o.open, premium: price.premium, paid: payout(p, o.open) });
   }
   const premium = nights.reduce((a, n) => a + n.premium, 0);

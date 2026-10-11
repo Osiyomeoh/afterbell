@@ -210,7 +210,7 @@ export function createServer(kind: "hosted" | "local", api: AfterbellClient, wal
         const m = await api.market(symbol);
         const p = priceQuote(Math.floor(Date.now() / 1000), toMarket(m), protectionFor(m, await sharesFor(api, shares, holder, m.symbol), starts_below, stops_below), m.config);
         const start = (starts_below ?? 2) / 100;
-        const record = backtest(m.history, { deductible: start, depth: (stops_below ?? 10) / 100 }, { shares: 1, annualVol: m.annualVol, margin: m.config.margin });
+        const record = backtest(m.history, { deductible: start, depth: (stops_below ?? 10) / 100 }, { shares: 1, annualVol: m.annualVol, margin: m.config.margin, minRate: m.config.minRate });
         const toBuy = m.solana?.selling ? `To buy: ${kind === "local" ? "buy_protection" : "protection_transaction"} with the same arguments.` : `Solana devnet doesn't sell ${m.symbol}; this is a price only.`;
         return `${describe(p)}\nReplayed on ${record.nights.length} past ${m.symbol} openings, each priced only from the ones before it, this protection paid back ${Math.round(record.paidPerDollar * 100)}¢ per $1 of premium and paid out on ${record.paidNights} of them.\n${toBuy}`;
       }),
