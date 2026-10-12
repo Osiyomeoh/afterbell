@@ -9,7 +9,7 @@
     "proof": "tsx research/proof.ts",
     "prove": "cd solana && cargo build-sbf && cd .. && tsx solana/scripts/gap-replay.ts",
     "audit": "cd app && tsx --tsconfig tsconfig.json scripts/audit.ts",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p app",
     "solana:idl": "cp solana/target/idl/afterbell_vault.json solana/target/types/afterbell_vault.ts solana/client/idl/",
     "solana:test": "cd solana && cargo build-sbf && cargo build-sbf --manifest-path examples/cover-desk/Cargo.toml --sbf-out-dir target/deploy && cargo test -p afterbell-vault",
     "solana:setup": "tsx solana/scripts/setup.ts",

@@ -15,7 +15,9 @@ contract QuoteVectorTest is Test {
         // Deployed at a fixed address, so the vector pins the typed-data encoding, not the bytecode
         // (a CREATE2 address would move with every change to the contract).
         address at = 0xFb94De7E63834a1271b9b7E316d7c13B66F38995;
-        deployCodeTo("AfterbellVault.sol:AfterbellVault", abi.encode(new TestUSD(), address(1), address(2), 3 days, 1 days), at);
+        deployCodeTo(
+            "AfterbellVault.sol:AfterbellVault", abi.encode(new TestUSD(), address(1), address(2), 3 days, 1 days), at
+        );
         AfterbellVault vault = AfterbellVault(at);
         AfterbellVault.Quote memory q = AfterbellVault.Quote({
             buyer: 0x1111111111111111111111111111111111111111,

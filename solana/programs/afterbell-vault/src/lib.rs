@@ -32,7 +32,12 @@ declare_id!("J6n3JUafVkx4MpKTnAnZSwTcGFueRrjxgiXWMC4L7RGG");
 pub mod afterbell_vault {
     use super::*;
 
-    pub fn initialize_vault(ctx: Context<InitializeVault>, quoter: Pubkey, params: Params, art_uri: String) -> Result<()> {
+    pub fn initialize_vault(
+        ctx: Context<InitializeVault>,
+        quoter: Pubkey,
+        params: Params,
+        art_uri: String,
+    ) -> Result<()> {
         instructions::admin::handle_initialize_vault(ctx, quoter, params, art_uri)
     }
 

@@ -33,3 +33,8 @@ robinhood_testnet = "https://rpc.testnet.chain.robinhood.com"
 runs = 64
 depth = 60
 fail_on_revert = true
+
+# src/ stays exactly as deployed on Robinhood Chain, so its source still verifies against the deployed bytecode
+# (the compiler's metadata hash covers the source text); tests and scripts are formatted.
+[fmt]
+ignore = ["src/**/*.sol"]

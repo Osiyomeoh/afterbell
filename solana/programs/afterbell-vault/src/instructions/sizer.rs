@@ -50,7 +50,13 @@ pub fn handle_set_sizer(ctx: Context<SetSizer>, b: SizerBounds) -> Result<()> {
     s.min_start_bps = b.min_start_bps;
     s.max_depth_bps = b.max_depth_bps;
     s.bump = ctx.bumps.sizer;
-    emit!(SizerSet { order, sizer: b.sizer, max_shares: b.max_shares, min_start_bps: b.min_start_bps, max_depth_bps: b.max_depth_bps });
+    emit!(SizerSet {
+        order,
+        sizer: b.sizer,
+        max_shares: b.max_shares,
+        min_start_bps: b.min_start_bps,
+        max_depth_bps: b.max_depth_bps
+    });
     Ok(())
 }
 

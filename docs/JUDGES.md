@@ -122,7 +122,7 @@ The plan itself: [business.md](business.md).
 ## Run it yourself
 
 ```bash
-npm ci && npm test                       # 361 TypeScript tests
+npm ci && npm test                       # 370 TypeScript tests
 cd evm && forge test                     # 86 Foundry tests
 npm run solana:test                      # 82 Rust tests, after building the program and the cover-desk example
 npm run evm:cycle                        # a full round on a local chain: sell, move an NFT, settle, pay, roll

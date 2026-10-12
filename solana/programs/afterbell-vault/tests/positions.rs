@@ -108,7 +108,8 @@ fn only_the_holder_can_be_paid() {
     assert_vault_error(try_with(&mut env, [position, nft, thief.ata]), VaultError::WrongPayee);
     // The holder's own account, but in another mint.
     let other_mint = CreateMint::new(&mut env.svm, &env.payer).decimals(6).send().unwrap();
-    let other = CreateAssociatedTokenAccount::new(&mut env.svm, &env.payer, &other_mint).owner(&buyer.key()).send().unwrap();
+    let other =
+        CreateAssociatedTokenAccount::new(&mut env.svm, &env.payer, &other_mint).owner(&buyer.key()).send().unwrap();
     assert_vault_error(try_with(&mut env, [position, nft, other]), VaultError::WrongPayee);
     // An empty NFT account: the thief's, created for the mint but holding nothing.
     let thief_nft = Env::nft_account(&thief.key(), &p.mint);

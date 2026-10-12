@@ -123,7 +123,9 @@ fn the_sizer_resizes_the_order_within_its_bounds() {
 #[test]
 fn a_resize_outside_the_bounds_fails() {
     let (mut env, _holder, sizer, order) = setup();
-    for (shares, start, depth) in [(20_000_001, 700, 1_700), (0, 700, 1_700), (1, 400, 1_700), (1, 700, 3_001), (1, 1_700, 1_700)] {
+    for (shares, start, depth) in
+        [(20_000_001, 700, 1_700), (0, 700, 1_700), (1, 400, 1_700), (1, 700, 3_001), (1, 1_700, 1_700)]
+    {
         assert_vault_error(resize(&mut env, &sizer, order, shares, start, depth), VaultError::OutsideSizerBounds);
     }
 }
@@ -163,6 +165,6 @@ fn only_sensible_bounds_are_set() {
 fn a_removed_sizer_can_no_longer_resize() {
     let (mut env, holder, sizer, order) = setup();
     ok(remove_sizer(&mut env, &holder.kp, order));
-    assert!(env.svm.get_account(&sizer_pda(&env, &order)).map_or(true, |a| a.lamports == 0));
+    assert!(env.svm.get_account(&sizer_pda(&env, &order)).is_none_or(|a| a.lamports == 0));
     assert_fails(resize(&mut env, &sizer, order, 1, 700, 1_700));
 }

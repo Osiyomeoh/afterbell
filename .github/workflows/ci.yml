@@ -15,8 +15,7 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - run: npx tsc --noEmit
-      - run: npx tsc --noEmit -p app
+      - run: npm run typecheck
       - run: npm test
       # Private protection has its own pnpm install (the Helius SDK builds from Git) and imports the SDK above.
       - uses: pnpm/action-setup@v4
@@ -35,6 +34,7 @@ jobs:
         with:
           submodules: recursive
       - uses: foundry-rs/foundry-toolchain@v1
+      - run: forge fmt --check
       - run: forge build
       - run: forge test
 
@@ -111,9 +111,14 @@ jobs:
           tar -xjf platform-tools.tar.bz2 -C "$HOME/.cache/solana/${PLATFORM_TOOLS_VERSION}/platform-tools"
       - run: echo "$HOME/solana-release/bin" >> "$GITHUB_PATH"
       # rust-toolchain.toml pins the toolchain; rustup installs it on first use.
+      - run: cargo fmt --all --check
+      - run: cargo fmt --all --check --manifest-path examples/cover-desk/Cargo.toml
       - run: cargo test -p afterbell-vault --lib
       # The LiteSVM tests load the compiled programs from target/deploy: the vault, and the
       # cover-desk example that buys from it by CPI (its own workspace, so it's built on its own).
       - run: cargo build-sbf
       - run: cargo build-sbf --manifest-path examples/cover-desk/Cargo.toml --sbf-out-dir target/deploy
+      # After the builds: the composability test embeds the compiled cover-desk program.
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo clippy --all-targets --manifest-path examples/cover-desk/Cargo.toml -- -D warnings
       - run: cargo test -p afterbell-vault --tests

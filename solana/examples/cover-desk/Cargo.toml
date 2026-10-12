@@ -29,3 +29,6 @@ afterbell-vault = { path = "../../programs/afterbell-vault", features = ["cpi"] 
 
 [profile.release]
 overflow-checks = true
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(target_os, values("solana"))'] }

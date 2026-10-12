@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/Osiyomeoh/afterbell/actions/workflows/ci.yml/badge.svg)](https://github.com/Osiyomeoh/afterbell/actions/workflows/ci.yml)
 [![Payout audit](https://github.com/Osiyomeoh/afterbell/actions/workflows/audit.yml/badge.svg)](https://github.com/Osiyomeoh/afterbell/actions/workflows/audit.yml)
-![Tests](https://img.shields.io/badge/tests-361%20TS%20%C2%B7%2086%20Foundry%20%C2%B7%2082%20Rust-2ea44f)
+![Tests](https://img.shields.io/badge/tests-370%20TS%20%C2%B7%2086%20Foundry%20%C2%B7%2082%20Rust-2ea44f)
 ![Contract coverage](https://img.shields.io/badge/contract%20coverage-98%25%20lines-2ea44f)
 ![Slither](https://img.shields.io/badge/Slither-0%20open%20findings-2ea44f)
 ![Secret scan](https://img.shields.io/badge/gitleaks-clean-2ea44f)
@@ -301,6 +301,49 @@ What a user trusts, and what stops each party from taking more than the rules al
 - **Underwriters.** The worst night costs the pool at most half its value. Withdrawals wait for the round to settle, so nobody leaves ahead of a known loss.
 - **The hedge.** The Hyperliquid short is run by the operator off-chain; it lowers the pool's risk, but the vault's payouts never depend on it.
 - **Checks.** Foundry invariant and fork tests, Slither (0 open findings), randomized sequence tests on the Solana program, gitleaks over the whole history on every pull request. Not audited: TestUSD on both chains has no value.
+
+## Repository
+
+| Path | What's there |
+|---|---|
+| [`evm/`](evm) | The Robinhood Chain contracts (Foundry): the vault, its position NFTs with art drawn on-chain, the renewer and TestUSD, with their TypeScript client and keeper. `src/` stays exactly as deployed, so it still verifies against the deployed bytecode. |
+| [`solana/`](solana) | The Anchor program (`programs/afterbell-vault`) and its LiteSVM tests, the TypeScript client and keeper, scripts for devnet and a local validator, a snapshot of Kamino's programs for the replay, and `examples/cover-desk`, a program that buys protection by CPI. |
+| [`quoter/`](quoter) | Quotes: the next open, the price and the signature, and the board and gap reports built on them. Pure functions; the app's routes call them. |
+| [`pricing/`](pricing) | The openings model, the put spread priced on it, and its backtest. |
+| [`hedger/`](hedger) | The Hyperliquid hedge: the signer, the plan, the testnet quoting account and the backtest. |
+| [`research/`](research) | Recorded openings (`data/`: Chainlink rounds, Pyth's gaps, Hyperliquid candles, Kamino's loans), the proof replays and their results. |
+| [`app/`](app) | The Next.js app: pages, API routes and the hosted MCP server. An npm workspace. |
+| [`agent/`](agent) | The local MCP server, with its own devnet wallet. |
+| [`sdk/`](sdk) | `afterbell-sdk`, a typed client for the API. |
+| [`privacy/`](privacy) | Private protection through Helius's Solana Rings, as its own pnpm package. |
+| [`e2e/`](e2e) | Playwright tests of the hosted app. |
+
+Docs: [for judges](docs/JUDGES.md), [design](docs/design.md), [pitch](docs/pitch.md), [building on Afterbell](docs/integrate.md), [the hedger](docs/hedger.md), [hosting](docs/hosting.md), [automatic renewal](docs/auto-renew.md), [Kamino auto-cover](docs/kamino-auto-cover.md), and [running the Solana vault on mainnet](docs/mainnet-vault.md) (not yet run).
+
+## Development
+
+Node 24, Foundry, and for Solana the toolchain in `solana/rust-toolchain.toml` with Agave's `cargo build-sbf`. [CI](.github/workflows/ci.yml) runs every check below on each pull request, and gitleaks over the whole history:
+
+```bash
+npm ci
+npm run typecheck                    # strict tsc, root and app
+npm test                             # 370 tests
+pnpm --dir privacy install --frozen-lockfile && pnpm --dir privacy check
+
+# in evm/
+forge fmt --check                    # tests and scripts; src/ is left as deployed
+forge test                           # 86 tests, with fuzz and invariant runs
+slither . --config-file slither.config.json --fail-low
+
+# in solana/ (the cover desk is its own workspace: fmt and clippy run for it too, with --manifest-path)
+cargo fmt --all --check
+cargo build-sbf
+cargo build-sbf --manifest-path examples/cover-desk/Cargo.toml --sbf-out-dir target/deploy
+cargo clippy --all-targets -- -D warnings
+cargo test -p afterbell-vault        # 82 tests, LiteSVM against the compiled programs
+```
+
+On a schedule: [keeper](.github/workflows/keeper.yml) settles each open, [audit](.github/workflows/audit.yml) recomputes every payout on both chains from on-chain state, and [e2e](.github/workflows/e2e.yml) drives the hosted app after the open settles.
 
 ## How we got here
 

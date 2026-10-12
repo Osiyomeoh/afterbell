@@ -305,7 +305,13 @@ pub fn handle_roll(ctx: Context<Roll>) -> Result<()> {
     }
     // Everything the round sold is paid, so nothing is at risk and the pool's value is exact.
     let balance = ctx.accounts.vault_token.amount;
-    let assets = math::total_assets(balance, vault.pending_deposit_assets, vault.reserved_assets, vault.tips_owed, vault.locked)?;
+    let assets = math::total_assets(
+        balance,
+        vault.pending_deposit_assets,
+        vault.reserved_assets,
+        vault.tips_owed,
+        vault.locked,
+    )?;
     let supply = ctx.accounts.share_mint.supply;
     let deposit_assets = vault.pending_deposit_assets;
     let redeem_shares = vault.pending_redeem_shares;
@@ -345,8 +351,13 @@ pub fn handle_roll(ctx: Context<Roll>) -> Result<()> {
         vault.params_queued = false;
         emit!(ParamsSet { vault: vault.key(), params: vault.params });
     }
-    vault.round_nav =
-        math::total_assets(balance, vault.pending_deposit_assets, vault.reserved_assets, vault.tips_owed, vault.locked)?;
+    vault.round_nav = math::total_assets(
+        balance,
+        vault.pending_deposit_assets,
+        vault.reserved_assets,
+        vault.tips_owed,
+        vault.locked,
+    )?;
 
     let seeds = ctx.accounts.vault.seeds();
     let program = ctx.accounts.share_token_program.key();

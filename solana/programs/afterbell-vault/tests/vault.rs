@@ -127,7 +127,10 @@ fn buy_takes_the_premium_locks_the_max_payout_and_mints_an_nft() {
     assert!(!p.closed);
 
     let v = env.vault_state();
-    assert_eq!((v.locked, v.tips_owed, v.round_unpaid, v.round_open_ts, v.positions_sold), (200 * USD, 400_000, 1, OPEN, 1));
+    assert_eq!(
+        (v.locked, v.tips_owed, v.round_unpaid, v.round_open_ts, v.positions_sold),
+        (200 * USD, 400_000, 1, OPEN, 1)
+    );
     assert_eq!(env.balance(&env.buyer.ata), 980 * USD);
     assert_eq!(env.balance(&env.vault_token), SEED + 20 * USD);
     let s = env.series(FEED, OPEN);
@@ -298,11 +301,23 @@ fn settles_on_the_first_print_at_or_after_the_open() {
 #[test]
 fn settlement_rejects_the_wrong_print() {
     let cases = [
-        (PriceSpec { publish_time: OPEN - 1, prev_publish_time: OPEN - 2, ..Default::default() }, VaultError::PriceBeforeOpen),
-        (PriceSpec { publish_time: OPEN + SETTLE_WINDOW as i64 + 1, ..Default::default() }, VaultError::PriceAfterWindow),
-        (PriceSpec { publish_time: OPEN + 5, prev_publish_time: OPEN, ..Default::default() }, VaultError::NotFirstPriceAfterOpen),
+        (
+            PriceSpec { publish_time: OPEN - 1, prev_publish_time: OPEN - 2, ..Default::default() },
+            VaultError::PriceBeforeOpen,
+        ),
+        (
+            PriceSpec { publish_time: OPEN + SETTLE_WINDOW as i64 + 1, ..Default::default() },
+            VaultError::PriceAfterWindow,
+        ),
+        (
+            PriceSpec { publish_time: OPEN + 5, prev_publish_time: OPEN, ..Default::default() },
+            VaultError::NotFirstPriceAfterOpen,
+        ),
         (PriceSpec { feed_id: [8u8; 32], ..Default::default() }, VaultError::FeedMismatch),
-        (PriceSpec { verification: VerificationLevel::Partial { num_signatures: 5 }, ..Default::default() }, VaultError::InsufficientVerification),
+        (
+            PriceSpec { verification: VerificationLevel::Partial { num_signatures: 5 }, ..Default::default() },
+            VaultError::InsufficientVerification,
+        ),
         (PriceSpec { price: 0, ..Default::default() }, VaultError::NonPositivePrice),
         (PriceSpec { conf: 355_001, ..Default::default() }, VaultError::ConfidenceTooWide), // just over 1%
         // More than 10 times the highest strike ($360), or under a tenth of the lowest ($340).

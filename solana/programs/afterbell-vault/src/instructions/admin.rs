@@ -90,13 +90,16 @@ pub struct InitializeVault<'info> {
     pub system_program: Program<'info, System>,
 }
 
-pub fn handle_initialize_vault(ctx: Context<InitializeVault>, quoter: Pubkey, params: Params, art_uri: String) -> Result<()> {
+pub fn handle_initialize_vault(
+    ctx: Context<InitializeVault>,
+    quoter: Pubkey,
+    params: Params,
+    art_uri: String,
+) -> Result<()> {
     validate(&params)?;
     require!(quoter != Pubkey::default(), VaultError::InvalidConfig);
     require!(art_uri.len() <= MAX_ART_URI_LEN, VaultError::TooLong);
-    let unit = 10u64
-        .checked_pow(ctx.accounts.collateral_mint.decimals as u32)
-        .ok_or(VaultError::MathOverflow)?;
+    let unit = 10u64.checked_pow(ctx.accounts.collateral_mint.decimals as u32).ok_or(VaultError::MathOverflow)?;
     let vault = &mut ctx.accounts.vault;
     vault.authority = ctx.accounts.authority.key();
     vault.quoter = quoter;
@@ -146,12 +149,8 @@ pub fn write_metadata<'info>(
     uri: String,
     fields: &[(&str, String)],
 ) -> Result<()> {
-    let extra = math::metadata_len(
-        &name,
-        &symbol,
-        &uri,
-        &fields.iter().map(|(k, v)| (*k, v.as_str())).collect::<Vec<_>>(),
-    );
+    let extra =
+        math::metadata_len(&name, &symbol, &uri, &fields.iter().map(|(k, v)| (*k, v.as_str())).collect::<Vec<_>>());
     let needed = Rent::get()?.minimum_balance(mint.data_len() + extra);
     let have = mint.lamports();
     if needed > have {

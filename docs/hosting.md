@@ -62,7 +62,7 @@ Build and start command as above, `PORT` from the host, the settings as environm
 2. **Before the second vault's first sale, point its NFTs' art at the host.** Each position's NFT records the art address the vault holds when it's minted (today `http://localhost:3100/api/position-art/solana/`), and only NFTs minted after a change get the new one. The program's authority (GZP4) signs a single transaction; setup sees the vault exists and sends only that change:
 
    ```bash
-   cd ~/Documents/afterbell/.claude/worktrees/solana-v2 && QUOTER=Ajy9Hwcc7FcTfoU9fJbHU4DRTzJDuubdQ3EDRAmMQ9hW ART_URI=https://<host>/api/position-art/solana/ npx tsx solana/scripts/setup.ts
+   QUOTER=Ajy9Hwcc7FcTfoU9fJbHU4DRTzJDuubdQ3EDRAmMQ9hW ART_URI=https://<host>/api/position-art/solana/ npx tsx solana/scripts/setup.ts
    ```
 
    The address must be at most 128 characters. Setup rewrites `solana/deployments/devnet.json` with it; commit that file.

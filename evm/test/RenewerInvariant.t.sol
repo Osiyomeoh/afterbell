@@ -41,7 +41,14 @@ contract RenewerHandler is Test {
     uint256 public refused;
     uint256 public nights;
 
-    constructor(AfterbellVault vault_, AfterbellRenewer renewer_, TestUSD usd_, MockFeed feed_, address[3] memory holders_, uint64 open) {
+    constructor(
+        AfterbellVault vault_,
+        AfterbellRenewer renewer_,
+        TestUSD usd_,
+        MockFeed feed_,
+        address[3] memory holders_,
+        uint64 open
+    ) {
         vault = vault_;
         renewer = renewer_;
         usd = usd_;
@@ -51,7 +58,9 @@ contract RenewerHandler is Test {
         openTs = open;
     }
 
-    function setOrder(uint256 who, uint64 maxShares, uint16 startBps, uint16 depthBps, uint128 maxPremium, uint8 days_) external {
+    function setOrder(uint256 who, uint64 maxShares, uint16 startBps, uint16 depthBps, uint128 maxPremium, uint8 days_)
+        external
+    {
         startBps = uint16(bound(startBps, 50, 1_000));
         depthBps = uint16(bound(depthBps, startBps + 50, 3_000));
         vm.prank(holders[who % 3]);
@@ -73,7 +82,9 @@ contract RenewerHandler is Test {
     }
 
     /// A renewal for `who`, near their order's levels or off them, at any size and price, from anyone.
-    function renew(uint256 who, uint64 shares, uint128 premium, int16 offBps, uint256 caller, bool withinOrder) external {
+    function renew(uint256 who, uint64 shares, uint128 premium, int16 offBps, uint256 caller, bool withinOrder)
+        external
+    {
         if (block.timestamp >= openTs || (vault.roundOpenTs() != 0 && vault.roundOpenTs() != openTs)) return;
         address holder = holders[who % 3];
         AfterbellRenewer.Order memory o = renewer.order(holder, address(feed));

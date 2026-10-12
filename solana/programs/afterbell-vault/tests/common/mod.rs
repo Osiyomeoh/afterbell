@@ -269,7 +269,10 @@ impl Env {
     }
 
     pub fn ix_set_art_uri(&self, authority: &Pubkey, art_uri: &str) -> Instruction {
-        self.ix(afterbell_vault::instruction::SetArtUri { art_uri: art_uri.to_string() }.data(), self.configure(authority))
+        self.ix(
+            afterbell_vault::instruction::SetArtUri { art_uri: art_uri.to_string() }.data(),
+            self.configure(authority),
+        )
     }
 
     pub fn ix_allow_feed(&self, feed_id: [u8; 32], symbol: &str, allowed: bool) -> Instruction {
@@ -323,7 +326,13 @@ impl Env {
     }
 
     /// `process` for positions given as (position, NFT token account, payee collateral account).
-    pub fn ix_process(&self, series: &Pubkey, keeper: &Pubkey, keeper_token: &Pubkey, triples: &[[Pubkey; 3]]) -> Instruction {
+    pub fn ix_process(
+        &self,
+        series: &Pubkey,
+        keeper: &Pubkey,
+        keeper_token: &Pubkey,
+        triples: &[[Pubkey; 3]],
+    ) -> Instruction {
         let mut ix = self.ix(
             afterbell_vault::instruction::Process {}.data(),
             afterbell_vault::accounts::Process {
@@ -347,7 +356,8 @@ impl Env {
     /// The rate a request's `side` needs filled with, if it has one from a rolled round.
     fn rate_for(&self, owner: &Pubkey, deposit: bool) -> Option<Pubkey> {
         let r = self.request(owner)?;
-        let (amount, round) = if deposit { (r.deposit_assets, r.deposit_round) } else { (r.redeem_shares, r.redeem_round) };
+        let (amount, round) =
+            if deposit { (r.deposit_assets, r.deposit_round) } else { (r.redeem_shares, r.redeem_round) };
         let v = self.vault_state();
         (amount > 0 && round < v.round).then(|| self.rate_pda(round))
     }
@@ -592,9 +602,7 @@ impl Env {
         let mut data = Vec::new();
         update.try_serialize(&mut data).unwrap();
         let lamports = self.svm.minimum_balance_for_rent_exemption(data.len());
-        self.svm
-            .set_account(address, Account { lamports, data, owner, executable: false, rent_epoch: 0 })
-            .unwrap();
+        self.svm.set_account(address, Account { lamports, data, owner, executable: false, rent_epoch: 0 }).unwrap();
         address
     }
 
@@ -667,8 +675,14 @@ impl Env {
     /// The pool's assets as the program counts them.
     pub fn total_assets(&self) -> u64 {
         let v = self.vault_state();
-        afterbell_vault::math::total_assets(self.balance(&self.vault_token), v.pending_deposit_assets, v.reserved_assets, v.tips_owed, v.locked)
-            .unwrap()
+        afterbell_vault::math::total_assets(
+            self.balance(&self.vault_token),
+            v.pending_deposit_assets,
+            v.reserved_assets,
+            v.tips_owed,
+            v.locked,
+        )
+        .unwrap()
     }
 }
 
