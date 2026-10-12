@@ -13,7 +13,7 @@
 
 Tokenized stocks trade 24/7; the stock doesn't. Whatever happens while the exchange is shut lands all at once on the next opening print, and a token holder has no put to buy. Afterbell sells that put: a fixed premium, a fixed maximum payout, settled on the first oracle price at or after the 09:30 ET open.
 
-Built for Colosseum's Crypto World's Fair (September to October 2026). For judges: [docs/JUDGES.md](docs/JUDGES.md), the project by the judging criteria, each claim with the test that checks it. `npm ci && npm run prove` replays TSLA's worst opening against a snapshot of Kamino's market, with no RPC. Design: [docs/design.md](docs/design.md). Pitch deck, the business and the path to $10M a year in fees: [docs/pitch.md](docs/pitch.md) ([PDF](docs/pitch/afterbell-pitch-deck.pdf)).
+Built for Colosseum's Crypto World's Fair (September to October 2026). For judges: [docs/JUDGES.md](docs/JUDGES.md), the project by the judging criteria, each claim with the test that checks it. `npm ci && npm run prove` replays TSLA's worst opening against a snapshot of Kamino's market, with no RPC. Pitch deck, the business and the path to $10M a year in fees: [docs/pitch.md](docs/pitch.md) ([PDF](docs/pitch/afterbell-pitch-deck.pdf)).
 
 ## Try it in 60 seconds
 
@@ -318,7 +318,7 @@ What a user trusts, and what stops each party from taking more than the rules al
 | [`privacy/`](privacy) | Private protection through Helius's Solana Rings, as its own pnpm package. |
 | [`e2e/`](e2e) | Playwright tests of the hosted app. |
 
-Docs: [for judges](docs/JUDGES.md), [design](docs/design.md), [pitch](docs/pitch.md), [building on Afterbell](docs/integrate.md), [the hedger](docs/hedger.md), [hosting](docs/hosting.md), [automatic renewal](docs/auto-renew.md), [Kamino auto-cover](docs/kamino-auto-cover.md), and [running the Solana vault on mainnet](docs/mainnet-vault.md) (not yet run).
+Docs: [for judges](docs/JUDGES.md), [pitch](docs/pitch.md), [building on Afterbell](docs/integrate.md), [the hedger](docs/hedger.md), [hosting](docs/hosting.md), [automatic renewal](docs/auto-renew.md), [Kamino auto-cover](docs/kamino-auto-cover.md), and [running the Solana vault on mainnet](docs/mainnet-vault.md) (not yet run).
 
 ## Development
 
