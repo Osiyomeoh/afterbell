@@ -30,7 +30,7 @@ import { AfterbellClient } from "../sdk/client";
 import { solanaPurchase } from "../sdk/solana";
 
 import { fromUnits, owed, roundDeposit, type DeskEntry, type DeskRun } from "./book";
-import { assetsFor, connect, deposit, party, payPrivately, privateAddressFromHex, privateAddressHex, privateWallet, type Party } from "./rings";
+import { assetsFor, connect, deposit, party, payPrivately, privateAddressFromHex, privateAddressHex, privateWallet } from "./rings";
 
 const API = new AfterbellClient(process.env.AFTERBELL_URL ?? "https://afterbell-nine.vercel.app");
 const RPC = process.env.SOLANA_RPC ?? "https://api.devnet.solana.com";
