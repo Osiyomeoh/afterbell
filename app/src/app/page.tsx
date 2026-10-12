@@ -5,6 +5,7 @@ import { EventBanner } from "@/components/EventBanner";
 import { ForAgents } from "@/components/ForAgents";
 import { HowItWorks } from "@/components/HowItWorks";
 import { Protect } from "@/components/Protect";
+import { Waitlist } from "@/components/Waitlist";
 
 export default function Home() {
   return (
@@ -50,6 +51,10 @@ export default function Home() {
         </Link>
       </section>
       <HowItWorks />
+      {/* For anyone who'd use it with real money; /try links here. */}
+      <div id="waitlist" className="mt-16 scroll-mt-6">
+        <Waitlist />
+      </div>
       <ForAgents />
     </>
   );

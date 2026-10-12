@@ -28,7 +28,9 @@ contract Deploy is Script {
         address quoter = vm.envAddress("QUOTER");
         (string[] memory symbols, address[] memory feeds) = listedFeeds();
         bool hasTsla;
-        for (uint256 i; i < feeds.length; i++) hasTsla = hasTsla || feeds[i] == TSLA_FEED;
+        for (uint256 i; i < feeds.length; i++) {
+            hasTsla = hasTsla || feeds[i] == TSLA_FEED;
+        }
         require(hasTsla, "robinhood-stocks.json: TSLA's feed is missing");
 
         vm.startBroadcast();
@@ -36,9 +38,13 @@ contract Deploy is Script {
 
         usd = new TestUSD();
         vault = new AfterbellVault(usd, deployer, quoter, MAX_ROUND_AGE, SETTLE_WINDOW);
-        for (uint256 i; i < feeds.length; i++) vault.allowFeed(feeds[i], symbols[i]);
+        for (uint256 i; i < feeds.length; i++) {
+            vault.allowFeed(feeds[i], symbols[i]);
+        }
 
-        for (uint256 minted; minted < SEED; minted += usd.MINT_LIMIT()) usd.mint(deployer, usd.MINT_LIMIT());
+        for (uint256 minted; minted < SEED; minted += usd.MINT_LIMIT()) {
+            usd.mint(deployer, usd.MINT_LIMIT());
+        }
         usd.approve(address(vault), SEED);
         vault.requestDeposit(SEED, deployer, deployer);
         vault.roll();
@@ -50,7 +56,9 @@ contract Deploy is Script {
         console.log("AfterbellPositions", address(vault.positionToken()));
         console.log("owner", deployer);
         console.log("quoter", quoter);
-        for (uint256 i; i < feeds.length; i++) console.log(symbols[i], feeds[i]);
+        for (uint256 i; i < feeds.length; i++) {
+            console.log(symbols[i], feeds[i]);
+        }
     }
 
     /// Each stock's symbol and Chainlink feed, in the list's order.

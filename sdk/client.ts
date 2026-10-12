@@ -12,6 +12,7 @@ import type {
   EvmQuoteResponse,
   GapReportResponse,
   HedgeInfo,
+  KaminoCoverResponse,
   KaminoLoansResponse,
   LedgerRow,
   MarketInfo,
@@ -103,6 +104,9 @@ export class AfterbellClient {
 
   /** A Solana wallet's loans against tokenized stocks on Kamino: the opening that makes each liquidatable, and protection down to it. */
   kaminoLoans = (wallet: string) => this.call<KaminoLoansResponse>(`/api/kamino/loans?wallet=${encodeURIComponent(wallet)}`);
+
+  /** Auto-cover for each of a wallet's Kamino loans: protection from the opening that liquidates it, sized to the shortfall. */
+  kaminoCover = (wallet: string) => this.call<KaminoCoverResponse>(`/api/kamino/cover?wallet=${encodeURIComponent(wallet)}`);
 
   hedge = () => this.call<HedgeInfo>("/api/hedge");
   /** Resolves even when something is down (the API answers 503 then): read `checks`. */

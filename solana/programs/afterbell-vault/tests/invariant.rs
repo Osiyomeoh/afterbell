@@ -67,13 +67,27 @@ impl Handler {
         let (mut buyers, mut lps) = (vec![], vec![]);
         for i in 0..6 {
             let u = env.new_user(1_000_000_000 * USD);
-            if i < 3 { buyers.push(u.key()) } else { lps.push(u.key()) }
+            if i < 3 {
+                buyers.push(u.key())
+            } else {
+                lps.push(u.key())
+            }
             users.insert(u.key(), u);
         }
         let auth = env.authority.clone();
         lps.push(auth.key());
         users.insert(auth.key(), auth);
-        Handler { env, rng: Rng(seed * 0x9E37_79B9 + 1), users, buyers, lps, positions: vec![], open: OPEN, done: [0; 9], burned: 0 }
+        Handler {
+            env,
+            rng: Rng(seed * 0x9E37_79B9 + 1),
+            users,
+            buyers,
+            lps,
+            positions: vec![],
+            open: OPEN,
+            done: [0; 9],
+            burned: 0,
+        }
     }
 
     fn user(&self, key: &Pubkey) -> User {
@@ -156,7 +170,14 @@ impl Handler {
                 // Anywhere from 20% under the lowest strike to 20% over the highest (expo -5).
                 let (lo, hi) = (s.lowest_lower / 1_000 * 8 / 10, s.highest_upper / 1_000 * 12 / 10);
                 let price = self.rng.range(lo, hi) as i64;
-                let spec = PriceSpec { feed_id: feed, price, conf: 0, publish_time: self.open, prev_publish_time: self.open - 1, ..Default::default() };
+                let spec = PriceSpec {
+                    feed_id: feed,
+                    price,
+                    conf: 0,
+                    publish_time: self.open,
+                    prev_publish_time: self.open - 1,
+                    ..Default::default()
+                };
                 let update = env.price(spec);
                 let ix = env.ix_settle(&address, &update);
                 let payer = env.payer.insecure_clone();
@@ -173,7 +194,8 @@ impl Handler {
             .unpaid()
             .into_iter()
             .filter(|(a, p)| {
-                self.env.holders.contains_key(a) && read::<afterbell_vault::Series>(&self.env.svm, &p.series).state != SeriesState::Open
+                self.env.holders.contains_key(a)
+                    && read::<afterbell_vault::Series>(&self.env.svm, &p.series).state != SeriesState::Open
             })
             .collect();
         if payable.is_empty() {
@@ -268,7 +290,8 @@ impl Handler {
 
     /// Sells a position's NFT to someone else, or now and then burns it.
     fn move_position(&mut self) -> bool {
-        let held: Vec<Pubkey> = self.unpaid().into_iter().map(|(a, _)| a).filter(|a| self.env.holders.contains_key(a)).collect();
+        let held: Vec<Pubkey> =
+            self.unpaid().into_iter().map(|(a, _)| a).filter(|a| self.env.holders.contains_key(a)).collect();
         if held.is_empty() {
             return false;
         }
@@ -342,7 +365,10 @@ impl Handler {
 
         // withinTheRiskLimit: the round, and each stock in it, within its share of the pool at the roll.
         if v.round_open_ts != 0 {
-            assert!(v.locked <= math::bps_of(v.round_nav, v.params.max_utilization_bps), "{at}: over the round's limit");
+            assert!(
+                v.locked <= math::bps_of(v.round_nav, v.params.max_utilization_bps),
+                "{at}: over the round's limit"
+            );
             for feed in [FEED, FEED2] {
                 if let Some(s) = try_read::<afterbell_vault::Series>(&env.svm, &env.series_pda(feed, v.round_open_ts)) {
                     assert!(s.locked <= math::bps_of(v.round_nav, v.params.max_feed_bps), "{at}: over a stock's limit");

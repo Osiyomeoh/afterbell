@@ -6,7 +6,8 @@ import type { NextConfig } from "next";
 const root = join(import.meta.dirname, "..");
 
 const nextConfig: NextConfig = {
-  turbopack: { root },
+  // Kamino's SDK requires fs in a keypair-file helper the browser never calls.
+  turbopack: { root, resolveAlias: { fs: { browser: "./src/lib/empty.ts" } } },
   outputFileTracingRoot: root,
   // The Pyth receiver (used by the keeper) only loads through its CommonJS build.
   serverExternalPackages: ["@pythnetwork/pyth-solana-receiver"],

@@ -204,6 +204,12 @@ async function main() {
     const carolBefore = (await getAccount(connection, await tokenOf(carol!))).amount;
     check((await program.account.series.fetch(new PublicKey(seriesKey))).state.open !== undefined, "planning sent nothing: the series is still open");
 
+    // With pay off, the keeper settles and leaves each payout for its holder to claim.
+    const settleOnly = await runKeeper({ connection, payer: keeper!, vault, hermes: unusedHermes, postedUpdate: () => priceUpdate, pay: false });
+    const open = await program.account.position.all([{ memcmp: { offset: 8, bytes: vault.toBase58() } }]);
+    check(settleOnly.settled.length === 1 && settleOnly.paid.length === 0 && settleOnly.rolled === null, "with pay off, the keeper settles, pays nothing and doesn't roll");
+    check(open.length === 3 && open.every((p) => !p.account.closed) && (await getAccount(connection, await tokenOf(carol!))).amount === carolBefore, "every position is still there to claim, and Carol has received nothing yet");
+
     const keeperToken = await tokenOf(keeper!);
     const report = await runKeeper({ connection, payer: keeper!, vault, hermes: unusedHermes, postedUpdate: () => priceUpdate, log: (line) => console.log(`    keeper: ${line}`) });
 

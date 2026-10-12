@@ -92,15 +92,19 @@ export type Price = {
   probabilityOfPayout: number;
 };
 
-/** Prices protection at the model's odds plus `margin` (0.1 = 10% over fair). */
-export function priceProtection(model: OpeningModel, spot: number, p: Protection, margin: number): Price {
+/**
+ * Prices protection at the model's odds plus `margin` (0.1 = 10% over fair),
+ * and never below `minRate` of the most it can pay (0.005 = 0.5%).
+ */
+export function priceProtection(model: OpeningModel, spot: number, p: Protection, margin: number, minRate = 0): Price {
   validate(p);
   if (margin < 0) throw new Error("margin must not be negative");
+  if (!(minRate >= 0 && minRate < 1)) throw new Error("minRate must be at least 0 and below 1");
   const perShare = expectedPut(model, spot, p.upper) - expectedPut(model, spot, p.lower);
   const expectedPayout = p.shares * Math.min(Math.max(perShare, 0), p.upper - p.lower);
   return {
     expectedPayout,
-    premium: expectedPayout * (1 + margin),
+    premium: Math.max(expectedPayout * (1 + margin), minRate * maxPayout(p)),
     maxPayout: maxPayout(p),
     probabilityOfPayout: probabilityBelow(model, spot, p.upper),
   };

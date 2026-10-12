@@ -131,3 +131,26 @@ pub struct OrderCancelled {
     pub order: Pubkey,
     pub holder: Pubkey,
 }
+
+#[event]
+pub struct SizerSet {
+    pub order: Pubkey,
+    pub sizer: Pubkey,
+    pub max_shares: u64,
+    pub min_start_bps: u16,
+    pub max_depth_bps: u16,
+}
+
+#[event]
+pub struct SizerRemoved {
+    pub order: Pubkey,
+}
+
+#[event]
+pub struct OrderResized {
+    pub order: Pubkey,
+    pub sizer: Pubkey,
+    pub max_shares: u64,
+    pub start_bps: u16,
+    pub depth_bps: u16,
+}

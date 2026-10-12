@@ -124,7 +124,13 @@ pub fn handle_buy(ctx: Context<Buy>, q: QuoteArgs) -> Result<()> {
 
 /// Checks the quote's terms and that the instruction right before this one
 /// verified the quoter's signature over it for `buyer`.
-pub fn check_quote(instructions: &AccountInfo, program_id: &Pubkey, vault: &Account<Vault>, buyer: &Pubkey, q: &QuoteArgs) -> Result<()> {
+pub fn check_quote(
+    instructions: &AccountInfo,
+    program_id: &Pubkey,
+    vault: &Account<Vault>,
+    buyer: &Pubkey,
+    q: &QuoteArgs,
+) -> Result<()> {
     let now = Clock::get()?.unix_timestamp;
     require!(now <= q.expiry, VaultError::QuoteExpired);
     require!(now < q.open_ts, VaultError::AlreadyOpen);
@@ -188,14 +194,8 @@ pub fn sell(s: Sale, q: &QuoteArgs, (series_bump, position_bump, mint_bump): (u8
 
     // Measured against the pool at the roll, so the limits can't move within a round.
     vault.locked = vault.locked.checked_add(max_payout).ok_or(VaultError::MathOverflow)?;
-    require!(
-        vault.locked <= math::bps_of(vault.round_nav, vault.params.max_utilization_bps),
-        VaultError::OverCapacity
-    );
-    require!(
-        series.locked <= math::bps_of(vault.round_nav, vault.params.max_feed_bps),
-        VaultError::OverStockLimit
-    );
+    require!(vault.locked <= math::bps_of(vault.round_nav, vault.params.max_utilization_bps), VaultError::OverCapacity);
+    require!(series.locked <= math::bps_of(vault.round_nav, vault.params.max_feed_bps), VaultError::OverStockLimit);
 
     let tip = math::bps_of(q.premium, vault.params.keeper_tip_bps);
     vault.tips_owed = vault.tips_owed.checked_add(tip).ok_or(VaultError::MathOverflow)?;

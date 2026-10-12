@@ -23,6 +23,12 @@ const YEAR_SECS = 365.25 * 86_400;
 export type QuoterConfig = {
   /** Premium over the model's fair value (0.15 = 15%). */
   margin: number;
+  /**
+   * The least a quote costs, as a share of the most it can pay (0.005 = 0.5%).
+   * The model learns from openings since June, a short and mostly calm history:
+   * a stock that hasn't gapped 2% in it still can, so cover on it isn't free.
+   */
+  minRate: number;
   /** How long a signed quote stays usable. */
   ttlSecs: number;
   /**
@@ -43,6 +49,7 @@ export type QuoterConfig = {
 
 export const DEFAULT_QUOTER_CONFIG: QuoterConfig = {
   margin: 0.15,
+  minRate: 0.005,
   ttlSecs: 60,
   stopBeforeOpenSecs: 120,
   maxShares: 1_000,
@@ -124,7 +131,7 @@ export function priceQuote(now: number, market: Market, protection: Protection, 
   const reference = referencePrice(now, market, cfg);
   const openTs = nextOpen(now, cfg.stopBeforeOpenSecs + cfg.ttlSecs, market.holidays);
   const model = modelFor(now, openTs, market);
-  const price = priceProtection(model, reference.price, protection, cfg.margin);
+  const price = priceProtection(model, reference.price, protection, cfg.margin, cfg.minRate);
   // The vault takes premium <= max payout, but protection that dear is no use to anyone.
   if (price.premium >= price.maxPayout) throw new Error("protection this deep costs as much as it can pay");
   return {

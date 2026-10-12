@@ -41,25 +41,38 @@ pub fn total_assets(
 /// Shares for `assets` at a roll's rate, rounded down: each request's share
 /// rounds down, so together they never exceed what the roll minted.
 pub fn shares_for(assets: u64, pool_assets: u64, supply: u64) -> Result<u64, VaultError> {
-    mul_div(assets, supply.checked_add(1).ok_or(VaultError::MathOverflow)?, pool_assets.checked_add(1).ok_or(VaultError::MathOverflow)?)
+    mul_div(
+        assets,
+        supply.checked_add(1).ok_or(VaultError::MathOverflow)?,
+        pool_assets.checked_add(1).ok_or(VaultError::MathOverflow)?,
+    )
 }
 
 /// Assets for `shares` at a roll's rate, rounded down.
 pub fn assets_for(shares: u64, pool_assets: u64, supply: u64) -> Result<u64, VaultError> {
-    mul_div(shares, pool_assets.checked_add(1).ok_or(VaultError::MathOverflow)?, supply.checked_add(1).ok_or(VaultError::MathOverflow)?)
+    mul_div(
+        shares,
+        pool_assets.checked_add(1).ok_or(VaultError::MathOverflow)?,
+        supply.checked_add(1).ok_or(VaultError::MathOverflow)?,
+    )
 }
 
 /// Whether a series with these strikes may settle at `price`: within
 /// MAX_PRICE_RATIO of them.
 pub fn plausible_price(price: u64, lowest_lower: u64, highest_upper: u64) -> bool {
-    (price as u128) <= (highest_upper as u128) * MAX_PRICE_RATIO && (price as u128) * MAX_PRICE_RATIO >= lowest_lower as u128
+    (price as u128) <= (highest_upper as u128) * MAX_PRICE_RATIO
+        && (price as u128) * MAX_PRICE_RATIO >= lowest_lower as u128
 }
 
 /// Bytes a Token-2022 metadata entry takes: its type-length header, update
 /// authority, mint, name, symbol, uri and extra fields, each string prefixed
 /// by its length.
 pub fn metadata_len(name: &str, symbol: &str, uri: &str, fields: &[(&str, &str)]) -> usize {
-    4 + 32 + 32 + (4 + name.len()) + (4 + symbol.len()) + (4 + uri.len())
+    4 + 32
+        + 32
+        + (4 + name.len())
+        + (4 + symbol.len())
+        + (4 + uri.len())
         + 4
         + fields.iter().map(|(k, v)| 8 + k.len() + v.len()).sum::<usize>()
 }
@@ -71,18 +84,10 @@ pub fn to_price_8(price: i64, expo: i32) -> Result<u64, VaultError> {
     if price <= 0 {
         return Err(VaultError::NonPositivePrice);
     }
-    let shift = PRICE_DECIMALS
-        .checked_add(expo)
-        .ok_or(VaultError::MathOverflow)?;
+    let shift = PRICE_DECIMALS.checked_add(expo).ok_or(VaultError::MathOverflow)?;
     let p = price as u128;
-    let scale = 10u128
-        .checked_pow(shift.unsigned_abs())
-        .ok_or(VaultError::MathOverflow)?;
-    let out = if shift >= 0 {
-        p.checked_mul(scale).ok_or(VaultError::MathOverflow)?
-    } else {
-        p.div_ceil(scale)
-    };
+    let scale = 10u128.checked_pow(shift.unsigned_abs()).ok_or(VaultError::MathOverflow)?;
+    let out = if shift >= 0 { p.checked_mul(scale).ok_or(VaultError::MathOverflow)? } else { p.div_ceil(scale) };
     u64::try_from(out).map_err(|_| VaultError::MathOverflow)
 }
 
@@ -99,13 +104,7 @@ pub fn payout_units(shares: u64, price_diff: u64, collateral_unit: u64) -> Resul
 
 /// What protection pays at an opening price: nothing at or above `upper`, the
 /// loss below it, capped at `upper − lower`.
-pub fn payout_at(
-    shares: u64,
-    upper: u64,
-    lower: u64,
-    price: u64,
-    collateral_unit: u64,
-) -> Result<u64, VaultError> {
+pub fn payout_at(shares: u64, upper: u64, lower: u64, price: u64, collateral_unit: u64) -> Result<u64, VaultError> {
     if price >= upper {
         return Ok(0);
     }
@@ -134,9 +133,7 @@ pub fn check_settlement_timing(
     if publish_time < open_ts {
         return Err(VaultError::PriceBeforeOpen);
     }
-    let window_end = open_ts
-        .checked_add(window_secs as i64)
-        .ok_or(VaultError::MathOverflow)?;
+    let window_end = open_ts.checked_add(window_secs as i64).ok_or(VaultError::MathOverflow)?;
     if publish_time > window_end {
         return Err(VaultError::PriceAfterWindow);
     }
@@ -262,7 +259,10 @@ mod tests {
     #[test]
     fn metadata_length_counts_every_string() {
         assert_eq!(metadata_len("", "", "", &[]), 84);
-        assert_eq!(metadata_len("Afterbell #1 TSLA", "BELL", "https://x/", &[("position", "abc")]), 84 + 17 + 4 + 10 + 8 + 8 + 3);
+        assert_eq!(
+            metadata_len("Afterbell #1 TSLA", "BELL", "https://x/", &[("position", "abc")]),
+            84 + 17 + 4 + 10 + 8 + 8 + 3
+        );
     }
 
     #[test]

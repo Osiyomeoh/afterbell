@@ -57,6 +57,12 @@ export type KeeperOptions = {
    * Hermes. For tests on a local validator, which has no Pyth receiver.
    */
   postedUpdate?: (series: SeriesView) => PublicKey | undefined;
+  /**
+   * false: settle and void, but leave each payout for its holder to claim, as
+   * the app's "Repay Kamino" does, repaying a loan in the same transaction.
+   * The pool then rolls once the holders have claimed. Defaults to true.
+   */
+  pay?: boolean;
   log?: (line: string) => void;
 };
 
@@ -192,7 +198,8 @@ export async function runKeeper(opts: KeeperOptions): Promise<KeeperReport> {
   // Pay every position in a finished series to whoever holds its NFT now.
   state = await load();
   const pay = plan(await clusterNow(connection), v.params, state.series, state.positions.map((p) => p.view)).pay;
-  if (pay.length) {
+  if (pay.length && opts.pay === false) log(`left ${pay.length} position(s) for their holders to claim`);
+  else if (pay.length) {
     const keeperToken = getAssociatedTokenAddressSync(v.collateralMint, payer.publicKey);
     const payees = await payeesFor(connection, v.collateralMint, pay);
     // Holders without a collateral account get one (the keeper pays the rent), and so does the keeper, for its tips.

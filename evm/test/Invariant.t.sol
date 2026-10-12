@@ -31,7 +31,13 @@ contract Handler is Test {
     uint256 public voided;
     uint256 public rolledAfterSales;
 
-    constructor(AfterbellVault vault_, TestUSD usd_, MockFeed[2] memory feeds_, address[4] memory actors_, uint64 open) {
+    constructor(
+        AfterbellVault vault_,
+        TestUSD usd_,
+        MockFeed[2] memory feeds_,
+        address[4] memory actors_,
+        uint64 open
+    ) {
         vault = vault_;
         usd = usd_;
         nft = vault_.positionToken();
@@ -195,7 +201,9 @@ contract Handler is Test {
     }
 
     function _held() private view returns (uint256 total) {
-        for (uint256 i; i < 4; ++i) total += usd.balanceOf(actors[i]);
+        for (uint256 i; i < 4; ++i) {
+            total += usd.balanceOf(actors[i]);
+        }
     }
 }
 
@@ -274,7 +282,12 @@ contract InvariantTest is Test {
 
     function afterInvariant() public view {
         console.log("buys %d, settled %d, voided %d", handler.buys(), handler.settled(), handler.voided());
-        console.log("rolls %d, after sales %d, paid out %d", handler.ghostRolls(), handler.rolledAfterSales(), handler.ghostPaid());
+        console.log(
+            "rolls %d, after sales %d, paid out %d",
+            handler.ghostRolls(),
+            handler.rolledAfterSales(),
+            handler.ghostPaid()
+        );
     }
 
     /// A round never locks more than its limit of the pool it started with.

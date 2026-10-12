@@ -6,6 +6,8 @@
  *
  *   PYTH_API_KEY=<your key> npm run solana:keeper
  *   PYTH_API_KEY=<your key> npm run solana:keeper -- --plan   # read-only: what it would do, and pay
+ *   PYTH_API_KEY=<your key> npm run solana:keeper -- --no-pay # settle and void, but let holders claim
+ *                                                             # (and repay a Kamino loan with the payout)
  *
  * RPC_URL        defaults to devnet
  * ANCHOR_WALLET  pays the fees (any funded wallet), defaults to ~/.config/solana/id.json
@@ -24,6 +26,7 @@ import { Connection, LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
 import { AfterbellClient } from "../../sdk/client";
 import { planKeeper, runKeeper, type KeeperPlan } from "../keeper/keeper";
 import { hermesFromEnv } from "../keeper/pyth";
+import { kaminoSizer } from "../keeper/kaminoSize";
 import { renewOrders, type RenewalPlan } from "../keeper/renew";
 import { iso, loadKeypair, walletPath as defaultWallet } from "./common";
 
@@ -75,11 +78,11 @@ async function main() {
   }
 
   const payer = loadKeypair(walletPath);
-  const report = await runKeeper({ connection, payer, vault, hermes: hermesFromEnv, log: (line) => console.log(line) });
+  const report = await runKeeper({ connection, payer, vault, hermes: hermesFromEnv, pay: !process.argv.includes("--no-pay"), log: (line) => console.log(line) });
   for (const w of report.waiting) console.log(`waiting ${w.series}: ${w.reason}`);
   if (report.tips > 0n) console.log(`tips earned ${report.tips} units`);
   // Renew once the pool has rolled: the next open's protection sells from the new round.
-  const renewals = await renewOrders({ connection, vault, feeds: d.feeds, api, payer, log: (line) => console.log(line) });
+  const renewals = await renewOrders({ connection, vault, feeds: d.feeds, api, payer, sizeFor: kaminoSizer(api), log: (line) => console.log(line) });
   for (const r of renewals) if (r.decision.action === "skip") console.log(`not renewing ${r.order.address}: ${r.decision.reason}`);
   if (report.settled.length + report.voided.length + report.paid.length === 0 && !report.rolled && renewals.length === 0) console.log("nothing to do");
 }

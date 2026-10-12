@@ -340,7 +340,9 @@ contract AfterbellVaultTest is VaultTest {
     }
 
     function test_process_worksInBatches() public {
-        for (uint256 i; i < 3; ++i) _buy(_quote());
+        for (uint256 i; i < 3; ++i) {
+            _buy(_quote());
+        }
         _settleAt(355e8);
         vm.prank(keeper);
         assertEq(vault.process(address(feed), OPEN, 2), 2);

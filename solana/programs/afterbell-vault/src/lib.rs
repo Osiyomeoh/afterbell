@@ -8,7 +8,8 @@
 //! `roll`, once everything the round sold is paid, at the pool's exact value.
 //! Risk limits cap what a round, and one stock in it, may lock as shares of the
 //! pool at its roll. Whoever pays positions out earns a tip from their premiums.
-//! Standing orders renew a holder's protection each night through any keeper.
+//! Standing orders renew a holder's protection each night through any keeper,
+//! and a sizer the holder names may re-size one within the holder's bounds.
 
 pub mod constants;
 pub mod error;
@@ -31,7 +32,12 @@ declare_id!("J6n3JUafVkx4MpKTnAnZSwTcGFueRrjxgiXWMC4L7RGG");
 pub mod afterbell_vault {
     use super::*;
 
-    pub fn initialize_vault(ctx: Context<InitializeVault>, quoter: Pubkey, params: Params, art_uri: String) -> Result<()> {
+    pub fn initialize_vault(
+        ctx: Context<InitializeVault>,
+        quoter: Pubkey,
+        params: Params,
+        art_uri: String,
+    ) -> Result<()> {
         instructions::admin::handle_initialize_vault(ctx, quoter, params, art_uri)
     }
 
@@ -61,6 +67,18 @@ pub mod afterbell_vault {
 
     pub fn cancel_order(ctx: Context<CancelOrder>) -> Result<()> {
         instructions::orders::handle_cancel_order(ctx)
+    }
+
+    pub fn set_sizer(ctx: Context<SetSizer>, bounds: SizerBounds) -> Result<()> {
+        instructions::sizer::handle_set_sizer(ctx, bounds)
+    }
+
+    pub fn remove_sizer(ctx: Context<RemoveSizer>) -> Result<()> {
+        instructions::sizer::handle_remove_sizer(ctx)
+    }
+
+    pub fn resize_order(ctx: Context<ResizeOrder>, max_shares: u64, start_bps: u16, depth_bps: u16) -> Result<()> {
+        instructions::sizer::handle_resize_order(ctx, max_shares, start_bps, depth_bps)
     }
 
     pub fn renew(ctx: Context<Renew>, q: QuoteArgs) -> Result<()> {

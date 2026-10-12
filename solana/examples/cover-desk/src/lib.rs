@@ -4,8 +4,8 @@
 //! quote is signed for the desk's address, and the transaction carries the
 //! quoter's Ed25519 instruction right before `protect`: Afterbell reads the
 //! instruction before the top-level one, so the check works through CPI too.
-use anchor_lang::prelude::*;
 use afterbell_vault::{cpi::accounts::Buy, program::AfterbellVault, QuoteArgs};
+use anchor_lang::prelude::*;
 
 declare_id!("G1ZWgvzoNehAhqJxmrEYHfUeSXBD3eu9CKprtRCkSQr1");
 

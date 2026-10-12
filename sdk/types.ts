@@ -157,6 +157,19 @@ export type KaminoLoanInfo = {
 /** A wallet's loans against tokenized stocks on Kamino: `GET /api/kamino/loans`. */
 export type KaminoLoansResponse = { wallet: string; loans: KaminoLoanInfo[]; readAt: number };
 
+/** One stock's line in a loan's auto-cover: start and depth in basis points below the close, sized in dollars of stock. */
+export type KaminoCoverLine = { symbol: string; startBps: number; depthBps: number; notionalUsd: number };
+/** A wallet's Kamino auto-cover per loan: `GET /api/kamino/cover`. */
+export type KaminoCoverResponse = {
+  wallet: string;
+  covers: {
+    obligation: string;
+    marketName: string;
+    plan: { action: "cover"; gap: number; lines: KaminoCoverLine[] } | { action: "skip"; reason: string };
+  }[];
+  readAt: number;
+};
+
 /** The hedge on Hyperliquid and its trades: `GET /api/hedge`. */
 export type HedgeInfo = HedgeSummary & { activity: HedgeActivity | null };
 

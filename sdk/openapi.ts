@@ -173,6 +173,15 @@ const paths = {
       responses: { 200: json({ type: "object" }), 400: refused, 503: refused },
     },
   },
+  "/api/kamino/cover": {
+    get: {
+      summary: "Auto-cover for a wallet's Kamino loans: protection that repays what a liquidating opening pushes over the limit",
+      description:
+        "For each loan: protection on each stock starting at the opening that makes the loan liquidatable, on its value times the liquidation threshold, so the payout matches the shortfall down to 10% further; and what it costs until the next open. Loans the stocks can't liquidate within 50%, or that are liquidatable already, are skipped with a reason.",
+      parameters: [query("wallet", "A Solana wallet", true)],
+      responses: { 200: json({ type: "object" }), 400: refused, 503: refused },
+    },
+  },
   "/api/overnight": { get: { summary: "The stock's price since the close, against its protection", parameters: [symbol], responses: { 200: json({ type: "object" }), 404: refused, 503: refused } } },
   "/api/hedge": { get: { summary: "The hedge on Hyperliquid: the short the open protection calls for, the short held, and its trades", responses: { 200: json({ type: "object" }), 503: refused } } },
   "/api/verify": { get: { summary: "Every settlement, renewal, hedge trade and private payment, each with its transaction, and the record night by night", responses: { 200: json({ type: "object" }), 503: refused } } },
@@ -190,6 +199,27 @@ const paths = {
       description: "Tops a Solana devnet wallet up to 1,000 TestUSD and a little SOL when it's short of them. TestUSD has no value.",
       requestBody: { required: true, content: { "application/json": { schema: obj({ owner: str() }) } } },
       responses: { 200: json({ type: "object" }), 400: refused, 404: refused, 500: refused, 503: refused },
+    },
+  },
+  "/api/waitlist": {
+    get: {
+      summary: "The mainnet waitlist",
+      description:
+        "Wallets that asked for Afterbell with real money, read from Solana devnet: each signed a transaction sending nothing to the waitlist's address, with a memo naming a role and up to five stocks. The team's wallets are left out.",
+      responses: {
+        200: json(
+          obj({
+            count: num("Wallets on the list"),
+            byRole: { type: "object", description: "Wallets per role: holder, borrower, protocol, agent" },
+            tried: num("Of them, wallets that bought test cover from the vaults"),
+            testers: num("Outside wallets that bought test cover, on the list or not"),
+            wanted: { type: "array", description: "The stocks the list names, most-named first", items: obj({ symbol: str(), count: num() }) },
+            signups: { type: "array", description: "Each wallet's latest signup, newest first", items: obj({ wallet: str(), role: str(), stocks: { type: "array", items: str() }, signature: str(), time: num("Unix seconds") }) },
+            address: str("The waitlist's address on devnet"),
+          }),
+        ),
+        502: refused,
+      },
     },
   },
   "/api/actions/protect": {

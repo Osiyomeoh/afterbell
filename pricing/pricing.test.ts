@@ -117,6 +117,21 @@ describe("protection", () => {
     expect(near).toBeGreaterThan(far);
   });
 
+  it("never charges less than the minimum rate of the most it pays", () => {
+    // A stock that never moved more than 0.1% overnight: the model alone prices 2%-10% cover at about nothing.
+    const quiet: Opening[] = Array.from({ length: 40 }, (_, i) => ({ from: `d${i}`, to: `d${i + 1}`, close: 100, open: 100 * (1 + (i % 2 ? 0.001 : -0.001)), weekend: false }));
+    const cover: Protection = { shares: 10, upper: 98, lower: 90 };
+    const calm = priceProtection(openingModel(quiet, { annualVol: 0.15, years: 0 }), 100, cover, 0.15, 0.005);
+    expect(calm.expectedPayout * 1.15).toBeLessThan(0.005 * calm.maxPayout);
+    expect(calm.premium).toBeCloseTo(0.005 * calm.maxPayout, 12);
+    // TSLA's own history prices well above the floor, so the floor changes nothing there.
+    const m = openingModel(TSLA, { annualVol: 0.6, years: 0 });
+    const tsla = priceProtection(m, 371.54, p, 0.15, 0.005);
+    expect(tsla.premium).toBeCloseTo(tsla.expectedPayout * 1.15, 12);
+    expect(() => priceProtection(m, 100, cover, 0.15, -0.01)).toThrow();
+    expect(() => priceProtection(m, 100, cover, 0.15, 1)).toThrow();
+  });
+
   it("rejects malformed protection", () => {
     const m = openingModel(TSLA, { annualVol: 0.6, years: 0 });
     expect(() => priceProtection(m, 100, { shares: 0, upper: 99, lower: 95 }, 0)).toThrow();

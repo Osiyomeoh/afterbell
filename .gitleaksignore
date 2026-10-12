@@ -2,3 +2,5 @@
 d775a59bbfcf53da9d25243af5fcaf80496bfa3b:solana/deployments/devnet.json:generic-api-key:8
 d775a59bbfcf53da9d25243af5fcaf80496bfa3b:solana/deployments/devnet-v1.json:generic-api-key:8
 1e86d63a4758f9e43f4e4747168f481cc68e03a1:solana/deployments/devnet.json:generic-api-key:8
+# A public Kamino mainnet reserve account, copied into the local fork of its xStocks market.
+a3a0a3f6994f5bed805a51b0ae3250a73f40569f:solana/scripts/kaminoFork.ts:generic-api-key:37
