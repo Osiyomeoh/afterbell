@@ -12,7 +12,7 @@ const series = (address: string, state: SeriesView["state"], openTs = OPEN): Ser
   lowestLower: 34_000_000_000n,
   highestUpper: 37_000_000_000n,
 });
-const position = (address: string, s: string): PositionView => ({ address, series: s, mint: "M" });
+const position = (address: string, s: string): PositionView => ({ address, series: s, mint: "M", buyer: "B" });
 
 describe("keeper plan", () => {
   it("waits for the open, then settles", () => {

@@ -6,7 +6,14 @@
  */
 import * as anchorModule from "@anchor-lang/core";
 import type { AnchorProvider, Program } from "@anchor-lang/core";
-import { ASSOCIATED_TOKEN_PROGRAM_ID, getAccount, getAssociatedTokenAddressSync, TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID } from "@solana/spl-token";
+import {
+  ASSOCIATED_TOKEN_PROGRAM_ID,
+  getAccount,
+  getAssociatedTokenAddressSync,
+  TOKEN_2022_PROGRAM_ID,
+  TOKEN_PROGRAM_ID,
+  TokenAccountNotFoundError,
+} from "@solana/spl-token";
 import {
   Connection,
   Ed25519Program,
@@ -358,9 +365,20 @@ export function processInstruction(
 
 /**
  * Who holds a position's NFT now: the owner of the one account holding it
- * (the mint's supply is one), or null if nobody does.
+ * (the mint's supply is one), or null if nobody does. `likely` (the buyer,
+ * who usually still has it) is checked first with a plain account read; only
+ * an NFT that has moved needs getTokenLargestAccounts, which devnet's public
+ * RPC refuses (429 "Too many requests for a specific RPC call", 28 Sep).
  */
-export async function holderOf(connection: Connection, mint: PublicKey): Promise<{ owner: PublicKey; account: PublicKey } | null> {
+export async function holderOf(connection: Connection, mint: PublicKey, likely?: PublicKey): Promise<{ owner: PublicKey; account: PublicKey } | null> {
+  if (likely) {
+    const address = getAssociatedTokenAddressSync(mint, likely, true, TOKEN_2022_PROGRAM_ID);
+    const account = await getAccount(connection, address, "confirmed", TOKEN_2022_PROGRAM_ID).catch((e: unknown) => {
+      if (e instanceof TokenAccountNotFoundError) return null;
+      throw e;
+    });
+    if (account?.amount === 1n) return { owner: account.owner, account: address };
+  }
   const { value } = await connection.getTokenLargestAccounts(mint, "confirmed");
   const held = value.find((a) => a.amount === "1");
   if (!held) return null;

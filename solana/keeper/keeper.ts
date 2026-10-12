@@ -93,7 +93,12 @@ async function loadVault(program: VaultProgram, vault: PublicKey) {
       }),
     ),
     positions: unpaid.map((p) => ({
-      view: { address: p.publicKey.toBase58(), series: p.account.series.toBase58(), mint: p.account.mint.toBase58() } as PositionView,
+      view: {
+        address: p.publicKey.toBase58(),
+        series: p.account.series.toBase58(),
+        mint: p.account.mint.toBase58(),
+        buyer: p.account.buyer.toBase58(),
+      } as PositionView,
       account: p.account,
     })),
   };
@@ -122,7 +127,7 @@ async function payeesFor(connection: Connection, collateralMint: PublicKey, posi
   return Promise.all(
     positions.map(async (p) => {
       const mint = new PublicKey(p.mint);
-      const holder = await holderOf(connection, mint);
+      const holder = await holderOf(connection, mint, new PublicKey(p.buyer));
       const payee: Payee = holder
         ? { position: new PublicKey(p.address), nftAccount: holder.account, payeeToken: getAssociatedTokenAddressSync(collateralMint, holder.owner, true) }
         : { position: new PublicKey(p.address), nftAccount: mint, payeeToken: mint };

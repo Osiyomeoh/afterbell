@@ -8,7 +8,7 @@
   "vaultToken": "7C3tXqyTssULKhhyxdgkb47HuxBfLfFqLaB2P4jn2qVc",
   "shareMint": "3BXDveNKiJKnagz9geNL9Y9QBmuhyjd21QbeGbgig7Wd",
   "shareEscrow": "5jbWE5dRS5Na9sDaWGQzqNwd6zmYFcg5zYmpwqf45AxB",
-  "artUri": "http://localhost:3100/api/position-art/solana/",
+  "artUri": "https://afterbell-nine.vercel.app/api/position-art/solana/",
   "feeds": {
     "TSLA": {
       "feedId": "0x16dad506d7db8da01c87581c87ca897a012a153557d4d578c3b9c9e1bc0632f1",
