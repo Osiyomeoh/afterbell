@@ -13,6 +13,10 @@
 
 **Live app: [afterbell-nine.vercel.app](https://afterbell-nine.vercel.app)** (test money; no wallet needed, "Use a test wallet" funds one in the browser).
 
+**Videos: [the demo](https://youtu.be/CzoUg8hU5XQ) (2:43) and [the week 4 update](https://youtu.be/vXX5spJCBs4) (1:14).**
+
+<a href="https://youtu.be/CzoUg8hU5XQ"><img src="https://img.youtube.com/vi/CzoUg8hU5XQ/maxresdefault.jpg" alt="Afterbell demo (2:43)" width="49%"></a> <a href="https://youtu.be/vXX5spJCBs4"><img src="https://img.youtube.com/vi/vXX5spJCBs4/maxresdefault.jpg" alt="Afterbell week 4 update (1:14)" width="49%"></a>
+
 Tokenized stocks trade 24/7; the stock doesn't. Whatever happens while the exchange is shut lands all at once on the next opening print, and a token holder has no put to buy. Afterbell sells that put: a fixed premium, a fixed maximum payout, settled on the first oracle price at or after the 09:30 ET open.
 
 Built for Colosseum's Crypto World's Fair (September to October 2026). For judges: [docs/JUDGES.md](docs/JUDGES.md), the project by the judging criteria, each claim with the test that checks it. `npm ci && npm run prove` replays TSLA's worst opening against a snapshot of Kamino's market, with no RPC. Pitch deck, the business and the path to $10M a year in fees: [docs/pitch.md](docs/pitch.md) ([PDF](docs/pitch/afterbell-pitch-deck.pdf)).
